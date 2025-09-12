@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------
+// User & OTP
+// ---------------------------
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  username  String?  @unique
+  password  String
+  name      String
+  role      Role     // ✅ no default here
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Otp {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  code      String
+  expiresAt DateTime
+}
+
+// ---------------------------
+// Area, Customer, Loan, Repayment
+// ---------------------------
+
+model Area {
+  id        String     @id @default(cuid())
+  areaName  String
+  shortCode String
+  pincode   String
+  createdAt DateTime   @default(now())
+
+  customers Customer[] // One-to-many: Area → Customers
+}
+
+model Customer {
+  id                 String   @id @default(uuid())
+  customerName       String
+  spouseName         String?
+  parentName         String?
+  mobile             String
+  dob                DateTime
+  aadhar             String
+  gender             String
+  address            String
+  guarantorName      String?
+  guarantorAadhar    String?
+  areaId             String
+  customerCode       String   @unique
+  photoUrl           String?
+  aadharDocumentUrl  String?
+  incomeProofUrl     String?
+  residenceProofUrl  String?
+  qrUrl              String?          // ✅ QR code URL
+  createdAt          DateTime @default(now())
+
+  area      Area     @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  loans     Loan[]   // One-to-many: Customer → Loans
+}
+
+enum LoanStatus {
+  ACTIVE
+  CLOSED
+}
+
+model Loan {
+  id             String     @id @default(uuid())
+  customerId     String
+  area           String
+  amount         Int      // 👈 this is what Prisma expects
+  rate           Float
+  tenure         Int
+  loanDate       DateTime
+  createdAt      DateTime   @default(now())
+  loanAmount     Float
+  pendingAmount  Float
+  interestAmount Float?
+  documentUrl    String?
+  status         LoanStatus @default(ACTIVE)
+
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  repayments Repayment[]
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  BANK_TRANSFER
+  OTHER
+}
+
+model Repayment {
+  id             Int            @id @default(autoincrement())
+  loanId         String
+  amount         Float
+  pendingAmount  Float
+  dueDate        DateTime
+  repaymentDate  DateTime?
+  paymentMethod  PaymentMethod
+  createdAt      DateTime       @default(now())
+
+  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+}
+
+model Expense {
+  id            String   @id @default(cuid())
+  invoiceNumber String?
+  title         String
+  amount        Float
+  date          DateTime
+  notes         String?
+  createdAt     DateTime @default(now())
+}
+
+// ---------------------------
+// Enums
+// ---------------------------
+
+enum Role {
+  ADMIN
+  AGENT
+}
