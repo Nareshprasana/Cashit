@@ -1,10 +1,11 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
+// schema.prisma
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("cashit_PRISMA_DATABASE_URL") // <-- must match your Vercel env var
+}
+
+generator client {
+  provider = "prisma-client-js"
 }
 
 // ---------------------------
