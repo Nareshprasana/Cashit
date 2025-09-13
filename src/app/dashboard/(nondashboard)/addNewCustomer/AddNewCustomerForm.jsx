@@ -35,6 +35,15 @@ const AddNewCustomerForm = () => {
   const [photoPreview, setPhotoPreview] = useState(null);
   const [successCustomer, setSuccessCustomer] = useState(null);
 
+  // ⏳ Cooldown & click-limit state
+  const [isCooldown, setIsCooldown] = useState(false);
+  const [hasClicked, setHasClicked] = useState(false);
+
+  // reset click lock whenever step changes
+  useEffect(() => {
+    setHasClicked(false);
+  }, [step]);
+
   useEffect(() => {
     return () => {
       if (photoPreview) URL.revokeObjectURL(photoPreview);
@@ -69,6 +78,10 @@ const AddNewCustomerForm = () => {
   };
 
   const nextStep = () => {
+    if (isCooldown || hasClicked) return; // 🚫 block spam clicks
+    setHasClicked(true);
+    setIsCooldown(true);
+
     const { photo, aadharDocument, incomeProof, residenceProof, ...formData } = form;
 
     const result = CustomerSchema.omit({
@@ -84,13 +97,22 @@ const AddNewCustomerForm = () => {
       setErrors([]);
       setStep(2);
     }
+
+    // reset cooldown after 2s
+    setTimeout(() => setIsCooldown(false), 2000);
   };
 
   const handleSubmit = async () => {
+    if (isCooldown || hasClicked) return; // 🚫 block spam clicks
+    setHasClicked(true);
+    setIsCooldown(true);
+
     const result = CustomerSchema.safeParse(form);
     if (!result.success) {
       setErrors(result.error.errors);
       setStep(1);
+      setIsCooldown(false);
+      setHasClicked(false);
       return;
     }
 
@@ -111,8 +133,11 @@ const AddNewCustomerForm = () => {
 
       if (res.ok) {
         const responseData = await res.json();
-        setSuccessCustomer(responseData.customer);
-        setStep(3);
+        if (responseData?.customer) {
+          setSuccessCustomer(responseData.customer);
+          setStep(3);
+        }
+        // reset form
         setForm({
           customerName: "",
           spouseName: "",
@@ -141,6 +166,7 @@ const AddNewCustomerForm = () => {
       alert("❌ Something went wrong.");
     } finally {
       setIsSubmitting(false);
+      setTimeout(() => setIsCooldown(false), 2000); // release cooldown after 2s
     }
   };
 
@@ -168,6 +194,13 @@ const AddNewCustomerForm = () => {
               photoPreview={photoPreview}
               setPhotoPreview={setPhotoPreview}
             />
+            <button
+              type="submit"
+              disabled={isCooldown || isSubmitting}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+            >
+              Next
+            </button>
           </form>
         )}
         {step === 2 && (
@@ -182,6 +215,13 @@ const AddNewCustomerForm = () => {
               setStep={setStep}
               isSubmitting={isSubmitting}
             />
+            <button
+              type="submit"
+              disabled={isCooldown || isSubmitting}
+              className="mt-4 px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
+            >
+              {isSubmitting ? "Saving..." : "Submit"}
+            </button>
           </form>
         )}
         {step === 3 &&
@@ -190,7 +230,9 @@ const AddNewCustomerForm = () => {
               <Loader2 className="h-10 w-10 animate-spin text-gray-500" />
             </div>
           ) : (
-            <StepThreeSuccess setStep={setStep} customer={successCustomer} />
+            successCustomer && (
+              <StepThreeSuccess setStep={setStep} customer={successCustomer} />
+            )
           ))}
       </AnimatePresence>
     </motion.div>
