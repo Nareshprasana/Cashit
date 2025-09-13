@@ -44,9 +44,16 @@ const AddNewCustomerForm = () => {
     setHasClicked(false);
   }, [step]);
 
+  // safe preview cleanup
   useEffect(() => {
     return () => {
-      if (photoPreview) URL.revokeObjectURL(photoPreview);
+      if (photoPreview) {
+        try {
+          URL.revokeObjectURL(photoPreview);
+        } catch (e) {
+          console.warn("Preview revoke failed", e);
+        }
+      }
     };
   }, [photoPreview]);
 
@@ -82,7 +89,8 @@ const AddNewCustomerForm = () => {
     setHasClicked(true);
     setIsCooldown(true);
 
-    const { photo, aadharDocument, incomeProof, residenceProof, ...formData } = form;
+    const { photo, aadharDocument, incomeProof, residenceProof, ...formData } =
+      form;
 
     const result = CustomerSchema.omit({
       photo: true,
@@ -92,7 +100,7 @@ const AddNewCustomerForm = () => {
     }).safeParse(formData);
 
     if (!result.success) {
-      setErrors(result.error.errors);
+      setErrors(result.error?.errors || []);
     } else {
       setErrors([]);
       setStep(2);
@@ -109,7 +117,7 @@ const AddNewCustomerForm = () => {
 
     const result = CustomerSchema.safeParse(form);
     if (!result.success) {
-      setErrors(result.error.errors);
+      setErrors(result.error?.errors || []);
       setStep(1);
       setIsCooldown(false);
       setHasClicked(false);
@@ -120,8 +128,12 @@ const AddNewCustomerForm = () => {
 
     const formData = new FormData();
     Object.entries(form).forEach(([key, value]) => {
-      if (value !== null) {
-        formData.append(key, value);
+      if (value !== null && value !== undefined && value !== "") {
+        if (value instanceof File || value instanceof Blob) {
+          formData.append(key, value);
+        } else {
+          formData.append(key, String(value));
+        }
       }
     });
 
@@ -181,59 +193,68 @@ const AddNewCustomerForm = () => {
       <h1 className="text-xl font-bold mb-4">Add New Customer</h1>
       <AnimatePresence mode="wait">
         {step === 1 && (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              nextStep();
-            }}
-          >
-            <StepOneForm
-              form={form}
-              errors={errors}
-              onChange={handleChange}
-              photoPreview={photoPreview}
-              setPhotoPreview={setPhotoPreview}
-            />
-            <button
-              type="submit"
-              disabled={isCooldown || isSubmitting}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+          <motion.div key="step1">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                nextStep();
+              }}
             >
-              Next
-            </button>
-          </form>
+              <StepOneForm
+                form={form}
+                errors={errors}
+                onChange={handleChange}
+                photoPreview={photoPreview}
+                setPhotoPreview={setPhotoPreview}
+              />
+              <button
+                type="submit"
+                disabled={isCooldown || isSubmitting}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+              >
+                Next
+              </button>
+            </form>
+          </motion.div>
         )}
+
         {step === 2 && (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSubmit();
-            }}
-          >
-            <StepTwoPreview
-              form={form}
-              setStep={setStep}
-              isSubmitting={isSubmitting}
-            />
-            <button
-              type="submit"
-              disabled={isCooldown || isSubmitting}
-              className="mt-4 px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
+          <motion.div key="step2">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSubmit();
+              }}
             >
-              {isSubmitting ? "Saving..." : "Submit"}
-            </button>
-          </form>
+              <StepTwoPreview
+                form={form}
+                setStep={setStep}
+                isSubmitting={isSubmitting}
+              />
+              <button
+                type="submit"
+                disabled={isCooldown || isSubmitting}
+                className="mt-4 px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
+              >
+                {isSubmitting ? "Saving..." : "Submit"}
+              </button>
+            </form>
+          </motion.div>
         )}
-        {step === 3 &&
-          (isSubmitting ? (
-            <div className="flex justify-center items-center h-48">
-              <Loader2 className="h-10 w-10 animate-spin text-gray-500" />
-            </div>
-          ) : (
-            successCustomer && (
-              <StepThreeSuccess setStep={setStep} customer={successCustomer} />
-            )
-          ))}
+
+        {step === 3 && (
+          <motion.div key="step3">
+            {isSubmitting ? (
+              <div className="flex justify-center items-center h-48">
+                <Loader2 className="h-10 w-10 animate-spin text-gray-500" />
+              </div>
+            ) : (
+              successCustomer && (
+                <StepThreeSuccess setStep={setStep} customer={successCustomer} />
+              )
+            )}
+          </motion.div>
+        )}
       </AnimatePresence>
     </motion.div>
   );
