@@ -69,13 +69,7 @@ const AddNewCustomerForm = () => {
   };
 
   const nextStep = () => {
-    const {
-      photo,
-      aadharDocument,
-      incomeProof,
-      residenceProof,
-      ...formData
-    } = form;
+    const { photo, aadharDocument, incomeProof, residenceProof, ...formData } = form;
 
     const result = CustomerSchema.omit({
       photo: true,
@@ -104,7 +98,9 @@ const AddNewCustomerForm = () => {
 
     const formData = new FormData();
     Object.entries(form).forEach(([key, value]) => {
-      formData.append(key, value);
+      if (value !== null) {
+        formData.append(key, value);
+      }
     });
 
     try {
@@ -114,7 +110,6 @@ const AddNewCustomerForm = () => {
       });
 
       if (res.ok) {
-        // FIX: Extract the 'customer' object from the response JSON
         const responseData = await res.json();
         setSuccessCustomer(responseData.customer);
         setStep(3);
@@ -189,15 +184,14 @@ const AddNewCustomerForm = () => {
             />
           </form>
         )}
-        {step === 3 && (
-          isSubmitting ? (
+        {step === 3 &&
+          (isSubmitting ? (
             <div className="flex justify-center items-center h-48">
               <Loader2 className="h-10 w-10 animate-spin text-gray-500" />
             </div>
           ) : (
             <StepThreeSuccess setStep={setStep} customer={successCustomer} />
-          )
-        )}
+          ))}
       </AnimatePresence>
     </motion.div>
   );
