@@ -4,6 +4,9 @@ import prisma from "@/lib/prisma";
 import QRCode from "qrcode";
 import { put } from "@vercel/blob";
 
+// ✅ Force Node runtime so env vars work
+export const runtime = "nodejs";
+
 // 🔹 Helper to upload a file to Vercel Blob
 async function saveFile(file, prefix) {
   if (!file || typeof file === "string") return null;
@@ -12,7 +15,11 @@ async function saveFile(file, prefix) {
   const filename = `${prefix}-${Date.now()}.${ext}`;
 
   // Upload directly to Vercel Blob
-  const blob = await put(filename, file, { access: "public" });
+  const blob = await put(filename, file, {
+    access: "public",
+    token: process.env.BLOB_READ_WRITE_TOKEN, // ✅ Explicitly pass token
+  });
+
   return blob.url;
 }
 
@@ -21,7 +28,11 @@ async function saveQRCode(data, filenamePrefix) {
   const buffer = await QRCode.toBuffer(data, { type: "png" });
   const filename = `${filenamePrefix}-${Date.now()}.png`;
 
-  const blob = await put(filename, buffer, { access: "public" });
+  const blob = await put(filename, buffer, {
+    access: "public",
+    token: process.env.BLOB_READ_WRITE_TOKEN, // ✅ Explicitly pass token
+  });
+
   return blob.url;
 }
 
