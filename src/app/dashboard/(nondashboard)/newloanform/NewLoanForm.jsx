@@ -46,11 +46,11 @@ const NewLoanForm = () => {
   const [documentFile, setDocumentFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [scanning, setScanning] = useState(false);
-  const [customerDetails, setCustomerDetails] = useState(null); // to store customer data after QR scan
+  const [customerDetails, setCustomerDetails] = useState(null);
 
-  // Fetch all areas
+  // ✅ Fetch areas correctly
   useEffect(() => {
-    fetch("/api/customers/by-area")
+    fetch("/api/area")
       .then((res) => res.json())
       .then((data) => {
         setAreas(Array.isArray(data) ? data : []);
@@ -58,7 +58,7 @@ const NewLoanForm = () => {
       .catch(() => toast.error("Failed to fetch areas"));
   }, []);
 
-  // Fetch customers for the selected area
+  // ✅ Fetch customers for the selected area
   useEffect(() => {
     if (form.area) {
       fetch(`/api/customers/by-area/${form.area}`)
@@ -225,13 +225,18 @@ const NewLoanForm = () => {
                   onClick={() => setScanning((prev) => !prev)}
                   className="flex items-center gap-2 h-10"
                 >
-                  {scanning ? <ArrowLeft className="h-4 w-4" /> : <Scan className="h-4 w-4" />}
+                  {scanning ? (
+                    <ArrowLeft className="h-4 w-4" />
+                  ) : (
+                    <Scan className="h-4 w-4" />
+                  )}
                   {scanning ? "Close Scanner" : "Scan Customer QR"}
                 </Button>
                 {scanning && (
                   <div className="mt-4 border rounded-lg overflow-hidden">
                     <QRScanner
                       onScan={async (code) => {
+                        if (!code) return;
                         let customerCode = code;
                         try {
                           const url = new URL(code);
@@ -239,7 +244,7 @@ const NewLoanForm = () => {
                         } catch {}
                         const customerData = await fetchCustomerDetails(customerCode);
                         if (customerData) {
-                          // Fetch customers for the scanned area
+                          // ✅ Fetch customers for the scanned area
                           const customersRes = await fetch(
                             `/api/customers/by-area/${customerData.areaId}`
                           );
@@ -251,7 +256,7 @@ const NewLoanForm = () => {
                             : [];
                           setCustomers(normalizedCustomers);
 
-                          // Set form values with correct customerId
+                          // ✅ Set form values with correct customerId
                           setForm((prev) => ({
                             ...prev,
                             area: customerData.areaId || "",
@@ -268,7 +273,7 @@ const NewLoanForm = () => {
                         } else {
                           toast.error("Customer not found or unable to load details.");
                         }
-                        setScanning(false);
+                        setTimeout(() => setScanning(false), 150); // ✅ safe close
                       }}
                       onError={(err) => toast.error(err)}
                     />
@@ -292,7 +297,9 @@ const NewLoanForm = () => {
                       <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                       <Select
                         value={form.area}
-                        onValueChange={(value) => handleSelectChange("area", value)}
+                        onValueChange={(value) =>
+                          handleSelectChange("area", value)
+                        }
                       >
                         <SelectTrigger className="w-full h-11 pl-9">
                           <SelectValue placeholder="Select an area" />
@@ -306,24 +313,37 @@ const NewLoanForm = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    {errors.area && <p className="text-red-500 text-xs mt-1">{errors.area}</p>}
+                    {errors.area && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.area}
+                      </p>
+                    )}
                   </div>
 
                   {/* Customer Selection */}
                   <div className="space-y-2">
-                    <Label htmlFor="customerId" className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor="customerId"
+                      className="text-sm font-medium text-gray-700"
+                    >
                       Customer <span className="text-red-500">*</span>
                     </Label>
                     <div className="relative">
                       <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                       <Select
                         value={form.customerId}
-                        onValueChange={(value) => handleSelectChange("customerId", value)}
+                        onValueChange={(value) =>
+                          handleSelectChange("customerId", value)
+                        }
                         disabled={!form.area}
                       >
                         <SelectTrigger className="w-full h-11 pl-9">
                           <SelectValue
-                            placeholder={form.area ? "Select a customer" : "First select an area"}
+                            placeholder={
+                              form.area
+                                ? "Select a customer"
+                                : "First select an area"
+                            }
                           />
                         </SelectTrigger>
                         <SelectContent>
@@ -335,7 +355,11 @@ const NewLoanForm = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    {errors.customerId && <p className="text-red-500 text-xs mt-1">{errors.customerId}</p>}
+                    {errors.customerId && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.customerId}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -348,7 +372,10 @@ const NewLoanForm = () => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="amount" className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor="amount"
+                      className="text-sm font-medium text-gray-700"
+                    >
                       Loan Amount <span className="text-red-500">*</span>
                     </Label>
                     <div className="relative">
@@ -363,11 +390,18 @@ const NewLoanForm = () => {
                         className="w-full pl-9 h-11"
                       />
                     </div>
-                    {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount}</p>}
+                    {errors.amount && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.amount}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="rate" className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor="rate"
+                      className="text-sm font-medium text-gray-700"
+                    >
                       Interest Rate (%) <span className="text-red-500">*</span>
                     </Label>
                     <div className="relative">
@@ -382,11 +416,18 @@ const NewLoanForm = () => {
                         className="w-full pl-9 h-11"
                       />
                     </div>
-                    {errors.rate && <p className="text-red-500 text-xs mt-1">{errors.rate}</p>}
+                    {errors.rate && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.rate}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="tenure" className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor="tenure"
+                      className="text-sm font-medium text-gray-700"
+                    >
                       Tenure (Months) <span className="text-red-500">*</span>
                     </Label>
                     <div className="relative">
@@ -401,11 +442,18 @@ const NewLoanForm = () => {
                         className="w-full pl-9 h-11"
                       />
                     </div>
-                    {errors.tenure && <p className="text-red-500 text-xs mt-1">{errors.tenure}</p>}
+                    {errors.tenure && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.tenure}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="loanDate" className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor="loanDate"
+                      className="text-sm font-medium text-gray-700"
+                    >
                       Loan Date <span className="text-red-500">*</span>
                     </Label>
                     <Input
@@ -449,7 +497,9 @@ const NewLoanForm = () => {
               {/* Submit Button */}
               <div className="pt-4 flex justify-end">
                 <Button type="submit" disabled={isSubmitting} className="h-11 px-6">
-                  {isSubmitting ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : null}
+                  {isSubmitting ? (
+                    <Loader2 className="animate-spin h-5 w-5 mr-2" />
+                  ) : null}
                   Submit Loan
                 </Button>
               </div>
