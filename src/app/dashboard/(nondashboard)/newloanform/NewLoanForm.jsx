@@ -242,47 +242,42 @@ const NewLoanForm = () => {
                           const url = new URL(code);
                           customerCode = url.pathname.split("/").pop();
                         } catch {}
-
                         const customerData = await fetchCustomerDetails(
                           customerCode
                         );
                         if (customerData) {
-                          // Fetch customers for the scanned area
                           const customersRes = await fetch(
                             `/api/customers/by-area/${customerData.areaId}`
                           );
                           const customersForArea = await customersRes.json();
-                          const normalizedCustomers = Array.isArray(
-                            customersForArea
-                          )
-                            ? customersForArea
-                            : Array.isArray(customersForArea.customers)
-                            ? customersForArea.customers
-                            : [];
-                          setCustomers(normalizedCustomers);
-
-                          // ✅ Set BOTH customerId and customerCode in form
-                          setForm((prev) => ({
-                            ...prev,
+                          setCustomers(
+                            Array.isArray(customersForArea)
+                              ? customersForArea
+                              : []
+                          );
+                          const loan = customerData?.loans?.[0] || {};
+                          setCustomerDetails({ ...customerData, ...loan });
+                          setFormData({
                             area: customerData.areaId || "",
-                            customerId:
-                              normalizedCustomers.find(
-                                (c) =>
-                                  c.customerCode === customerData.customerCode
-                              )?.id || "",
-                            customerCode: customerData.customerCode || "",
-                          }));
-
-                          setCustomerDetails(customerData);
+                            customerCode: customerData.customerCode || ""
+                          });
                           toast.success(
-                            `Customer ${customerData.customerCode} details loaded successfully`
+                            `Details for customer ${customerData.customerCode} loaded successfully.`
                           );
                         } else {
                           toast.error(
                             "Customer not found or unable to load details."
                           );
+                          setFormData((prev) => ({
+                            ...prev,
+                            customerCode: customerCode,
+                            area: "",
+                          }));
+                          setCustomers([]);
                         }
-                        setScanning(false);
+                        setTimeout(() => {
+                          setScanning(false);
+                        }, 100);
                       }}
                       onError={(err) => toast.error(err)}
                     />
