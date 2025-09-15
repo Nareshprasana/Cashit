@@ -64,7 +64,12 @@ const NewLoanForm = () => {
       fetch(`/api/customers/by-area/${form.area}`)
         .then((res) => res.json())
         .then((data) => {
-          setCustomers(Array.isArray(data) ? data : data.customers ?? []);
+          const customersList = Array.isArray(data)
+            ? data
+            : Array.isArray(data.customers)
+            ? data.customers
+            : [];
+          setCustomers(customersList);
         })
         .catch(() => {
           toast.error("Failed to fetch customers");
@@ -234,17 +239,29 @@ const NewLoanForm = () => {
                         } catch {}
                         const customerData = await fetchCustomerDetails(customerCode);
                         if (customerData) {
+                          // Fetch customers for the scanned area
                           const customersRes = await fetch(
                             `/api/customers/by-area/${customerData.areaId}`
                           );
                           const customersForArea = await customersRes.json();
-                          setCustomers(Array.isArray(customersForArea) ? customersForArea : []);
-                          setCustomerDetails(customerData);
+                          const normalizedCustomers = Array.isArray(customersForArea)
+                            ? customersForArea
+                            : Array.isArray(customersForArea.customers)
+                            ? customersForArea.customers
+                            : [];
+                          setCustomers(normalizedCustomers);
+
+                          // Set form values with correct customerId
                           setForm((prev) => ({
                             ...prev,
                             area: customerData.areaId || "",
-                            customerId: customerData.id || "",
+                            customerId:
+                              normalizedCustomers.find(
+                                (c) => c.customerCode === customerData.customerCode
+                              )?.id || "",
                           }));
+
+                          setCustomerDetails(customerData);
                           toast.success(
                             `Customer ${customerData.customerCode} details loaded successfully`
                           );
