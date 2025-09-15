@@ -164,7 +164,7 @@ const StepThreeSuccess = ({ setStep, customer }) => {
           <PlusCircle className="h-4 w-4" /> Add Another
         </button>
 
-        <Link href="/newloanform">
+        <Link href="/dashboard/newloanform">
           <button className="flex items-center gap-2 px-6 py-2 bg-gray-600 text-white rounded shadow hover:bg-gray-700 transition">
             <FileText className="h-4 w-4" /> Loan New
           </button>
