@@ -7,6 +7,8 @@ import { put } from "@vercel/blob";
 // ✅ Force Node runtime so env vars work
 export const runtime = "nodejs";
 
+console.log("BLOB_READ_WRITE_TOKEN exists:", !!process.env.BLOB_READ_WRITE_TOKEN);
+
 // 🔹 Helper to upload a file to Vercel Blob
 async function saveFile(file, prefix) {
   if (!file || typeof file === "string") return null;
