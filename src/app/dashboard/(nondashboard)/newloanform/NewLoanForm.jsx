@@ -36,6 +36,7 @@ const NewLoanForm = () => {
   const [form, setForm] = useState({
     area: "",
     customerId: "",
+    customerCode: "",
     amount: "",
     rate: "",
     tenure: "",
@@ -236,34 +237,40 @@ const NewLoanForm = () => {
                   <div className="mt-4 border rounded-lg overflow-hidden">
                     <QRScanner
                       onScan={async (code) => {
-                        if (!code) return;
                         let customerCode = code;
                         try {
                           const url = new URL(code);
                           customerCode = url.pathname.split("/").pop();
                         } catch {}
-                        const customerData = await fetchCustomerDetails(customerCode);
+
+                        const customerData = await fetchCustomerDetails(
+                          customerCode
+                        );
                         if (customerData) {
-                          // ✅ Fetch customers for the scanned area
+                          // Fetch customers for the scanned area
                           const customersRes = await fetch(
                             `/api/customers/by-area/${customerData.areaId}`
                           );
                           const customersForArea = await customersRes.json();
-                          const normalizedCustomers = Array.isArray(customersForArea)
+                          const normalizedCustomers = Array.isArray(
+                            customersForArea
+                          )
                             ? customersForArea
                             : Array.isArray(customersForArea.customers)
                             ? customersForArea.customers
                             : [];
                           setCustomers(normalizedCustomers);
 
-                          // ✅ Set form values with correct customerId
+                          // ✅ Set BOTH customerId and customerCode in form
                           setForm((prev) => ({
                             ...prev,
                             area: customerData.areaId || "",
                             customerId:
                               normalizedCustomers.find(
-                                (c) => c.customerCode === customerData.customerCode
+                                (c) =>
+                                  c.customerCode === customerData.customerCode
                               )?.id || "",
+                            customerCode: customerData.customerCode || "",
                           }));
 
                           setCustomerDetails(customerData);
@@ -271,9 +278,11 @@ const NewLoanForm = () => {
                             `Customer ${customerData.customerCode} details loaded successfully`
                           );
                         } else {
-                          toast.error("Customer not found or unable to load details.");
+                          toast.error(
+                            "Customer not found or unable to load details."
+                          );
                         }
-                        setTimeout(() => setScanning(false), 150); // ✅ safe close
+                        setScanning(false);
                       }}
                       onError={(err) => toast.error(err)}
                     />
@@ -290,7 +299,10 @@ const NewLoanForm = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Area Selection */}
                   <div className="space-y-2">
-                    <Label htmlFor="area" className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor="area"
+                      className="text-sm font-medium text-gray-700"
+                    >
                       Area <span className="text-red-500">*</span>
                     </Label>
                     <div className="relative">
@@ -314,9 +326,7 @@ const NewLoanForm = () => {
                       </Select>
                     </div>
                     {errors.area && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.area}
-                      </p>
+                      <p className="text-red-500 text-xs mt-1">{errors.area}</p>
                     )}
                   </div>
 
@@ -417,9 +427,7 @@ const NewLoanForm = () => {
                       />
                     </div>
                     {errors.rate && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.rate}
-                      </p>
+                      <p className="text-red-500 text-xs mt-1">{errors.rate}</p>
                     )}
                   </div>
 
@@ -496,7 +504,11 @@ const NewLoanForm = () => {
 
               {/* Submit Button */}
               <div className="pt-4 flex justify-end">
-                <Button type="submit" disabled={isSubmitting} className="h-11 px-6">
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="h-11 px-6"
+                >
                   {isSubmitting ? (
                     <Loader2 className="animate-spin h-5 w-5 mr-2" />
                   ) : null}
