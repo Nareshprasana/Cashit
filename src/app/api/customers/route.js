@@ -16,10 +16,9 @@ async function saveFile(file, prefix) {
   const ext = String(file.name || "").split(".").pop() || "bin";
   const filename = `${prefix}-${Date.now()}.${ext}`;
 
-  // Upload directly to Vercel Blob
   const blob = await put(filename, file, {
     access: "public",
-    token: process.env.BLOB_READ_WRITE_TOKEN, // ✅ Explicitly pass token
+    token: process.env.BLOB_READ_WRITE_TOKEN,
   });
 
   return blob.url;
@@ -32,7 +31,7 @@ async function saveQRCode(data, filenamePrefix) {
 
   const blob = await put(filename, buffer, {
     access: "public",
-    token: process.env.BLOB_READ_WRITE_TOKEN, // ✅ Explicitly pass token
+    token: process.env.BLOB_READ_WRITE_TOKEN,
   });
 
   return blob.url;
@@ -52,17 +51,23 @@ export async function GET(req) {
       return NextResponse.json({ total }, { status: 200 });
     }
 
+    // Only apply loan filter if min or max is provided
+    const loanFilter =
+      min || max
+        ? {
+            some: {
+              amount: {
+                gte: min ? parseFloat(min) : undefined,
+                lte: max ? parseFloat(max) : undefined,
+              },
+            },
+          }
+        : undefined;
+
     const customers = await prisma.customer.findMany({
       where: {
-        ...(areaId ? { areaId } : {}),
-        loans: {
-          some: {
-            amount: {
-              gte: min ? parseFloat(min) : undefined,
-              lte: max ? parseFloat(max) : undefined,
-            },
-          },
-        },
+        ...(areaId ? { areaId: parseInt(areaId, 10) } : {}),
+        ...(loanFilter ? { loans: loanFilter } : {}),
       },
       include: {
         area: true,
@@ -77,11 +82,12 @@ export async function GET(req) {
       orderBy: { createdAt: "desc" },
     });
 
+    console.log("Fetched customers raw:", customers);
+
     const formatted = customers.map((customer) => {
       const latestLoan = customer.loans?.[0] || null;
-
-      // ✅ Calculate endDate using loanDate + tenure
       let endDate = null;
+
       if (latestLoan?.loanDate && latestLoan?.tenure != null) {
         const loanDate = new Date(latestLoan.loanDate);
         const tenureMonths = Number(latestLoan.tenure);
@@ -132,7 +138,6 @@ export async function POST(req) {
     const formData = await req.formData();
     const customer = Object.fromEntries(formData.entries());
 
-    // 🔹 Upload files to Vercel Blob
     const photoUrl = await saveFile(formData.get("photo"), "photo");
     const aadharDocumentUrl = await saveFile(formData.get("aadharDocument"), "aadhar");
     const incomeProofUrl = await saveFile(formData.get("incomeProof"), "income");
@@ -148,7 +153,6 @@ export async function POST(req) {
       );
     }
 
-    // ✅ Create customer in DB
     const newCustomer = await prisma.customer.create({
       data: {
         customerName: customer.customerName,
@@ -170,7 +174,6 @@ export async function POST(req) {
       },
     });
 
-    // ✅ Optional: create loan if provided
     if (customer.loanAmount && customer.loanDate && customer.tenure) {
       const loanDateObj = new Date(customer.loanDate);
       if (!isNaN(loanDateObj.getTime())) {
@@ -185,7 +188,6 @@ export async function POST(req) {
       }
     }
 
-    // ✅ Generate QR and upload to Blob
     const qrUrl = await saveQRCode(newCustomer.customerCode, "qr");
     await prisma.customer.update({
       where: { id: newCustomer.id },
@@ -212,7 +214,10 @@ export async function PUT(req) {
     const data = Object.fromEntries(formData.entries());
 
     if (!data.id) {
-      return NextResponse.json({ success: false, error: "Customer ID is required" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Customer ID is required" },
+        { status: 400 }
+      );
     }
 
     const customerId = parseInt(data.id, 10);
@@ -232,7 +237,6 @@ export async function PUT(req) {
       customerCode: data.customerCode || null,
     };
 
-    // 🔹 Replace files with new Blob uploads if provided
     const photo = formData.get("photo");
     if (photo && typeof photo !== "string") updateData.photoUrl = await saveFile(photo, "photo");
 
@@ -253,7 +257,6 @@ export async function PUT(req) {
       data: updateData,
     });
 
-    // ✅ Regenerate QR if customerCode changed
     if (data.customerCode) {
       const qrUrl = await saveQRCode(data.customerCode, "qr");
       await prisma.customer.update({
@@ -280,12 +283,18 @@ export async function DELETE(req) {
     const id = searchParams.get("id");
 
     if (!id) {
-      return NextResponse.json({ success: false, error: "Customer ID is required" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Customer ID is required" },
+        { status: 400 }
+      );
     }
 
     await prisma.customer.delete({ where: { id: parseInt(id, 10) } });
 
-    return NextResponse.json({ success: true, message: "Customer deleted successfully" }, { status: 200 });
+    return NextResponse.json(
+      { success: true, message: "Customer deleted successfully" },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("❌ DELETE /api/customers error:", error);
     return NextResponse.json(
