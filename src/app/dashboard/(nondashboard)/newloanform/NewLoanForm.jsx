@@ -232,7 +232,8 @@ const NewLoanForm = () => {
                       </h3>
                     </div>
                     <p className="text-sm text-blue-600 mb-2">
-                      Scan a customer's QR code to automatically fill their information
+                      Scan a customer's QR code to automatically fill their
+                      information
                     </p>
                     <Button
                       type="button"
@@ -256,56 +257,63 @@ const NewLoanForm = () => {
                             try {
                               const url = new URL(code);
                               customerCode = url.pathname.split("/").pop();
-                            } catch {}
-
-                            // ✅ FIX: use correct API route
-                            const res = await fetch(
-                              `/api/customers?code=${customerCode}`
-                            );
-                            if (!res.ok) {
-                              toast.error("Customer not found or invalid QR.");
-                              return;
+                            } catch {
+                              // not a URL, keep as raw code
                             }
 
-                            const customerData = await res.json();
-
-                            if (customerData) {
-                              // load customers in same area
-                              const customersRes = await fetch(
-                                `/api/customers/by-area/${customerData.areaId}`
+                            try {
+                              const res = await fetch(
+                                `/api/customers/by-code/${customerCode}`
                               );
-                              const customersForArea = await customersRes.json();
+                              if (!res.ok) {
+                                toast.error(
+                                  "Customer not found or invalid QR."
+                                );
+                                return;
+                              }
 
-                              const list = Array.isArray(customersForArea)
-                                ? customersForArea
-                                : Array.isArray(customersForArea.customers)
-                                ? customersForArea.customers
-                                : [];
+                              const customerData = await res.json();
+                              if (customerData) {
+                                // load customers in same area
+                                const customersRes = await fetch(
+                                  `/api/customers/by-area/${customerData.areaId}`
+                                );
+                                const customersForArea =
+                                  await customersRes.json();
 
-                              setCustomers(list);
+                                const list = Array.isArray(customersForArea)
+                                  ? customersForArea
+                                  : Array.isArray(customersForArea.customers)
+                                  ? customersForArea.customers
+                                  : [];
 
-                              setForm((prev) => ({
-                                ...prev,
-                                area: customerData.areaId || "",
-                                customerCode: customerData.customerCode || "",
-                                customerId: customerData.id || "",
-                              }));
+                                setCustomers(list);
 
-                              setCustomerDetails({
-                                ...customerData,
-                                ...(customerData?.loans?.[0] || {}),
-                              });
+                                setForm((prev) => ({
+                                  ...prev,
+                                  area: customerData.areaId || "",
+                                  customerCode: customerData.customerCode || "",
+                                  customerId: customerData.id || "",
+                                }));
 
-                              toast.success(
-                                `Customer ${customerData.customerCode} loaded successfully ✅`
-                              );
-                            } else {
-                              toast.error("Unable to load customer details.");
+                                setCustomerDetails({
+                                  ...customerData,
+                                  ...(customerData?.loans?.[0] || {}),
+                                });
+
+                                toast.success(
+                                  `Customer ${customerData.customerCode} loaded successfully ✅`
+                                );
+                              } else {
+                                toast.error("Unable to load customer details.");
+                              }
+                            } catch (err) {
+                              toast.error("Error fetching customer details.");
+                            } finally {
+                              setTimeout(() => {
+                                setScanning(false);
+                              }, 200);
                             }
-
-                            setTimeout(() => {
-                              setScanning(false);
-                            }, 200);
                           }}
                           onError={(err) => toast.error(err)}
                         />
@@ -325,7 +333,7 @@ const NewLoanForm = () => {
                     Customer Information
                   </h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* ✅ Area Selector */}
                   <div className="space-y-2">
@@ -405,7 +413,10 @@ const NewLoanForm = () => {
                                 <CommandItem
                                   key={customer.id}
                                   onSelect={() =>
-                                    handleSelectChange("customerId", customer.id)
+                                    handleSelectChange(
+                                      "customerId",
+                                      customer.id
+                                    )
                                   }
                                 >
                                   {customer.customerCode} - {customer.name}
@@ -435,7 +446,7 @@ const NewLoanForm = () => {
                     Loan Details
                   </h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700">
@@ -533,7 +544,7 @@ const NewLoanForm = () => {
                     Upload Document
                   </h3>
                 </div>
-                
+
                 <div className="flex flex-col gap-4">
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                     <input
@@ -560,7 +571,7 @@ const NewLoanForm = () => {
                       </Button>
                     </label>
                   </div>
-                  
+
                   {previewUrl && (
                     <div className="mt-4">
                       <Label className="text-sm font-medium text-gray-700">
@@ -586,7 +597,7 @@ const NewLoanForm = () => {
                       </div>
                     </div>
                   )}
-                  
+
                   {documentFile && !previewUrl && (
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
                       <div className="flex items-center gap-2">
