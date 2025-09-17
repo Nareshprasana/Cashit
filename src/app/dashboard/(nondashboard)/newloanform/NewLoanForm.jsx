@@ -347,32 +347,6 @@ const NewLoanForm = () => {
                   </h3>
                 </div>
 
-                {/* Customer Details Card */}
-                {customerDetails && (
-                  <Card className="bg-gray-50 border-gray-200">
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <h4 className="font-medium">
-                            {customerDetails.name}
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            Code: {customerDetails.customerCode}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Phone: {customerDetails.phone}
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="ml-2">
-                          {customerDetails.loans && customerDetails.loans.length > 0
-                            ? "Existing Customer"
-                            : "New Customer"}
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* ✅ Area Selector */}
                   <div className="space-y-2">
@@ -462,7 +436,7 @@ const NewLoanForm = () => {
                                         : "opacity-0"
                                     )}
                                   />
-                                  {cust.customerCode} - {cust.name}
+                                  {cust.customerCode}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
