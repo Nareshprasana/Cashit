@@ -255,25 +255,29 @@ const NewLoanForm = () => {
                           const customersRes = await fetch(
                             `/api/customers/by-area/${customerData.areaId}`
                           );
-                          const customersForArea =
-                            await customersRes.json();
+                          const customersForArea = await customersRes.json();
 
-                          setCustomers(
-                            Array.isArray(customersForArea)
-                              ? customersForArea
-                              : []
-                          );
+                          const list = Array.isArray(customersForArea)
+                            ? customersForArea
+                            : Array.isArray(customersForArea.customers)
+                            ? customersForArea.customers
+                            : [];
 
-                          const loan = customerData?.loans?.[0] || {};
-                          setCustomerDetails({ ...customerData, ...loan });
+                          setCustomers(list);
 
-                          // ✅ Update form state with scanned customer
                           setForm((prev) => ({
                             ...prev,
                             area: customerData.areaId || "",
-                            customerId: customerData.id || "",
                             customerCode: customerData.customerCode || "",
+                            customerId:
+                              list.find((c) => c.id === customerData.id)?.id ||
+                              "",
                           }));
+
+                          setCustomerDetails({
+                            ...customerData,
+                            ...(customerData?.loans?.[0] || {}),
+                          });
 
                           toast.success(
                             `Details for customer ${customerData.customerCode} loaded successfully.`
@@ -337,9 +341,7 @@ const NewLoanForm = () => {
                       </Select>
                     </div>
                     {errors.area && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.area}
-                      </p>
+                      <p className="text-red-500 text-xs mt-1">{errors.area}</p>
                     )}
                   </div>
 
@@ -440,9 +442,7 @@ const NewLoanForm = () => {
                       />
                     </div>
                     {errors.rate && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.rate}
-                      </p>
+                      <p className="text-red-500 text-xs mt-1">{errors.rate}</p>
                     )}
                   </div>
 
