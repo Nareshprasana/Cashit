@@ -841,6 +841,15 @@ export default function AllCustomerTable() {
                     <Button
                       variant="outline"
                       className="w-full justify-start"
+                      onClick={handleDownloadQRCode}
+                      disabled={!qrCodeUrl}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download QR Code
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
                       onClick={() => {
                         if (!selectedCustomer?.customerCode) return;
                         navigator.clipboard.writeText(
