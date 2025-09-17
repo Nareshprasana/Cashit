@@ -19,10 +19,12 @@ import {
   MapPin,
   Percent,
   Clock,
+  Check, // Added Check icon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import QRScanner from "@/components/QRScanner";
+import { cn } from "@/lib/utils"; // Added cn utility
 
 // ✅ shadcn combobox
 import {
@@ -91,7 +93,7 @@ const NewLoanForm = () => {
         });
     } else {
       setCustomers([]);
-      setForm((prev) => ({ ...prev, customerId: "" }));
+      setForm((prev) => ({ ...prev, customerId: "", customerCode: "" }));
     }
   }, [form.area]);
 
@@ -108,6 +110,17 @@ const NewLoanForm = () => {
     } else if (name === "customerId") {
       setOpenCustomer(false);
     }
+  };
+
+  // ✅ Handle customer selection
+  const handleCustomerSelect = (customer) => {
+    setForm((prev) => ({
+      ...prev,
+      customerId: customer.id,
+      customerCode: customer.customerCode,
+    }));
+    setCustomerDetails(customer);
+    setOpenCustomer(false);
   };
 
   const handleFileChange = (e) => {
@@ -293,6 +306,7 @@ const NewLoanForm = () => {
                                   ...prev,
                                   area: customerData.areaId || "",
                                   customerCode: customerData.customerCode || "",
+                                  customerId: customerData.id || "",
                                 }));
 
                                 setCustomerDetails({
@@ -332,6 +346,32 @@ const NewLoanForm = () => {
                     Customer Information
                   </h3>
                 </div>
+
+                {/* Customer Details Card */}
+                {customerDetails && (
+                  <Card className="bg-gray-50 border-gray-200">
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="font-medium">
+                            {customerDetails.name}
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            Code: {customerDetails.customerCode}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Phone: {customerDetails.phone}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="ml-2">
+                          {customerDetails.loans && customerDetails.loans.length > 0
+                            ? "Existing Customer"
+                            : "New Customer"}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* ✅ Area Selector */}
@@ -417,13 +457,12 @@ const NewLoanForm = () => {
                                   <Check
                                     className={cn(
                                       "mr-2 h-4 w-4",
-                                      formData.customerCode ===
-                                        cust.customerCode
+                                      form.customerId === cust.id
                                         ? "opacity-100"
                                         : "opacity-0"
                                     )}
                                   />
-                                  {cust.customerCode}
+                                  {cust.customerCode} - {cust.name}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
