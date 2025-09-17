@@ -11,7 +11,6 @@ import {
   FileText,
   X,
   DollarSign,
-  Calendar,
   User,
   ClipboardList,
   ArrowLeft,
@@ -235,8 +234,9 @@ const NewLoanForm = () => {
                           customerCode = url.pathname.split("/").pop();
                         } catch {}
 
+                        // ✅ FIX: use correct API route
                         const res = await fetch(
-                          `/api/customers/code/${customerCode}`
+                          `/api/customers?code=${customerCode}`
                         );
                         if (!res.ok) {
                           toast.error("Customer not found or invalid QR.");
@@ -246,6 +246,7 @@ const NewLoanForm = () => {
                         const customerData = await res.json();
 
                         if (customerData) {
+                          // load customers in same area
                           const customersRes = await fetch(
                             `/api/customers/by-area/${customerData.areaId}`
                           );
@@ -295,7 +296,7 @@ const NewLoanForm = () => {
                   Customer Information
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* ✅ Area with Popover + Command */}
+                  {/* ✅ Area Selector */}
                   <div className="space-y-2">
                     <Label>Area *</Label>
                     <Popover>
@@ -336,7 +337,7 @@ const NewLoanForm = () => {
                     )}
                   </div>
 
-                  {/* ✅ Customer with Popover + Command */}
+                  {/* ✅ Customer Selector */}
                   <div className="space-y-2">
                     <Label>Customer *</Label>
                     <Popover>
