@@ -182,6 +182,20 @@ export default function AllCustomerTable() {
     }
   }
 
+  // QR Code download handler
+  const handleDownloadQRCode = () => {
+    if (!qrCodeUrl || !selectedCustomer) return;
+    
+    // Create a temporary anchor element
+    const a = document.createElement('a');
+    a.href = qrCodeUrl;
+    a.download = `QRCode_${selectedCustomer.customerCode || selectedCustomer.name}.png`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   // Columns (no actions column)
   const columns = [
     {
@@ -858,6 +872,15 @@ export default function AllCustomerTable() {
                     >
                       <Edit className="h-4 w-4 mr-2" />
                       Edit Profile
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={handleDownloadQRCode}
+                      disabled={!qrCodeUrl}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download QR Code
                     </Button>
                     <Button
                       variant="outline"
