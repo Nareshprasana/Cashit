@@ -15,6 +15,10 @@ import {
   ClipboardList,
   ArrowLeft,
   Scan,
+  Calendar,
+  MapPin,
+  Percent,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +38,8 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 const NewLoanForm = () => {
   const [areas, setAreas] = useState([]);
@@ -53,6 +59,8 @@ const NewLoanForm = () => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [customerDetails, setCustomerDetails] = useState(null);
+  const [openArea, setOpenArea] = useState(false);
+  const [openCustomer, setOpenCustomer] = useState(false);
 
   // ✅ Fetch areas
   useEffect(() => {
@@ -95,6 +103,11 @@ const NewLoanForm = () => {
 
   const handleSelectChange = (name, value) => {
     setForm((prev) => ({ ...prev, [name]: value }));
+    if (name === "area") {
+      setOpenArea(false);
+    } else if (name === "customerId") {
+      setOpenCustomer(false);
+    }
   };
 
   const handleFileChange = (e) => {
@@ -183,135 +196,157 @@ const NewLoanForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-2 px-4 flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-8 px-4 flex items-center justify-center">
       <motion.div
-        className="w-full max-w-4xl bg-white rounded-xl shadow-sm border border-gray-200"
+        className="w-full max-w-4xl bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <div className="p-1 rounded-t-xl">
-          <div className="bg-white rounded-t-lg">
-            {/* Header */}
-            <div className="px-8 pt-8 pb-6 border-b border-gray-100">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <ClipboardList className="h-6 w-6 text-blue-600" />
-                </div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  New Loan Application
-                </h1>
-              </div>
-              <p className="text-gray-600 text-sm">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-8">
+          <div className="flex items-center gap-4 mb-2">
+            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+              <ClipboardList className="h-7 w-7" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">New Loan Application</h1>
+              <p className="text-blue-100 text-sm mt-1">
                 Complete all fields to create a new loan record
               </p>
             </div>
+          </div>
+        </div>
 
+        <div className="p-1">
+          <div className="bg-white rounded-lg">
             <form onSubmit={handleSubmit} className="p-8 space-y-8">
-              {/* ✅ QR Scanner */}
-              <div className="mb-4">
-                <Button
-                  type="button"
-                  variant={scanning ? "default" : "outline"}
-                  onClick={() => setScanning((prev) => !prev)}
-                  className="flex items-center gap-2 h-10"
-                >
-                  {scanning ? (
-                    <ArrowLeft className="h-4 w-4" />
-                  ) : (
-                    <Scan className="h-4 w-4" />
-                  )}
-                  {scanning ? "Close Scanner" : "Scan Customer QR"}
-                </Button>
+              {/* ✅ QR Scanner Section */}
+              <Card className="bg-blue-50 border-blue-200">
+                <CardContent className="p-6">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-2">
+                      <Scan className="h-5 w-5 text-blue-600" />
+                      <h3 className="font-semibold text-blue-800">
+                        Quick Customer Scan
+                      </h3>
+                    </div>
+                    <p className="text-sm text-blue-600 mb-2">
+                      Scan a customer's QR code to automatically fill their information
+                    </p>
+                    <Button
+                      type="button"
+                      variant={scanning ? "default" : "outline"}
+                      onClick={() => setScanning((prev) => !prev)}
+                      className="flex items-center gap-2 h-10 w-full sm:w-auto"
+                    >
+                      {scanning ? (
+                        <ArrowLeft className="h-4 w-4" />
+                      ) : (
+                        <Scan className="h-4 w-4" />
+                      )}
+                      {scanning ? "Close Scanner" : "Scan Customer QR"}
+                    </Button>
 
-                {scanning && (
-                  <div className="mt-4 border rounded-lg overflow-hidden">
-                    <QRScanner
-                      onScan={async (code) => {
-                        let customerCode = code;
-                        try {
-                          const url = new URL(code);
-                          customerCode = url.pathname.split("/").pop();
-                        } catch {}
+                    {scanning && (
+                      <div className="mt-4 border-2 border-dashed border-blue-300 rounded-lg overflow-hidden">
+                        <QRScanner
+                          onScan={async (code) => {
+                            let customerCode = code;
+                            try {
+                              const url = new URL(code);
+                              customerCode = url.pathname.split("/").pop();
+                            } catch {}
 
-                        // ✅ FIX: use correct API route
-                        const res = await fetch(
-                          `/api/customers?code=${customerCode}`
-                        );
-                        if (!res.ok) {
-                          toast.error("Customer not found or invalid QR.");
-                          return;
-                        }
+                            // ✅ FIX: use correct API route
+                            const res = await fetch(
+                              `/api/customers?code=${customerCode}`
+                            );
+                            if (!res.ok) {
+                              toast.error("Customer not found or invalid QR.");
+                              return;
+                            }
 
-                        const customerData = await res.json();
+                            const customerData = await res.json();
 
-                        if (customerData) {
-                          // load customers in same area
-                          const customersRes = await fetch(
-                            `/api/customers/by-area/${customerData.areaId}`
-                          );
-                          const customersForArea = await customersRes.json();
+                            if (customerData) {
+                              // load customers in same area
+                              const customersRes = await fetch(
+                                `/api/customers/by-area/${customerData.areaId}`
+                              );
+                              const customersForArea = await customersRes.json();
 
-                          const list = Array.isArray(customersForArea)
-                            ? customersForArea
-                            : Array.isArray(customersForArea.customers)
-                            ? customersForArea.customers
-                            : [];
+                              const list = Array.isArray(customersForArea)
+                                ? customersForArea
+                                : Array.isArray(customersForArea.customers)
+                                ? customersForArea.customers
+                                : [];
 
-                          setCustomers(list);
+                              setCustomers(list);
 
-                          setForm((prev) => ({
-                            ...prev,
-                            area: customerData.areaId || "",
-                            customerCode: customerData.customerCode || "",
-                            customerId: customerData.id || "",
-                          }));
+                              setForm((prev) => ({
+                                ...prev,
+                                area: customerData.areaId || "",
+                                customerCode: customerData.customerCode || "",
+                                customerId: customerData.id || "",
+                              }));
 
-                          setCustomerDetails({
-                            ...customerData,
-                            ...(customerData?.loans?.[0] || {}),
-                          });
+                              setCustomerDetails({
+                                ...customerData,
+                                ...(customerData?.loans?.[0] || {}),
+                              });
 
-                          toast.success(
-                            `Customer ${customerData.customerCode} loaded successfully ✅`
-                          );
-                        } else {
-                          toast.error("Unable to load customer details.");
-                        }
+                              toast.success(
+                                `Customer ${customerData.customerCode} loaded successfully ✅`
+                              );
+                            } else {
+                              toast.error("Unable to load customer details.");
+                            }
 
-                        setTimeout(() => {
-                          setScanning(false);
-                        }, 200);
-                      }}
-                      onError={(err) => toast.error(err)}
-                    />
+                            setTimeout(() => {
+                              setScanning(false);
+                            }, 200);
+                          }}
+                          onError={(err) => toast.error(err)}
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </CardContent>
+              </Card>
 
               {/* Customer Info */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-6 pb-2 border-b border-gray-100 flex items-center gap-2">
-                  <User className="h-5 w-5 text-blue-600" />
-                  Customer Information
-                </h3>
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <User className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    Customer Information
+                  </h3>
+                </div>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* ✅ Area Selector */}
                   <div className="space-y-2">
-                    <Label>Area *</Label>
-                    <Popover>
+                    <Label className="text-sm font-medium text-gray-700">
+                      Area <span className="text-red-500">*</span>
+                    </Label>
+                    <Popover open={openArea} onOpenChange={setOpenArea}>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           role="combobox"
-                          className="w-full justify-between"
+                          aria-expanded={openArea}
+                          className="w-full justify-between h-11"
                         >
                           {form.area
                             ? areas.find((a) => a.id === form.area)?.areaName
                             : "Select area..."}
+                          <MapPin className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-[300px] p-0">
+                      <PopoverContent className="w-full p-0">
                         <Command>
                           <CommandInput placeholder="Search area..." />
                           <CommandList>
@@ -339,13 +374,16 @@ const NewLoanForm = () => {
 
                   {/* ✅ Customer Selector */}
                   <div className="space-y-2">
-                    <Label>Customer *</Label>
-                    <Popover>
+                    <Label className="text-sm font-medium text-gray-700">
+                      Customer <span className="text-red-500">*</span>
+                    </Label>
+                    <Popover open={openCustomer} onOpenChange={setOpenCustomer}>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           role="combobox"
-                          className="w-full justify-between"
+                          aria-expanded={openCustomer}
+                          className="w-full justify-between h-11"
                           disabled={!form.area}
                         >
                           {form.customerId
@@ -354,9 +392,10 @@ const NewLoanForm = () => {
                             : form.area
                             ? "Select customer..."
                             : "First select an area"}
+                          <User className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-[300px] p-0">
+                      <PopoverContent className="w-full p-0">
                         <Command>
                           <CommandInput placeholder="Search customer..." />
                           <CommandList>
@@ -387,23 +426,33 @@ const NewLoanForm = () => {
               </div>
 
               {/* Loan Details */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-6 pb-2 border-b border-gray-100 flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-blue-600" />
-                  Loan Details
-                </h3>
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <DollarSign className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    Loan Details
+                  </h3>
+                </div>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label>Loan Amount *</Label>
-                    <Input
-                      id="amount"
-                      name="amount"
-                      type="number"
-                      value={form.amount}
-                      onChange={handleChange}
-                      placeholder="0.00"
-                      className="w-full h-11"
-                    />
+                    <Label className="text-sm font-medium text-gray-700">
+                      Loan Amount <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="amount"
+                        name="amount"
+                        type="number"
+                        value={form.amount}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        className="w-full h-11 pl-10"
+                      />
+                    </div>
                     {errors.amount && (
                       <p className="text-red-500 text-xs mt-1">
                         {errors.amount}
@@ -412,32 +461,42 @@ const NewLoanForm = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Interest Rate (%) *</Label>
-                    <Input
-                      id="rate"
-                      name="rate"
-                      type="number"
-                      value={form.rate}
-                      onChange={handleChange}
-                      placeholder="0.0"
-                      className="w-full h-11"
-                    />
+                    <Label className="text-sm font-medium text-gray-700">
+                      Interest Rate (%) <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Percent className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="rate"
+                        name="rate"
+                        type="number"
+                        value={form.rate}
+                        onChange={handleChange}
+                        placeholder="0.0"
+                        className="w-full h-11 pl-10"
+                      />
+                    </div>
                     {errors.rate && (
                       <p className="text-red-500 text-xs mt-1">{errors.rate}</p>
                     )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Tenure (Months) *</Label>
-                    <Input
-                      id="tenure"
-                      name="tenure"
-                      type="number"
-                      value={form.tenure}
-                      onChange={handleChange}
-                      placeholder="12"
-                      className="w-full h-11"
-                    />
+                    <Label className="text-sm font-medium text-gray-700">
+                      Tenure (Months) <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="tenure"
+                        name="tenure"
+                        type="number"
+                        value={form.tenure}
+                        onChange={handleChange}
+                        placeholder="12"
+                        className="w-full h-11 pl-10"
+                      />
+                    </div>
                     {errors.tenure && (
                       <p className="text-red-500 text-xs mt-1">
                         {errors.tenure}
@@ -446,51 +505,117 @@ const NewLoanForm = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Loan Date *</Label>
-                    <Input
-                      type="date"
-                      id="loanDate"
-                      name="loanDate"
-                      value={form.loanDate}
-                      onChange={handleChange}
-                      className="h-11"
-                    />
+                    <Label className="text-sm font-medium text-gray-700">
+                      Loan Date <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        type="date"
+                        id="loanDate"
+                        name="loanDate"
+                        value={form.loanDate}
+                        onChange={handleChange}
+                        className="h-11 pl-10"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Document Upload */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-6 pb-2 border-b border-gray-100 flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  Upload Document
-                </h3>
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    Upload Document
+                  </h3>
+                </div>
+                
                 <div className="flex flex-col gap-4">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <input
+                      type="file"
+                      onChange={handleFileChange}
+                      id="file-upload"
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className="cursor-pointer flex flex-col items-center justify-center gap-2"
+                    >
+                      <Upload className="h-10 w-10 text-gray-400" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">
+                          Drag and drop or click to upload
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          PNG, JPG, PDF up to 5MB
+                        </p>
+                      </div>
+                      <Button variant="outline" className="mt-2">
+                        Select File
+                      </Button>
+                    </label>
+                  </div>
+                  
                   {previewUrl && (
-                    <div className="relative w-48 h-48">
-                      <img
-                        src={previewUrl}
-                        alt="Preview"
-                        className="object-cover w-full h-full rounded-lg"
-                      />
-                      <X
-                        className="absolute top-1 right-1 h-6 w-6 cursor-pointer text-red-600"
-                        onClick={removeFile}
-                      />
+                    <div className="mt-4">
+                      <Label className="text-sm font-medium text-gray-700">
+                        Preview
+                      </Label>
+                      <div className="relative mt-2 inline-block">
+                        <div className="w-48 h-48 border rounded-lg overflow-hidden shadow-sm">
+                          <img
+                            src={previewUrl}
+                            alt="Preview"
+                            className="object-cover w-full h-full"
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                          onClick={removeFile}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                   )}
-                  <div>
-                    <input type="file" onChange={handleFileChange} />
-                  </div>
+                  
+                  {documentFile && !previewUrl && (
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-gray-500" />
+                        <span className="text-sm font-medium truncate max-w-xs">
+                          {documentFile.name}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={removeFile}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Submit */}
-              <div className="pt-4 flex justify-end">
+              <div className="pt-6 border-t border-gray-200 flex justify-end">
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="h-11 px-6"
+                  className="h-11 px-8 bg-blue-600 hover:bg-blue-700"
+                  size="lg"
                 >
                   {isSubmitting ? (
                     <Loader2 className="animate-spin h-5 w-5 mr-2" />
