@@ -232,8 +232,7 @@ const NewLoanForm = () => {
                       </h3>
                     </div>
                     <p className="text-sm text-blue-600 mb-2">
-                      Scan a customer's QR code to automatically fill their
-                      information
+                      Scan a customer's QR code to automatically fill their information
                     </p>
                     <Button
                       type="button"
@@ -259,52 +258,37 @@ const NewLoanForm = () => {
                               customerCode = url.pathname.split("/").pop();
                             } catch {}
 
-                            try {
-                              const res = await fetch(
-                                `/api/customers?code=${customerCode}`
-                              );
-                              if (!res.ok) {
-                                toast.error(
-                                  "Customer not found or invalid QR."
-                                );
-                                return;
-                              }
+                            // ✅ FIX: use correct API route
+                            const res = await fetch(
+                              `/api/customers?code=${customerCode}`
+                            );
+                            if (!res.ok) {
+                              toast.error("Customer not found or invalid QR.");
+                              return;
+                            }
 
-                              const customerData = await res.json();
-                              if (!customerData) {
-                                toast.error("Unable to load customer details.");
-                                return;
-                              }
+                            const customerData = await res.json();
 
-                              // ✅ Fetch customers in the same area
+                            if (customerData) {
+                              // load customers in same area
                               const customersRes = await fetch(
                                 `/api/customers/by-area/${customerData.areaId}`
                               );
-                              const customersForArea =
-                                await customersRes.json();
+                              const customersForArea = await customersRes.json();
 
-                              // ✅ Normalize list and IDs to string for safe comparison
                               const list = Array.isArray(customersForArea)
-                                ? customersForArea.map((c) => ({
-                                    ...c,
-                                    id: c.id.toString(),
-                                  }))
+                                ? customersForArea
                                 : Array.isArray(customersForArea.customers)
-                                ? customersForArea.customers.map((c) => ({
-                                    ...c,
-                                    id: c.id.toString(),
-                                  }))
+                                ? customersForArea.customers
                                 : [];
-
-                              console.log("Loaded customers for area:", list); // debug
 
                               setCustomers(list);
 
                               setForm((prev) => ({
                                 ...prev,
-                                area: customerData.areaId.toString(),
+                                area: customerData.areaId || "",
                                 customerCode: customerData.customerCode || "",
-                                customerId: customerData.id.toString(),
+                                customerId: customerData.id || "",
                               }));
 
                               setCustomerDetails({
@@ -315,15 +299,13 @@ const NewLoanForm = () => {
                               toast.success(
                                 `Customer ${customerData.customerCode} loaded successfully ✅`
                               );
-                            } catch (err) {
-                              console.error(err);
-                              toast.error(
-                                "Failed to load customer or area data."
-                              );
+                            } else {
+                              toast.error("Unable to load customer details.");
                             }
 
-                            // Close scanner after short delay
-                            setTimeout(() => setScanning(false), 200);
+                            setTimeout(() => {
+                              setScanning(false);
+                            }, 200);
                           }}
                           onError={(err) => toast.error(err)}
                         />
@@ -343,7 +325,7 @@ const NewLoanForm = () => {
                     Customer Information
                   </h3>
                 </div>
-
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* ✅ Area Selector */}
                   <div className="space-y-2">
@@ -423,10 +405,7 @@ const NewLoanForm = () => {
                                 <CommandItem
                                   key={customer.id}
                                   onSelect={() =>
-                                    handleSelectChange(
-                                      "customerId",
-                                      customer.id
-                                    )
+                                    handleSelectChange("customerId", customer.id)
                                   }
                                 >
                                   {customer.customerCode} - {customer.name}
@@ -456,7 +435,7 @@ const NewLoanForm = () => {
                     Loan Details
                   </h3>
                 </div>
-
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700">
@@ -554,7 +533,7 @@ const NewLoanForm = () => {
                     Upload Document
                   </h3>
                 </div>
-
+                
                 <div className="flex flex-col gap-4">
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                     <input
@@ -581,7 +560,7 @@ const NewLoanForm = () => {
                       </Button>
                     </label>
                   </div>
-
+                  
                   {previewUrl && (
                     <div className="mt-4">
                       <Label className="text-sm font-medium text-gray-700">
@@ -607,7 +586,7 @@ const NewLoanForm = () => {
                       </div>
                     </div>
                   )}
-
+                  
                   {documentFile && !previewUrl && (
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
                       <div className="flex items-center gap-2">
