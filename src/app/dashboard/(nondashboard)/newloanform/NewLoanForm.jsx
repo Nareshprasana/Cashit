@@ -11,9 +11,7 @@ import {
   FileText,
   X,
   DollarSign,
-  Percent,
   Calendar,
-  MapPin,
   User,
   ClipboardList,
   ArrowLeft,
@@ -23,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import QRScanner from "@/components/QRScanner";
 
-// ✅ shadcn Command for searchable dropdown
+// ✅ shadcn combobox
 import {
   Command,
   CommandInput,
@@ -32,6 +30,11 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 
 const NewLoanForm = () => {
   const [areas, setAreas] = useState([]);
@@ -232,7 +235,6 @@ const NewLoanForm = () => {
                           customerCode = url.pathname.split("/").pop();
                         } catch {}
 
-                        // ✅ fetch like repayment form
                         const res = await fetch(
                           `/api/customers/code/${customerCode}`
                         );
@@ -244,7 +246,6 @@ const NewLoanForm = () => {
                         const customerData = await res.json();
 
                         if (customerData) {
-                          // fetch customers in same area
                           const customersRes = await fetch(
                             `/api/customers/by-area/${customerData.areaId}`
                           );
@@ -294,62 +295,87 @@ const NewLoanForm = () => {
                   Customer Information
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* ✅ Area with search */}
+                  {/* ✅ Area with Popover + Command */}
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">
-                      Area <span className="text-red-500">*</span>
-                    </Label>
-                    <Command>
-                      <CommandInput placeholder="Search area..." />
-                      <CommandList>
-                        <CommandEmpty>No area found.</CommandEmpty>
-                        <CommandGroup>
-                          {areas.map((area) => (
-                            <CommandItem
-                              key={area.id}
-                              onSelect={() =>
-                                handleSelectChange("area", area.id)
-                              }
-                            >
-                              {area.areaName || area.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
+                    <Label>Area *</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between"
+                        >
+                          {form.area
+                            ? areas.find((a) => a.id === form.area)?.areaName
+                            : "Select area..."}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Search area..." />
+                          <CommandList>
+                            <CommandEmpty>No area found.</CommandEmpty>
+                            <CommandGroup>
+                              {areas.map((area) => (
+                                <CommandItem
+                                  key={area.id}
+                                  onSelect={() =>
+                                    handleSelectChange("area", area.id)
+                                  }
+                                >
+                                  {area.areaName || area.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                     {errors.area && (
                       <p className="text-red-500 text-xs mt-1">{errors.area}</p>
                     )}
                   </div>
 
-                  {/* ✅ Customer with search */}
+                  {/* ✅ Customer with Popover + Command */}
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">
-                      Customer <span className="text-red-500">*</span>
-                    </Label>
-                    <Command>
-                      <CommandInput
-                        placeholder={
-                          form.area ? "Search customer..." : "First select an area"
-                        }
-                        disabled={!form.area}
-                      />
-                      <CommandList>
-                        <CommandEmpty>No customer found.</CommandEmpty>
-                        <CommandGroup>
-                          {customers.map((customer) => (
-                            <CommandItem
-                              key={customer.id}
-                              onSelect={() =>
-                                handleSelectChange("customerId", customer.id)
-                              }
-                            >
-                              {customer.customerCode} - {customer.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
+                    <Label>Customer *</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between"
+                          disabled={!form.area}
+                        >
+                          {form.customerId
+                            ? customers.find((c) => c.id === form.customerId)
+                                ?.name
+                            : form.area
+                            ? "Select customer..."
+                            : "First select an area"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Search customer..." />
+                          <CommandList>
+                            <CommandEmpty>No customer found.</CommandEmpty>
+                            <CommandGroup>
+                              {customers.map((customer) => (
+                                <CommandItem
+                                  key={customer.id}
+                                  onSelect={() =>
+                                    handleSelectChange("customerId", customer.id)
+                                  }
+                                >
+                                  {customer.customerCode} - {customer.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                     {errors.customerId && (
                       <p className="text-red-500 text-xs mt-1">
                         {errors.customerId}
