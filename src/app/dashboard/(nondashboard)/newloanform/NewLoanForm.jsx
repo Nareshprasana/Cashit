@@ -409,17 +409,22 @@ const NewLoanForm = () => {
                           <CommandList>
                             <CommandEmpty>No customer found.</CommandEmpty>
                             <CommandGroup>
-                              {customers.map((customer) => (
+                              {customers.map((cust) => (
                                 <CommandItem
-                                  key={customer.id}
-                                  onSelect={() =>
-                                    handleSelectChange(
-                                      "customerId",
-                                      customer.id
-                                    )
-                                  }
+                                  key={cust.id}
+                                  value={cust.customerCode}
+                                  onSelect={() => handleCustomerSelect(cust)}
                                 >
-                                  {customer.customerCode}
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      formData.customerCode ===
+                                        cust.customerCode
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    )}
+                                  />
+                                  {cust.customerCode}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
