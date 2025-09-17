@@ -293,7 +293,6 @@ const NewLoanForm = () => {
                                   ...prev,
                                   area: customerData.areaId || "",
                                   customerCode: customerData.customerCode || "",
-                                  customerId: customerData.id || "",
                                 }));
 
                                 setCustomerDetails({
