@@ -192,32 +192,60 @@ export default function AllCustomerTable() {
   }, [selectedCustomer]);
 
   // Delete handler
-  // Delete handler
   async function handleDelete(id) {
     try {
-      setDeletingId(id);
-      const res = await fetch(`/api/customers?id=${id}`, {
+      console.log("🔄 DELETE - Starting deletion process");
+      console.log("📋 Customer ID to delete:", id, "Type:", typeof id);
+
+      // Convert to number to ensure proper type
+      const numericId = Number(id);
+      console.log("🔢 Converted ID:", numericId, "Type:", typeof numericId);
+
+      setDeletingId(numericId);
+
+      const apiUrl = `/api/customers?id=${numericId}`;
+      console.log("🌐 API URL:", apiUrl);
+
+      const res = await fetch(apiUrl, {
         method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
+      console.log("📨 Response status:", res.status, res.statusText);
+
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to delete customer");
+        const errorText = await res.text();
+        console.error("❌ Error response text:", errorText);
+
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          throw new Error(`Server error: ${res.status} ${res.statusText}`);
+        }
+
+        throw new Error(
+          errorData.error || errorData.message || "Failed to delete customer"
+        );
       }
 
       const result = await res.json();
+      console.log("✅ Success response:", result);
 
       if (result.success) {
-        setData((prev) => prev.filter((c) => c.id !== id));
-        if (selectedCustomer?.id === id) {
+        setData((prev) => prev.filter((c) => c.id !== numericId));
+        if (selectedCustomer?.id === numericId) {
           setDialogOpen(false);
           setSelectedCustomer(null);
         }
+        alert("Customer deleted successfully!");
       } else {
         throw new Error(result.error || "Failed to delete customer");
       }
     } catch (e) {
-      console.error("Delete error:", e);
+      console.error("🔥 Delete error:", e);
       alert(`Delete failed: ${e.message}`);
     } finally {
       setDeletingId(null);

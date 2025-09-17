@@ -309,69 +309,106 @@ export async function PUT(req) {
   }
 }
 
-// ✅ DELETE customer
-// ✅ DELETE customer (improved version)
+// ✅ DELETE customer with detailed debugging
 export async function DELETE(req) {
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
+    console.log("=== DELETE REQUEST RECEIVED ===");
+    
+    const url = new URL(req.url);
+    const searchParams = Object.fromEntries(url.searchParams.entries());
+    console.log("🔍 Full URL:", req.url);
+    console.log("📋 Query parameters:", searchParams);
+    console.log("📦 Request headers:", Object.fromEntries(req.headers.entries()));
+    
+    const id = url.searchParams.get("id");
+    console.log("🆔 Extracted ID:", id, "Type:", typeof id);
 
     if (!id) {
+      console.log("❌ Missing ID parameter");
       return NextResponse.json(
-        { success: false, error: "Customer ID is required" },
+        { 
+          success: false, 
+          error: "Customer ID is required",
+          receivedParams: searchParams
+        },
         { status: 400 }
       );
     }
 
+    // Convert to number and validate
     const customerId = parseInt(id, 10);
-
-    if (isNaN(customerId)) {
+    console.log("🔢 Parsed customer ID:", customerId);
+    
+    if (isNaN(customerId) || customerId <= 0) {
+      console.log("❌ Invalid ID conversion result:", customerId);
       return NextResponse.json(
-        { success: false, error: "Invalid Customer ID" },
+        { 
+          success: false, 
+          error: "Invalid Customer ID",
+          receivedId: id,
+          parsedId: customerId
+        },
         { status: 400 }
       );
     }
+
+    console.log("✅ Valid ID received:", customerId);
 
     // Check if customer exists first
+    console.log("🔎 Checking if customer exists...");
     const existingCustomer = await prisma.customer.findUnique({
-      where: { id: customerId },
+      where: { id: customerId }
     });
 
     if (!existingCustomer) {
+      console.log("❌ Customer not found with ID:", customerId);
       return NextResponse.json(
-        { success: false, error: "Customer not found" },
+        { 
+          success: false, 
+          error: "Customer not found",
+          requestedId: customerId
+        },
         { status: 404 }
       );
     }
 
-    // Delete customer (Prisma will handle related records based on your schema)
-    await prisma.customer.delete({
-      where: { id: customerId },
+    console.log("✅ Customer found:", existingCustomer.customerName);
+    
+    // Delete customer
+    console.log("🗑️ Attempting to delete customer...");
+    await prisma.customer.delete({ 
+      where: { id: customerId } 
     });
 
+    console.log("✅ Customer deleted successfully");
+    
     return NextResponse.json(
-      {
-        success: true,
+      { 
+        success: true, 
         message: "Customer deleted successfully",
         deletedId: customerId,
+        deletedCustomer: existingCustomer.customerName
       },
       { status: 200 }
     );
+    
   } catch (error) {
-    console.error("❌ DELETE /api/customers error:", error);
-
+    console.error("🔥 DELETE /api/customers error:", error);
+    console.error("Error stack:", error.stack);
+    
     // Handle specific Prisma errors
-    if (error.code === "P2025") {
+    if (error.code === 'P2025') {
       return NextResponse.json(
         { success: false, error: "Customer not found" },
         { status: 404 }
       );
     }
-
+    
     return NextResponse.json(
-      {
-        success: false,
+      { 
+        success: false, 
         error: error?.message || "Failed to delete customer",
+        errorDetails: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
       { status: 500 }
     );
