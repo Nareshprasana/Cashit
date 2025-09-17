@@ -419,7 +419,7 @@ const NewLoanForm = () => {
                                     )
                                   }
                                 >
-                                  {customer.customerCode} - {customer.name}
+                                  {customer.customerCode}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
