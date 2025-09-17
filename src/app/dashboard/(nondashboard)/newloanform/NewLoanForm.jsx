@@ -408,8 +408,7 @@ const NewLoanForm = () => {
                           disabled={!form.area}
                         >
                           {form.customerId
-                            ? customers.find((c) => c.id === form.customerId)
-                                ?.name
+                            ? customers.find((c) => c.id === form.customerId)?.customerCode
                             : form.area
                             ? "Select customer..."
                             : "First select an area"}
