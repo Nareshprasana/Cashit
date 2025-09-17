@@ -85,26 +85,7 @@ const NewLoanForm = () => {
     }
   }, [form.area]);
 
-  // ✅ Fetch details by code or ID
-  const fetchCustomerDetails = async (codeOrId) => {
-    try {
-      const res = await fetch(`/api/customers/${codeOrId}`);
-      if (!res.ok) {
-        toast.error(
-          res.status === 404
-            ? "Customer not found. Please check the code or QR."
-            : "Failed to load customer details."
-        );
-        return null;
-      }
-      return await res.json();
-    } catch {
-      toast.error("An unexpected error occurred.");
-      return null;
-    }
-  };
-
-  // Handlers
+  // ✅ Handlers
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -251,8 +232,16 @@ const NewLoanForm = () => {
                           customerCode = url.pathname.split("/").pop();
                         } catch {}
 
-                        const customerData =
-                          await fetchCustomerDetails(customerCode);
+                        // ✅ fetch like repayment form
+                        const res = await fetch(
+                          `/api/customers/code/${customerCode}`
+                        );
+                        if (!res.ok) {
+                          toast.error("Customer not found or invalid QR.");
+                          return;
+                        }
+
+                        const customerData = await res.json();
 
                         if (customerData) {
                           // fetch customers in same area
@@ -273,9 +262,7 @@ const NewLoanForm = () => {
                             ...prev,
                             area: customerData.areaId || "",
                             customerCode: customerData.customerCode || "",
-                            customerId:
-                              list.find((c) => c.id === customerData.id)?.id ||
-                              "",
+                            customerId: customerData.id || "",
                           }));
 
                           setCustomerDetails({
@@ -284,24 +271,15 @@ const NewLoanForm = () => {
                           });
 
                           toast.success(
-                            `Details for customer ${customerData.customerCode} loaded successfully.`
+                            `Customer ${customerData.customerCode} loaded successfully ✅`
                           );
                         } else {
-                          toast.error(
-                            "Customer not found or unable to load details."
-                          );
-                          setForm((prev) => ({
-                            ...prev,
-                            customerCode: customerCode,
-                            area: "",
-                            customerId: "",
-                          }));
-                          setCustomers([]);
+                          toast.error("Unable to load customer details.");
                         }
 
                         setTimeout(() => {
                           setScanning(false);
-                        }, 100);
+                        }, 200);
                       }}
                       onError={(err) => toast.error(err)}
                     />
@@ -318,33 +296,27 @@ const NewLoanForm = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* ✅ Area with search */}
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="area"
-                      className="text-sm font-medium text-gray-700"
-                    >
+                    <Label className="text-sm font-medium text-gray-700">
                       Area <span className="text-red-500">*</span>
                     </Label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Command>
-                        <CommandInput placeholder="Search area..." className="pl-9" />
-                        <CommandList>
-                          <CommandEmpty>No area found.</CommandEmpty>
-                          <CommandGroup>
-                            {areas.map((area) => (
-                              <CommandItem
-                                key={area.id}
-                                onSelect={() =>
-                                  handleSelectChange("area", area.id)
-                                }
-                              >
-                                {area.areaName || area.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </div>
+                    <Command>
+                      <CommandInput placeholder="Search area..." />
+                      <CommandList>
+                        <CommandEmpty>No area found.</CommandEmpty>
+                        <CommandGroup>
+                          {areas.map((area) => (
+                            <CommandItem
+                              key={area.id}
+                              onSelect={() =>
+                                handleSelectChange("area", area.id)
+                              }
+                            >
+                              {area.areaName || area.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
                     {errors.area && (
                       <p className="text-red-500 text-xs mt-1">{errors.area}</p>
                     )}
@@ -352,39 +324,32 @@ const NewLoanForm = () => {
 
                   {/* ✅ Customer with search */}
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="customerId"
-                      className="text-sm font-medium text-gray-700"
-                    >
+                    <Label className="text-sm font-medium text-gray-700">
                       Customer <span className="text-red-500">*</span>
                     </Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Command>
-                        <CommandInput
-                          placeholder={
-                            form.area ? "Search customer..." : "First select an area"
-                          }
-                          className="pl-9"
-                          disabled={!form.area}
-                        />
-                        <CommandList>
-                          <CommandEmpty>No customer found.</CommandEmpty>
-                          <CommandGroup>
-                            {customers.map((customer) => (
-                              <CommandItem
-                                key={customer.id}
-                                onSelect={() =>
-                                  handleSelectChange("customerId", customer.id)
-                                }
-                              >
-                                {customer.customerCode} - {customer.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </div>
+                    <Command>
+                      <CommandInput
+                        placeholder={
+                          form.area ? "Search customer..." : "First select an area"
+                        }
+                        disabled={!form.area}
+                      />
+                      <CommandList>
+                        <CommandEmpty>No customer found.</CommandEmpty>
+                        <CommandGroup>
+                          {customers.map((customer) => (
+                            <CommandItem
+                              key={customer.id}
+                              onSelect={() =>
+                                handleSelectChange("customerId", customer.id)
+                              }
+                            >
+                              {customer.customerCode} - {customer.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
                     {errors.customerId && (
                       <p className="text-red-500 text-xs mt-1">
                         {errors.customerId}
@@ -402,24 +367,16 @@ const NewLoanForm = () => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="amount"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Loan Amount <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="relative">
-                      <DollarSign className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="amount"
-                        name="amount"
-                        type="number"
-                        value={form.amount}
-                        onChange={handleChange}
-                        placeholder="0.00"
-                        className="w-full pl-9 h-11"
-                      />
-                    </div>
+                    <Label>Loan Amount *</Label>
+                    <Input
+                      id="amount"
+                      name="amount"
+                      type="number"
+                      value={form.amount}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                      className="w-full h-11"
+                    />
                     {errors.amount && (
                       <p className="text-red-500 text-xs mt-1">
                         {errors.amount}
@@ -428,49 +385,32 @@ const NewLoanForm = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="rate"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Interest Rate (%) <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="relative">
-                      <Percent className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="rate"
-                        name="rate"
-                        type="number"
-                        value={form.rate}
-                        onChange={handleChange}
-                        placeholder="0.0"
-                        className="w-full pl-9 h-11"
-                      />
-                    </div>
+                    <Label>Interest Rate (%) *</Label>
+                    <Input
+                      id="rate"
+                      name="rate"
+                      type="number"
+                      value={form.rate}
+                      onChange={handleChange}
+                      placeholder="0.0"
+                      className="w-full h-11"
+                    />
                     {errors.rate && (
                       <p className="text-red-500 text-xs mt-1">{errors.rate}</p>
                     )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="tenure"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Tenure (Months){" "}
-                      <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="tenure"
-                        name="tenure"
-                        type="number"
-                        value={form.tenure}
-                        onChange={handleChange}
-                        placeholder="12"
-                        className="w-full pl-9 h-11"
-                      />
-                    </div>
+                    <Label>Tenure (Months) *</Label>
+                    <Input
+                      id="tenure"
+                      name="tenure"
+                      type="number"
+                      value={form.tenure}
+                      onChange={handleChange}
+                      placeholder="12"
+                      className="w-full h-11"
+                    />
                     {errors.tenure && (
                       <p className="text-red-500 text-xs mt-1">
                         {errors.tenure}
@@ -479,12 +419,7 @@ const NewLoanForm = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="loanDate"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Loan Date <span className="text-red-500">*</span>
-                    </Label>
+                    <Label>Loan Date *</Label>
                     <Input
                       type="date"
                       id="loanDate"
