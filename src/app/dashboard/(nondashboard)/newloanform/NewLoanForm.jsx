@@ -21,14 +21,17 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import QRScanner from "@/components/QRScanner";
+
+// ✅ shadcn Command for searchable dropdown
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import QRScanner from "@/components/QRScanner"; // ✅ import QR scanner
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
 
 const NewLoanForm = () => {
   const [areas, setAreas] = useState([]);
@@ -237,6 +240,7 @@ const NewLoanForm = () => {
                   )}
                   {scanning ? "Close Scanner" : "Scan Customer QR"}
                 </Button>
+
                 {scanning && (
                   <div className="mt-4 border rounded-lg overflow-hidden">
                     <QRScanner
@@ -251,7 +255,7 @@ const NewLoanForm = () => {
                           await fetchCustomerDetails(customerCode);
 
                         if (customerData) {
-                          // Fetch customers for this area
+                          // fetch customers in same area
                           const customersRes = await fetch(
                             `/api/customers/by-area/${customerData.areaId}`
                           );
@@ -312,7 +316,7 @@ const NewLoanForm = () => {
                   Customer Information
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Area */}
+                  {/* ✅ Area with search */}
                   <div className="space-y-2">
                     <Label
                       htmlFor="area"
@@ -322,30 +326,31 @@ const NewLoanForm = () => {
                     </Label>
                     <div className="relative">
                       <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Select
-                        value={form.area}
-                        onValueChange={(value) =>
-                          handleSelectChange("area", value)
-                        }
-                      >
-                        <SelectTrigger className="w-full h-11 pl-9">
-                          <SelectValue placeholder="Select an area" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {areas.map((area) => (
-                            <SelectItem key={area.id} value={area.id}>
-                              {area.areaName || area.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Command>
+                        <CommandInput placeholder="Search area..." className="pl-9" />
+                        <CommandList>
+                          <CommandEmpty>No area found.</CommandEmpty>
+                          <CommandGroup>
+                            {areas.map((area) => (
+                              <CommandItem
+                                key={area.id}
+                                onSelect={() =>
+                                  handleSelectChange("area", area.id)
+                                }
+                              >
+                                {area.areaName || area.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
                     </div>
                     {errors.area && (
                       <p className="text-red-500 text-xs mt-1">{errors.area}</p>
                     )}
                   </div>
 
-                  {/* Customer */}
+                  {/* ✅ Customer with search */}
                   <div className="space-y-2">
                     <Label
                       htmlFor="customerId"
@@ -355,30 +360,30 @@ const NewLoanForm = () => {
                     </Label>
                     <div className="relative">
                       <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Select
-                        value={form.customerId}
-                        onValueChange={(value) =>
-                          handleSelectChange("customerId", value)
-                        }
-                        disabled={!form.area}
-                      >
-                        <SelectTrigger className="w-full h-11 pl-9">
-                          <SelectValue
-                            placeholder={
-                              form.area
-                                ? "Select a customer"
-                                : "First select an area"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {customers.map((customer) => (
-                            <SelectItem key={customer.id} value={customer.id}>
-                              {customer.customerCode} - {customer.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Command>
+                        <CommandInput
+                          placeholder={
+                            form.area ? "Search customer..." : "First select an area"
+                          }
+                          className="pl-9"
+                          disabled={!form.area}
+                        />
+                        <CommandList>
+                          <CommandEmpty>No customer found.</CommandEmpty>
+                          <CommandGroup>
+                            {customers.map((customer) => (
+                              <CommandItem
+                                key={customer.id}
+                                onSelect={() =>
+                                  handleSelectChange("customerId", customer.id)
+                                }
+                              >
+                                {customer.customerCode} - {customer.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
                     </div>
                     {errors.customerId && (
                       <p className="text-red-500 text-xs mt-1">
