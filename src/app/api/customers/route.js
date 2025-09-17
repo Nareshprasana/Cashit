@@ -7,13 +7,19 @@ import { put } from "@vercel/blob";
 // ✅ Force Node runtime so env vars work
 export const runtime = "nodejs";
 
-console.log("BLOB_READ_WRITE_TOKEN exists:", !!process.env.BLOB_READ_WRITE_TOKEN);
+console.log(
+  "BLOB_READ_WRITE_TOKEN exists:",
+  !!process.env.BLOB_READ_WRITE_TOKEN
+);
 
 // 🔹 Helper to upload a file to Vercel Blob
 async function saveFile(file, prefix) {
   if (!file || typeof file === "string") return null;
 
-  const ext = String(file.name || "").split(".").pop() || "bin";
+  const ext =
+    String(file.name || "")
+      .split(".")
+      .pop() || "bin";
   const filename = `${prefix}-${Date.now()}.${ext}`;
 
   const blob = await put(filename, file, {
@@ -100,7 +106,8 @@ export async function GET(req) {
 
       const loanAmount = Number(latestLoan?.amount ?? 0);
       const totalPaid = (latestLoan?.repayments || []).reduce((acc, r) => {
-        const val = typeof r.amount === "number" ? r.amount : Number(r.amount || 0);
+        const val =
+          typeof r.amount === "number" ? r.amount : Number(r.amount || 0);
         return acc + (isNaN(val) ? 0 : val);
       }, 0);
       const pendingAmount = Math.max(loanAmount - totalPaid, 0);
@@ -126,7 +133,10 @@ export async function GET(req) {
   } catch (error) {
     console.error("❌ GET /api/customers error:", error);
     return NextResponse.json(
-      { message: "Failed to fetch customers", details: error?.message ?? String(error) },
+      {
+        message: "Failed to fetch customers",
+        details: error?.message ?? String(error),
+      },
       { status: 500 }
     );
   }
@@ -139,16 +149,32 @@ export async function POST(req) {
     const customer = Object.fromEntries(formData.entries());
 
     const photoUrl = await saveFile(formData.get("photo"), "photo");
-    const aadharDocumentUrl = await saveFile(formData.get("aadharDocument"), "aadhar");
-    const incomeProofUrl = await saveFile(formData.get("incomeProof"), "income");
-    const residenceProofUrl = await saveFile(formData.get("residenceProof"), "residence");
+    const aadharDocumentUrl = await saveFile(
+      formData.get("aadharDocument"),
+      "aadhar"
+    );
+    const incomeProofUrl = await saveFile(
+      formData.get("incomeProof"),
+      "income"
+    );
+    const residenceProofUrl = await saveFile(
+      formData.get("residenceProof"),
+      "residence"
+    );
 
     const dobDate = customer.dob ? new Date(customer.dob) : null;
     const dob = dobDate && !isNaN(dobDate.getTime()) ? dobDate : null;
 
-    if (!customer.area || typeof customer.area !== "string" || customer.area.trim() === "") {
+    if (
+      !customer.area ||
+      typeof customer.area !== "string" ||
+      customer.area.trim() === ""
+    ) {
       return NextResponse.json(
-        { success: false, error: "area is required and must be a valid string" },
+        {
+          success: false,
+          error: "area is required and must be a valid string",
+        },
         { status: 400 }
       );
     }
@@ -238,7 +264,8 @@ export async function PUT(req) {
     };
 
     const photo = formData.get("photo");
-    if (photo && typeof photo !== "string") updateData.photoUrl = await saveFile(photo, "photo");
+    if (photo && typeof photo !== "string")
+      updateData.photoUrl = await saveFile(photo, "photo");
 
     const aadharDocument = formData.get("aadharDocument");
     if (aadharDocument && typeof aadharDocument !== "string")
@@ -250,7 +277,10 @@ export async function PUT(req) {
 
     const residenceProof = formData.get("residenceProof");
     if (residenceProof && typeof residenceProof !== "string")
-      updateData.residenceProofUrl = await saveFile(residenceProof, "residence");
+      updateData.residenceProofUrl = await saveFile(
+        residenceProof,
+        "residence"
+      );
 
     const updatedCustomer = await prisma.customer.update({
       where: { id: customerId },
@@ -266,7 +296,10 @@ export async function PUT(req) {
       updatedCustomer.qrUrl = qrUrl;
     }
 
-    return NextResponse.json({ success: true, customer: updatedCustomer }, { status: 200 });
+    return NextResponse.json(
+      { success: true, customer: updatedCustomer },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("❌ PUT /api/customers error:", error);
     return NextResponse.json(
@@ -277,6 +310,7 @@ export async function PUT(req) {
 }
 
 // ✅ DELETE customer
+// ✅ DELETE customer (improved version)
 export async function DELETE(req) {
   try {
     const { searchParams } = new URL(req.url);
@@ -289,16 +323,56 @@ export async function DELETE(req) {
       );
     }
 
-    await prisma.customer.delete({ where: { id: parseInt(id, 10) } });
+    const customerId = parseInt(id, 10);
+
+    if (isNaN(customerId)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid Customer ID" },
+        { status: 400 }
+      );
+    }
+
+    // Check if customer exists first
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { id: customerId },
+    });
+
+    if (!existingCustomer) {
+      return NextResponse.json(
+        { success: false, error: "Customer not found" },
+        { status: 404 }
+      );
+    }
+
+    // Delete customer (Prisma will handle related records based on your schema)
+    await prisma.customer.delete({
+      where: { id: customerId },
+    });
 
     return NextResponse.json(
-      { success: true, message: "Customer deleted successfully" },
+      {
+        success: true,
+        message: "Customer deleted successfully",
+        deletedId: customerId,
+      },
       { status: 200 }
     );
   } catch (error) {
     console.error("❌ DELETE /api/customers error:", error);
+
+    // Handle specific Prisma errors
+    if (error.code === "P2025") {
+      return NextResponse.json(
+        { success: false, error: "Customer not found" },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json(
-      { success: false, error: error?.message || "Failed to delete customer" },
+      {
+        success: false,
+        error: error?.message || "Failed to delete customer",
+      },
       { status: 500 }
     );
   }

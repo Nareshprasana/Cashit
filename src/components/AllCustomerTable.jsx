@@ -1,7 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpDown, MoreHorizontal, ChevronsUpDown, Search, Download, FileText, User, CreditCard, Calendar, MapPin, Phone, DollarSign, BarChart3, Filter, X, Edit, Loader2 } from "lucide-react";
+import {
+  ArrowUpDown,
+  MoreHorizontal,
+  ChevronsUpDown,
+  Search,
+  Download,
+  FileText,
+  User,
+  CreditCard,
+  Calendar,
+  MapPin,
+  Phone,
+  DollarSign,
+  BarChart3,
+  Filter,
+  X,
+  Edit,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
@@ -50,7 +68,13 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Pagination imports
@@ -168,15 +192,33 @@ export default function AllCustomerTable() {
   }, [selectedCustomer]);
 
   // Delete handler
+  // Delete handler
   async function handleDelete(id) {
     try {
       setDeletingId(id);
-      const res = await fetch(`/api/customers?id=${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete");
-      setData((prev) => prev.filter((c) => c.id !== id));
-      if (selectedCustomer?.id === id) setDialogOpen(false);
+      const res = await fetch(`/api/customers?id=${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to delete customer");
+      }
+
+      const result = await res.json();
+
+      if (result.success) {
+        setData((prev) => prev.filter((c) => c.id !== id));
+        if (selectedCustomer?.id === id) {
+          setDialogOpen(false);
+          setSelectedCustomer(null);
+        }
+      } else {
+        throw new Error(result.error || "Failed to delete customer");
+      }
     } catch (e) {
       console.error("Delete error:", e);
+      alert(`Delete failed: ${e.message}`);
     } finally {
       setDeletingId(null);
     }
@@ -185,12 +227,14 @@ export default function AllCustomerTable() {
   // QR Code download handler
   const handleDownloadQRCode = () => {
     if (!qrCodeUrl || !selectedCustomer) return;
-    
+
     // Create a temporary anchor element
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = qrCodeUrl;
-    a.download = `QRCode_${selectedCustomer.customerCode || selectedCustomer.name}.png`;
-    a.style.display = 'none';
+    a.download = `QRCode_${
+      selectedCustomer.customerCode || selectedCustomer.name
+    }.png`;
+    a.style.display = "none";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -216,14 +260,14 @@ export default function AllCustomerTable() {
         );
       },
     },
-    { 
-      accessorKey: "customerCode", 
+    {
+      accessorKey: "customerCode",
       header: "Customer ID",
       cell: ({ row }) => (
         <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded">
           {row.original.customerCode}
         </span>
-      )
+      ),
     },
     {
       accessorKey: "name",
@@ -249,12 +293,12 @@ export default function AllCustomerTable() {
         </span>
       ),
     },
-    { 
-      accessorKey: "aadhar", 
+    {
+      accessorKey: "aadhar",
       header: "Aadhar",
       cell: ({ row }) => (
         <span className="text-sm">{row.original.aadhar || "N/A"}</span>
-      )
+      ),
     },
     {
       accessorKey: "area",
@@ -522,13 +566,17 @@ export default function AllCustomerTable() {
       {/* Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Customer Management</h1>
-          <p className="text-gray-600 mt-1">Manage all customer accounts and loan details</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Customer Management
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Manage all customer accounts and loan details
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="px-3 py-1">
             <User className="h-4 w-4 mr-1" />
-            {data.length} customer{data.length !== 1 ? 's' : ''}
+            {data.length} customer{data.length !== 1 ? "s" : ""}
           </Badge>
           <Badge variant="outline" className="px-3 py-1">
             <CreditCard className="h-4 w-4 mr-1" />
@@ -546,19 +594,29 @@ export default function AllCustomerTable() {
               <CardTitle className="text-lg">Filters</CardTitle>
             </div>
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setShowFilters(!showFilters)}
                 className="flex items-center gap-1"
               >
-                {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
-                {showFilters ? 'Hide Filters' : 'Show Filters'}
+                {showFilters ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <Filter className="h-4 w-4" />
+                )}
+                {showFilters ? "Hide Filters" : "Show Filters"}
               </Button>
-              {(globalFilter || statusFilter || areaFilter || minAmount || maxAmount || startEndDate || endEndDate) && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+              {(globalFilter ||
+                statusFilter ||
+                areaFilter ||
+                minAmount ||
+                maxAmount ||
+                startEndDate ||
+                endEndDate) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     setGlobalFilter("");
                     setStatusFilter("");
@@ -575,7 +633,7 @@ export default function AllCustomerTable() {
             </div>
           </div>
         </CardHeader>
-        
+
         <CardContent>
           <div className="flex flex-col gap-4">
             {/* Main search */}
@@ -733,7 +791,7 @@ export default function AllCustomerTable() {
         <p className="text-sm text-gray-600">
           Page {currentPage} of {totalPages}
         </p>
-        
+
         <Pagination>
           <PaginationContent>
             <PaginationItem>
@@ -744,7 +802,9 @@ export default function AllCustomerTable() {
                   setCurrentPage((p) => Math.max(1, p - 1));
                 }}
                 aria-disabled={currentPage === 1}
-                className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                className={
+                  currentPage === 1 ? "pointer-events-none opacity-50" : ""
+                }
               />
             </PaginationItem>
 
@@ -825,7 +885,9 @@ export default function AllCustomerTable() {
                         </div>
                       )}
                       <div className="text-center">
-                        <div className="font-bold text-lg">{selectedCustomer.name}</div>
+                        <div className="font-bold text-lg">
+                          {selectedCustomer.name}
+                        </div>
                         <div className="text-sm text-gray-600 mt-1">
                           {selectedCustomer.customerCode || "N/A"}
                         </div>
@@ -849,7 +911,9 @@ export default function AllCustomerTable() {
 
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
+                    <CardTitle className="text-sm font-medium">
+                      Quick Actions
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <Button
@@ -903,23 +967,31 @@ export default function AllCustomerTable() {
                       Repayments ({numberOfRepayments})
                     </TabsTrigger>
                   </TabsList>
-                  
+
                   <TabsContent value="details" className="space-y-4">
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">Personal Information</CardTitle>
+                        <CardTitle className="text-lg">
+                          Personal Information
+                        </CardTitle>
                       </CardHeader>
                       <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <Label className="text-sm text-gray-500">Mobile Number</Label>
+                          <Label className="text-sm text-gray-500">
+                            Mobile Number
+                          </Label>
                           <div className="flex items-center font-medium">
                             <Phone className="h-4 w-4 mr-2 text-gray-500" />
                             {selectedCustomer.mobile || "N/A"}
                           </div>
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-sm text-gray-500">Aadhar Number</Label>
-                          <div className="font-medium">{selectedCustomer.aadhar || "N/A"}</div>
+                          <Label className="text-sm text-gray-500">
+                            Aadhar Number
+                          </Label>
+                          <div className="font-medium">
+                            {selectedCustomer.aadhar || "N/A"}
+                          </div>
                         </div>
                         <div className="space-y-1">
                           <Label className="text-sm text-gray-500">Area</Label>
@@ -929,7 +1001,9 @@ export default function AllCustomerTable() {
                           </div>
                         </div>
                         <div className="space-y-1 md:col-span-2">
-                          <Label className="text-sm text-gray-500">Address</Label>
+                          <Label className="text-sm text-gray-500">
+                            Address
+                          </Label>
                           <div className="font-medium">
                             {selectedCustomer.address || "N/A"}
                           </div>
@@ -939,29 +1013,41 @@ export default function AllCustomerTable() {
 
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">Loan Information</CardTitle>
+                        <CardTitle className="text-lg">
+                          Loan Information
+                        </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-1">
-                            <Label className="text-sm text-gray-500">Loan Amount</Label>
+                            <Label className="text-sm text-gray-500">
+                              Loan Amount
+                            </Label>
                             <div className="flex items-center font-medium text-lg">
                               <DollarSign className="h-4 w-4 mr-1 text-gray-500" />
-                              ₹{Number(selectedCustomer.loanAmount || 0).toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-sm text-gray-500">Total Paid</Label>
-                            <div className="flex items-center font-medium text-lg text-green-600">
-                              <DollarSign className="h-4 w-4 mr-1" />
-                              ₹{Number(selectedCustomer.totalPaid || 0).toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-sm text-gray-500">Pending Amount</Label>
-                            <div className="flex items-center font-medium text-lg text-red-600">
-                              <DollarSign className="h-4 w-4 mr-1" />
                               ₹
+                              {Number(
+                                selectedCustomer.loanAmount || 0
+                              ).toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-sm text-gray-500">
+                              Total Paid
+                            </Label>
+                            <div className="flex items-center font-medium text-lg text-green-600">
+                              <DollarSign className="h-4 w-4 mr-1" />₹
+                              {Number(
+                                selectedCustomer.totalPaid || 0
+                              ).toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-sm text-gray-500">
+                              Pending Amount
+                            </Label>
+                            <div className="flex items-center font-medium text-lg text-red-600">
+                              <DollarSign className="h-4 w-4 mr-1" />₹
                               {Number(
                                 (selectedCustomer.loanAmount || 0) -
                                   (selectedCustomer.totalPaid || 0)
@@ -969,7 +1055,9 @@ export default function AllCustomerTable() {
                             </div>
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-sm text-gray-500">End Date</Label>
+                            <Label className="text-sm text-gray-500">
+                              End Date
+                            </Label>
                             <div className="flex items-center font-medium">
                               <Calendar className="h-4 w-4 mr-2 text-gray-500" />
                               {selectedCustomer.endDate
@@ -984,33 +1072,38 @@ export default function AllCustomerTable() {
                             </div>
                           </div>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>Repayment Progress</span>
                             <span>
                               {Math.round(
-                                ((selectedCustomer.totalPaid || 0) / 
-                                 (selectedCustomer.loanAmount || 1)) * 100
-                              )}%
+                                ((selectedCustomer.totalPaid || 0) /
+                                  (selectedCustomer.loanAmount || 1)) *
+                                  100
+                              )}
+                              %
                             </span>
                           </div>
-                          <ProgressBar 
+                          <ProgressBar
                             value={
-                              ((selectedCustomer.totalPaid || 0) / 
-                               (selectedCustomer.loanAmount || 1)) * 100
-                            } 
+                              ((selectedCustomer.totalPaid || 0) /
+                                (selectedCustomer.loanAmount || 1)) *
+                              100
+                            }
                             className="h-2"
                           />
                         </div>
                       </CardContent>
                     </Card>
                   </TabsContent>
-                  
+
                   <TabsContent value="repayments">
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">Repayment History</CardTitle>
+                        <CardTitle className="text-lg">
+                          Repayment History
+                        </CardTitle>
                         <CardDescription>
                           All transactions for {selectedCustomer.name}
                         </CardDescription>
@@ -1026,9 +1119,15 @@ export default function AllCustomerTable() {
                             <table className="w-full text-sm">
                               <thead className="bg-gray-50">
                                 <tr>
-                                  <th className="text-left p-3 font-medium">Date</th>
-                                  <th className="text-left p-3 font-medium">Amount</th>
-                                  <th className="text-left p-3 font-medium">Note</th>
+                                  <th className="text-left p-3 font-medium">
+                                    Date
+                                  </th>
+                                  <th className="text-left p-3 font-medium">
+                                    Amount
+                                  </th>
+                                  <th className="text-left p-3 font-medium">
+                                    Note
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y">
@@ -1049,7 +1148,9 @@ export default function AllCustomerTable() {
                                     <td className="p-3 font-medium">
                                       ₹{Number(r.amount || 0).toLocaleString()}
                                     </td>
-                                    <td className="p-3 text-gray-600">{r.note || "—"}</td>
+                                    <td className="p-3 text-gray-600">
+                                      {r.note || "—"}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -1119,7 +1220,10 @@ export default function AllCustomerTable() {
 
                 <div className="grid gap-2">
                   <Label>Mobile</Label>
-                  <Input name="mobile" defaultValue={selectedCustomer?.mobile || ""} />
+                  <Input
+                    name="mobile"
+                    defaultValue={selectedCustomer?.mobile || ""}
+                  />
                 </div>
 
                 <div className="grid gap-2">
@@ -1150,8 +1254,9 @@ export default function AllCustomerTable() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete the customer
-                  account and remove all associated data from our servers.
+                  This action cannot be undone. This will permanently delete the
+                  customer account and remove all associated data from our
+                  servers.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
