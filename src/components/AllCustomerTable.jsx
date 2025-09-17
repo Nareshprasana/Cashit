@@ -194,17 +194,32 @@ export default function AllCustomerTable() {
   // Delete handler
   async function handleDelete(id) {
     try {
-      console.log("🔄 DELETE - Starting deletion process");
-      console.log("📋 Customer ID to delete:", id, "Type:", typeof id);
+      console.log(
+        "🔄 DELETE - Starting deletion with ID:",
+        id,
+        "Type:",
+        typeof id
+      );
 
-      // Convert to number to ensure proper type
-      const numericId = Number(id);
-      console.log("🔢 Converted ID:", numericId, "Type:", typeof numericId);
+      // Validate the ID - it should be a UUID string, not a number
+      if (!id || typeof id !== "string") {
+        console.error("❌ Invalid ID provided:", id);
+        alert("Invalid customer ID. Please try again.");
+        return;
+      }
 
-      setDeletingId(numericId);
+      // Check if it looks like a UUID (optional validation)
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(id)) {
+        console.warn("⚠️ ID doesn't match UUID format:", id);
+        // Still proceed, as it might be a valid string ID
+      }
 
-      const apiUrl = `/api/customers?id=${numericId}`;
-      console.log("🌐 API URL:", apiUrl);
+      setDeletingId(id);
+
+      const apiUrl = `/api/customers?id=${encodeURIComponent(id)}`;
+      console.log("🌐 Calling API:", apiUrl);
 
       const res = await fetch(apiUrl, {
         method: "DELETE",
@@ -217,7 +232,7 @@ export default function AllCustomerTable() {
 
       if (!res.ok) {
         const errorText = await res.text();
-        console.error("❌ Error response text:", errorText);
+        console.error("❌ Error response:", errorText);
 
         let errorData;
         try {
@@ -232,11 +247,11 @@ export default function AllCustomerTable() {
       }
 
       const result = await res.json();
-      console.log("✅ Success response:", result);
+      console.log("✅ Success:", result);
 
       if (result.success) {
-        setData((prev) => prev.filter((c) => c.id !== numericId));
-        if (selectedCustomer?.id === numericId) {
+        setData((prev) => prev.filter((c) => c.id !== id));
+        if (selectedCustomer?.id === id) {
           setDialogOpen(false);
           setSelectedCustomer(null);
         }
