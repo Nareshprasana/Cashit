@@ -124,7 +124,7 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
           ["DOB", "dob", true, { type: "date" }],
           ["Aadhar Number", "aadhar", true, { maxLength: 12, inputMode: "numeric" }],
           ["Guarantor Name", "guarantorName", true],
-          ["Guarantor Aadhar", "guarantorAadhar", true],
+          ["Guarantor Aadhar", "guarantorAadhar", true,{ maxLength: 12, inputMode: "numeric" }],
           ["Customer Code", "customerCode", false, { readOnly: true }],
         ].map(([label, name, required, props = {}]) => (
           <div key={name} className="space-y-2">
@@ -195,7 +195,6 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
         <h2 className="text-xl font-semibold text-gray-800 mb-4">
           Location Information
         </h2>
-
         {/* Area Dropdown */}
         <div className="space-y-2 mb-6">
           <label htmlFor="area" className="block text-sm font-medium text-gray-700">

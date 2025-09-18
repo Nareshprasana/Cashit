@@ -34,6 +34,7 @@ const AddNewCustomerForm = () => {
   const [errors, setErrors] = useState([]);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [successCustomer, setSuccessCustomer] = useState(null);
+  const [alertMessage, setAlertMessage] = useState(""); // 🚨 alert state
 
   // ⏳ Cooldown & click-limit state
   const [isCooldown, setIsCooldown] = useState(false);
@@ -84,40 +85,77 @@ const AddNewCustomerForm = () => {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  // ✅ Age validation helper
+  const isAbove18 = (dob) => {
+    if (!dob) return false;
+    const today = new Date();
+    const birthDate = new Date(dob);
+    const age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      return age - 1 >= 18;
+    }
+    return age >= 18;
+  };
+
   const nextStep = () => {
-    if (isCooldown || hasClicked) return; // 🚫 block spam clicks
+    if (isCooldown || hasClicked) return;
     setHasClicked(true);
     setIsCooldown(true);
+    setAlertMessage(""); // reset alert
 
-    const { photo, aadharDocument, incomeProof, residenceProof, ...formData } =
-      form;
+    const stepOneData = {
+      customerName: form.customerName,
+      parentName: form.parentName,
+      mobile: form.mobile,
+      gender: form.gender,
+      dob: form.dob,
+      aadhar: form.aadhar,
+      guarantorName: form.guarantorName,
+      guarantorAadhar: form.guarantorAadhar,
+      area: form.area,
+      address: form.address,
+      customerCode: form.customerCode,
+    };
 
-    const result = CustomerSchema.omit({
-      photo: true,
-      aadharDocument: true,
-      incomeProof: true,
-      residenceProof: true,
-    }).safeParse(formData);
+    const result = CustomerSchema.pick({
+      customerName: true,
+      parentName: true,
+      mobile: true,
+      gender: true,
+      dob: true,
+      aadhar: true,
+      guarantorName: true,
+      guarantorAadhar: true,
+      area: true,
+      address: true,
+      customerCode: true,
+    }).safeParse(stepOneData);
 
     if (!result.success) {
       setErrors(result.error?.errors || []);
+      setAlertMessage("⚠️ Please correct the highlighted errors.");
+    } else if (!isAbove18(form.dob)) {
+      setErrors([{ path: ["dob"], message: "Customer must be at least 18 years old" }]);
+      setAlertMessage("⚠️ Customer must be at least 18 years old.");
     } else {
       setErrors([]);
       setStep(2);
     }
 
-    // reset cooldown after 2s
     setTimeout(() => setIsCooldown(false), 2000);
   };
 
   const handleSubmit = async () => {
-    if (isCooldown || hasClicked) return; // 🚫 block spam clicks
+    if (isCooldown || hasClicked) return;
     setHasClicked(true);
     setIsCooldown(true);
+    setAlertMessage("");
 
     const result = CustomerSchema.safeParse(form);
     if (!result.success) {
       setErrors(result.error?.errors || []);
+      setAlertMessage("⚠️ Please correct all required fields before submitting.");
       setStep(1);
       setIsCooldown(false);
       setHasClicked(false);
@@ -171,14 +209,14 @@ const AddNewCustomerForm = () => {
         setPhotoPreview(null);
         setErrors([]);
       } else {
-        alert("❌ Error submitting form");
+        setAlertMessage("❌ Error submitting form. Please try again.");
       }
     } catch (err) {
       console.error("❌ Submission failed:", err);
-      alert("❌ Something went wrong.");
+      setAlertMessage("❌ Something went wrong. Please try again later.");
     } finally {
       setIsSubmitting(false);
-      setTimeout(() => setIsCooldown(false), 2000); // release cooldown after 2s
+      setTimeout(() => setIsCooldown(false), 2000);
     }
   };
 
@@ -191,6 +229,14 @@ const AddNewCustomerForm = () => {
       <h2 className="text-xl font-bold text-gray-700">Step {step} of 3</h2>
       <ProgressBar step={step} />
       <h1 className="text-xl font-bold mb-4">Add New Customer</h1>
+
+      {/* 🚨 Alert message */}
+      {alertMessage && (
+        <div className="p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-lg">
+          {alertMessage}
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
         {step === 1 && (
           <motion.div key="step1">
@@ -207,13 +253,6 @@ const AddNewCustomerForm = () => {
                 photoPreview={photoPreview}
                 setPhotoPreview={setPhotoPreview}
               />
-              {/* <button
-                type="submit"
-                disabled={isCooldown || isSubmitting}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-              >
-                Next
-              </button> */}
             </form>
           </motion.div>
         )}
@@ -231,13 +270,6 @@ const AddNewCustomerForm = () => {
                 setStep={setStep}
                 isSubmitting={isSubmitting}
               />
-              {/* <button
-                type="submit"
-                disabled={isCooldown || isSubmitting}
-                className="mt-4 px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
-              >
-                {isSubmitting ? "Saving..." : "Submit"}
-              </button> */}
             </form>
           </motion.div>
         )}
