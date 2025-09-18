@@ -23,7 +23,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 
-// 🆕 ShadCN Dialog
 import {
   Dialog,
   DialogContent,
@@ -31,6 +30,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 
 export default function RepaymentTable() {
   const [repayments, setRepayments] = useState([]);
@@ -63,7 +70,7 @@ export default function RepaymentTable() {
     if (search) {
       data = data.filter(
         (r) =>
-          r.customerName?.toLowerCase().includes(search.toLowerCase()) ||
+          r.customerCode?.toLowerCase().includes(search.toLowerCase()) ||
           r.loanCode?.toLowerCase().includes(search.toLowerCase())
       );
     }
@@ -82,6 +89,7 @@ export default function RepaymentTable() {
     setFiltered(data);
   }, [search, status, fromDate, toDate, repayments]);
 
+  // Status badges
   const getStatusBadge = (status) => {
     switch (status) {
       case "PAID":
@@ -100,6 +108,18 @@ export default function RepaymentTable() {
         return (
           <Badge variant="destructive">
             <AlertCircle className="h-3 w-3 mr-1" /> Overdue
+          </Badge>
+        );
+      case "ACTIVE":
+        return (
+          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+            Active
+          </Badge>
+        );
+      case "CLOSED":
+        return (
+          <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">
+            Closed
           </Badge>
         );
       default:
@@ -132,7 +152,7 @@ export default function RepaymentTable() {
       headers.join(","),
       ...filtered.map((row) =>
         [
-          `"${row.customerName || ""}"`,
+          `"${row.customerCode || ""}"`,
           `"${row.loanCode || ""}"`,
           row.amount || 0,
           `"${formatDate(row.date || "")}"`,
@@ -155,24 +175,18 @@ export default function RepaymentTable() {
     document.body.removeChild(link);
   };
 
-  // ================= COLUMNS =================
+  // Columns
   const columns = [
     {
-      accessorKey: "customerName",
+      accessorKey: "customerCode",
       header: () => (
-        <Button
-          variant="ghost"
-          onClick={() => {}}
-          className="font-semibold flex items-center"
-        >
+        <Button variant="ghost" className="font-semibold flex items-center">
           <User className="h-4 w-4 mr-2" />
           Customer
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
-      cell: ({ row }) => (
-        <div className="font-medium">{row.original.customerName || "N/A"}</div>
-      ),
+      cell: ({ row }) => <div className="font-medium">{row.original.customerCode || "N/A"}</div>,
     },
     {
       accessorKey: "loanCode",
@@ -255,7 +269,6 @@ export default function RepaymentTable() {
         const repayment = row.original;
         return (
           <div className="flex gap-2">
-            {/* 👁️ View repayment details in Dialog */}
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="h-8 px-3">
@@ -269,7 +282,7 @@ export default function RepaymentTable() {
                 <div className="space-y-3 text-sm">
                   <p>
                     <span className="font-medium">Customer:</span>{" "}
-                    {repayment.customerName || "N/A"}
+                    {repayment.customerCode || "N/A"}
                   </p>
                   <p>
                     <span className="font-medium">Loan Code:</span>{" "}
@@ -291,7 +304,6 @@ export default function RepaymentTable() {
               </DialogContent>
             </Dialog>
 
-            {/* ✏️ Edit repayment inline dialog */}
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="secondary" size="sm" className="h-8 px-3">
@@ -355,11 +367,7 @@ export default function RepaymentTable() {
                 onClick={() => setShowFilters(!showFilters)}
                 className="flex items-center gap-1"
               >
-                {showFilters ? (
-                  <X className="h-4 w-4" />
-                ) : (
-                  <Filter className="h-4 w-4" />
-                )}
+                {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
                 {showFilters ? "Hide Filters" : "Show Filters"}
               </Button>
               {(search || status !== "ALL" || fromDate || toDate) && (
@@ -386,7 +394,7 @@ export default function RepaymentTable() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search by customer name or loan code..."
+                placeholder="Search by customer code or loan code..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -407,6 +415,8 @@ export default function RepaymentTable() {
                       <SelectItem value="PAID">Paid</SelectItem>
                       <SelectItem value="PENDING">Pending</SelectItem>
                       <SelectItem value="OVERDUE">Overdue</SelectItem>
+                      <SelectItem value="ACTIVE">Active</SelectItem>
+                      <SelectItem value="CLOSED">Closed</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -482,13 +492,13 @@ function EditRepaymentForm({ repayment }) {
     setLoading(true);
     try {
       const res = await fetch(`/api/repayments/${repayment.id}`, {
-        method: "PATCH", // update only the amount
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount }),
       });
 
       if (!res.ok) throw new Error("Failed to update repayment");
-      window.location.reload(); // reload table after edit
+      window.location.reload();
     } catch (err) {
       console.error(err);
       alert("Error updating repayment");
