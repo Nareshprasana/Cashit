@@ -102,7 +102,6 @@ function EditableAmount({ repayment, onUpdate }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: Number(value) }),
       });
-
       if (!res.ok) throw new Error("Failed");
       setEditing(false);
       if (onUpdate) onUpdate();
@@ -134,7 +133,7 @@ function EditableAmount({ repayment, onUpdate }) {
 }
 
 // ================= Edit Repayment Form =================
-function EditRepaymentForm({ repayment }) {
+function EditRepaymentForm({ repayment, onUpdate }) {
   const [amount, setAmount] = useState(repayment.amount || 0);
   const [loading, setLoading] = useState(false);
 
@@ -146,13 +145,12 @@ function EditRepaymentForm({ repayment }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount }),
       });
-
       if (!res.ok) throw new Error("Failed to update repayment");
-      window.location.reload();
+      if (onUpdate) onUpdate();
+      setLoading(false);
     } catch (err) {
       console.error(err);
       alert("Error updating repayment");
-    } finally {
       setLoading(false);
     }
   };
@@ -167,7 +165,6 @@ function EditRepaymentForm({ repayment }) {
           onChange={(e) => setAmount(Number(e.target.value))}
         />
       </div>
-
       <Button onClick={handleSave} disabled={loading}>
         {loading ? "Saving..." : "Save Changes"}
       </Button>
@@ -185,30 +182,29 @@ export default function RepaymentTable() {
   const [toDate, setToDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  // Fetch repayments
+  const fetchRepayments = async () => {
+    try {
+      const res = await fetch("/api/repayments");
+      const data = await res.json();
+      setRepayments(data);
+      setFiltered(data);
+    } catch (error) {
+      console.error("Failed to fetch repayments:", error);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch("/api/repayments");
-        const data = await res.json();
-        setRepayments(data);
-        setFiltered(data);
-      } catch (error) {
-        console.error("Failed to fetch repayments:", error);
-      }
-    };
-    fetchData();
+    fetchRepayments();
   }, []);
 
-  // Apply filters
   useEffect(() => {
     let data = [...repayments];
 
     if (search) {
       data = data.filter(
         (r) =>
-          r.customerCode?.toLowerCase().includes(search.toLowerCase()) ||
-          r.loanCode?.toLowerCase().includes(search.toLowerCase())
+          r.loan?.customerCode?.toLowerCase().includes(search.toLowerCase()) ||
+          r.loanId?.toLowerCase().includes(search.toLowerCase())
       );
     }
 
@@ -216,29 +212,24 @@ export default function RepaymentTable() {
       data = data.filter((r) => r.status === status);
     }
 
-    if (fromDate) {
-      data = data.filter((r) => new Date(r.date) >= new Date(fromDate));
-    }
-    if (toDate) {
-      data = data.filter((r) => new Date(r.date) <= new Date(toDate));
-    }
+    if (fromDate) data = data.filter((r) => new Date(r.dueDate) >= new Date(fromDate));
+    if (toDate) data = data.filter((r) => new Date(r.dueDate) <= new Date(toDate));
 
     setFiltered(data);
   }, [search, status, fromDate, toDate, repayments]);
 
-  // Export CSV
   const handleExport = () => {
     if (filtered.length === 0) return;
 
-    const headers = ["Customer", "Loan Code", "Amount", "Date", "Status"];
+    const headers = ["Customer", "Loan ID", "Amount", "Due Date", "Status"];
     const csvContent = [
       headers.join(","),
       ...filtered.map((row) =>
         [
-          `"${row.customerCode || ""}"`,
-          `"${row.loanCode || ""}"`,
+          `"${row.loan?.customerCode || ""}"`,
+          `"${row.loanId || ""}"`,
           row.amount || 0,
-          `"${formatDate(row.date || "")}"`,
+          `"${formatDate(row.dueDate || "")}"`,
           `"${row.status || ""}"`,
         ].join(",")
       ),
@@ -252,51 +243,39 @@ export default function RepaymentTable() {
       "download",
       `repayments_${new Date().toISOString().split("T")[0]}.csv`
     );
-    link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Columns
   const columns = [
     {
       accessorKey: "customerCode",
       header: "Customer ID",
       cell: ({ row }) => (
         <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded">
-          {row.original.customerCode}
+          {row.original.loan?.customerCode || "N/A"}
         </span>
       ),
     },
     {
-      accessorKey: "loanCode",
-      header: () => (
-        <div className="flex items-center">
-          <CreditCard className="h-4 w-4 mr-2" />
-          Loan Code
-        </div>
-      ),
+      accessorKey: "loanId",
+      header: "Loan ID",
       cell: ({ row }) => (
         <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded">
-          {row.original.loanCode || "N/A"}
+          {row.original.loanId || "N/A"}
         </span>
       ),
     },
     {
       accessorKey: "amount",
       header: "Amount",
-      cell: ({ row }) => <EditableAmount repayment={row.original} />,
+      cell: ({ row }) => <EditableAmount repayment={row.original} onUpdate={fetchRepayments} />,
     },
     {
-      accessorKey: "date",
-      header: () => (
-        <div className="flex items-center">
-          <Calendar className="h-4 w-4 mr-2" />
-          Date
-        </div>
-      ),
-      cell: ({ row }) => formatDate(row.original.date || ""),
+      accessorKey: "dueDate",
+      header: "Due Date",
+      cell: ({ row }) => formatDate(row.original.dueDate),
     },
     {
       accessorKey: "status",
@@ -312,7 +291,7 @@ export default function RepaymentTable() {
           <div className="flex gap-2">
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 px-3">
+                <Button variant="outline" size="sm">
                   <Eye className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
@@ -323,19 +302,19 @@ export default function RepaymentTable() {
                 <div className="space-y-3 text-sm">
                   <p>
                     <span className="font-medium">Customer:</span>{" "}
-                    {repayment.customerCode || "N/A"}
+                    {repayment.loan?.customerCode || "N/A"}
                   </p>
                   <p>
-                    <span className="font-medium">Loan Code:</span>{" "}
-                    {repayment.loanCode || "N/A"}
+                    <span className="font-medium">Loan ID:</span>{" "}
+                    {repayment.loanId || "N/A"}
                   </p>
                   <p>
                     <span className="font-medium">Amount:</span>{" "}
-                    {formatCurrency(repayment.amount || 0)}
+                    {formatCurrency(repayment.amount)}
                   </p>
                   <p>
-                    <span className="font-medium">Date:</span>{" "}
-                    {formatDate(repayment.date || "")}
+                    <span className="font-medium">Due Date:</span>{" "}
+                    {formatDate(repayment.dueDate)}
                   </p>
                   <p>
                     <span className="font-medium">Status:</span>{" "}
@@ -347,7 +326,7 @@ export default function RepaymentTable() {
 
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="secondary" size="sm" className="h-8 px-3">
+                <Button variant="secondary" size="sm">
                   <Edit className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
@@ -355,7 +334,7 @@ export default function RepaymentTable() {
                 <DialogHeader>
                   <DialogTitle>Edit Repayment</DialogTitle>
                 </DialogHeader>
-                <EditRepaymentForm repayment={repayment} />
+                <EditRepaymentForm repayment={repayment} onUpdate={fetchRepayments} />
               </DialogContent>
             </Dialog>
           </div>
@@ -377,12 +356,7 @@ export default function RepaymentTable() {
             <CreditCard className="h-4 w-4 mr-1" />
             {filtered.length} repayment{filtered.length !== 1 ? "s" : ""}
           </Badge>
-          <Button
-            variant="outline"
-            onClick={handleExport}
-            disabled={filtered.length === 0}
-            className="h-10"
-          >
+          <Button variant="outline" onClick={handleExport} className="h-10">
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
@@ -428,7 +402,7 @@ export default function RepaymentTable() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search by customer code or loan code..."
+                placeholder="Search by customer code or loan ID..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -480,21 +454,7 @@ export default function RepaymentTable() {
       {/* Table */}
       <Card>
         <CardContent className="p-0">
-          <DataTable
-            columns={columns}
-            data={filtered}
-            emptyMessage={
-              <div className="text-center py-12">
-                <CreditCard className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500">No repayment records found</p>
-                <p className="text-sm text-gray-400 mt-1">
-                  {repayments.length === 0
-                    ? "No repayments have been recorded yet"
-                    : "Try adjusting your filters to see more results"}
-                </p>
-              </div>
-            }
-          />
+          <DataTable columns={columns} data={filtered} />
         </CardContent>
       </Card>
     </div>

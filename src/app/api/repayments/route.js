@@ -29,7 +29,6 @@ export async function POST(req) {
     const body = await req.json();
     const { loanId, amount, dueDate, paymentMethod } = body;
 
-    // Basic validation
     if (!loanId || amount === undefined || !dueDate || !paymentMethod) {
       return NextResponse.json(
         { message: "Missing required fields" },
@@ -44,19 +43,14 @@ export async function POST(req) {
       );
     }
 
-    // Normalize payment method to match enum (example: "Cash" -> "CASH")
     const pm = String(paymentMethod).toUpperCase().replace(/\s+/g, "_");
 
-    // Check if loan exists
     const loan = await prisma.loan.findUnique({ where: { id: loanId } });
-    if (!loan) {
-      return NextResponse.json({ message: "Loan not found" }, { status: 400 });
-    }
+    if (!loan) return NextResponse.json({ message: "Loan not found" }, { status: 400 });
 
     const repaymentAmount = parseFloat(amount);
     const newPending = Math.max(0, Number(loan.pendingAmount) - repaymentAmount);
 
-    // Transaction: update loan + create repayment
     const result = await prisma.$transaction(async (tx) => {
       const updatedLoan = await tx.loan.update({
         where: { id: loanId },
@@ -67,7 +61,7 @@ export async function POST(req) {
         data: {
           loanId,
           amount: repaymentAmount,
-          pendingAmount: updatedLoan.pendingAmount, // snapshot
+          pendingAmount: updatedLoan.pendingAmount,
           dueDate: new Date(dueDate),
           paymentMethod: pm,
         },
