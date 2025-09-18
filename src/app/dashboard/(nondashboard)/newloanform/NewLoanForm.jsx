@@ -21,6 +21,8 @@ import {
   Clock,
   Check,
   ChevronsUpDown,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -142,7 +144,7 @@ const NewLoanForm = () => {
     setPreviewUrl(null);
   };
 
-  // Fetch customer details (aligned with RepaymentForm)
+  // Fetch customer details
   const fetchCustomerDetails = async (codeOrId) => {
     try {
       const res = await fetch(`/api/customers/${codeOrId}`);
@@ -266,66 +268,18 @@ const NewLoanForm = () => {
                       information
                     </p>
                     <div className="flex gap-2">
-                      <Popover
-                        open={openCustomer}
-                        onOpenChange={setOpenCustomer}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            aria-expanded={openCustomer}
-                            className="flex-1 justify-between h-10"
-                            disabled={!form.area}
-                          >
-                            {form.customerId
-                              ? customers.find((c) => c.id === form.customerId)
-                                  ?.customerCode
-                              : form.area
-                              ? "Select Customer"
-                              : "First select an area"}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-full p-0">
-                          <Command>
-                            <CommandInput placeholder="Search customer..." />
-                            <CommandList>
-                              <CommandEmpty>No customer found.</CommandEmpty>
-                              <CommandGroup>
-                                {customers.map((cust) => (
-                                  <CommandItem
-                                    key={cust.id}
-                                    value={cust.customerCode}
-                                    onSelect={() => handleCustomerSelect(cust)}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        form.customerId === cust.id
-                                          ? "opacity-100"
-                                          : "opacity-0"
-                                      )}
-                                    />
-                                    {cust.customerCode}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
                       <Button
                         type="button"
                         variant={scanning ? "default" : "outline"}
                         onClick={() => setScanning((prev) => !prev)}
-                        className="h-10 px-3"
+                        className="flex items-center gap-2 h-10 w-full"
                       >
                         {scanning ? (
                           <ArrowLeft className="h-4 w-4" />
                         ) : (
                           <Scan className="h-4 w-4" />
                         )}
+                        {scanning ? "Close Scanner" : "Scan Customer QR"}
                       </Button>
                     </div>
 
@@ -355,11 +309,6 @@ const NewLoanForm = () => {
                                 customerCode = code;
                               }
 
-                              console.log(
-                                "Scanned customerCode:",
-                                customerCode
-                              );
-
                               const customerData = await fetchCustomerDetails(
                                 customerCode
                               );
@@ -379,7 +328,7 @@ const NewLoanForm = () => {
 
                                 setCustomers(list);
 
-                                // ✅ auto-fill ONLY area + customerCode + customerId
+                                // auto-fill area + customerCode + customerId
                                 setForm((prev) => ({
                                   ...prev,
                                   area: customerData.areaId || "",
@@ -450,7 +399,7 @@ const NewLoanForm = () => {
                             ? areas.find((a) => a.id === form.area)?.areaName ||
                               areas.find((a) => a.id === form.area)?.name
                             : "Select area..."}
-                          <MapPin className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-full p-0">
@@ -466,6 +415,14 @@ const NewLoanForm = () => {
                                     handleSelectChange("area", area.id)
                                   }
                                 >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      form.area === area.id
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    )}
+                                  />
                                   {area.areaName || area.name}
                                 </CommandItem>
                               ))}
@@ -499,7 +456,7 @@ const NewLoanForm = () => {
                             : form.area
                             ? "Select customer..."
                             : "First select an area"}
-                          <User className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-full p-0">
@@ -537,6 +494,62 @@ const NewLoanForm = () => {
                     )}
                   </div>
                 </div>
+
+                {/* Customer Details Card */}
+                {customerDetails && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="mt-4"
+                  >
+                    <Card className="bg-gray-50 border-gray-200">
+                      <CardContent className="p-4">
+                        <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          Customer Details
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                                Code: {customerDetails.customerCode}
+                              </Badge>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-gray-500">Name</Label>
+                              <p className="text-sm font-medium">{customerDetails.name || "N/A"}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-gray-500">Mobile</Label>
+                              <p className="text-sm font-medium flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {customerDetails.mobile || "N/A"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div>
+                              <Label className="text-xs text-gray-500">Area</Label>
+                              <p className="text-sm font-medium flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {areas.find(a => a.id === customerDetails.areaId)?.areaName || 
+                                 areas.find(a => a.id === customerDetails.areaId)?.name || 
+                                 "N/A"}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-gray-500">Status</Label>
+                              <Badge variant="outline" className="bg-green-50 text-green-700">
+                                Active Customer
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                )}
               </div>
 
               {/* Loan Details */}
