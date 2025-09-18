@@ -34,16 +34,7 @@ const AddNewCustomerForm = () => {
   const [errors, setErrors] = useState([]);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [successCustomer, setSuccessCustomer] = useState(null);
-  const [alertMessage, setAlertMessage] = useState(""); // 🚨 alert state
-
-  // ⏳ Cooldown & click-limit state
-  const [isCooldown, setIsCooldown] = useState(false);
-  const [hasClicked, setHasClicked] = useState(false);
-
-  // reset click lock whenever step changes
-  useEffect(() => {
-    setHasClicked(false);
-  }, [step]);
+  const [alertMessage, setAlertMessage] = useState("");
 
   // safe preview cleanup
   useEffect(() => {
@@ -99,9 +90,6 @@ const AddNewCustomerForm = () => {
   };
 
   const nextStep = () => {
-    if (isCooldown || hasClicked) return;
-    setHasClicked(true);
-    setIsCooldown(true);
     setAlertMessage(""); // reset alert
 
     const stepOneData = {
@@ -142,14 +130,9 @@ const AddNewCustomerForm = () => {
       setErrors([]);
       setStep(2);
     }
-
-    setTimeout(() => setIsCooldown(false), 2000);
   };
 
   const handleSubmit = async () => {
-    if (isCooldown || hasClicked) return;
-    setHasClicked(true);
-    setIsCooldown(true);
     setAlertMessage("");
 
     const result = CustomerSchema.safeParse(form);
@@ -157,8 +140,6 @@ const AddNewCustomerForm = () => {
       setErrors(result.error?.errors || []);
       setAlertMessage("⚠️ Please correct all required fields before submitting.");
       setStep(1);
-      setIsCooldown(false);
-      setHasClicked(false);
       return;
     }
 
@@ -216,7 +197,6 @@ const AddNewCustomerForm = () => {
       setAlertMessage("❌ Something went wrong. Please try again later.");
     } finally {
       setIsSubmitting(false);
-      setTimeout(() => setIsCooldown(false), 2000);
     }
   };
 
