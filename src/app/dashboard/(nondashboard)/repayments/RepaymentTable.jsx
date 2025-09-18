@@ -170,6 +170,7 @@ export default function RepaymentTable() {
     document.body.removeChild(link);
   };
 
+  // ================= COLUMNS =================
   const columns = [
     {
       accessorKey: "customerName",
@@ -231,57 +232,63 @@ export default function RepaymentTable() {
     {
       id: "actions",
       header: "Actions",
-      cell: ({ row }) => (
-        <div className="flex gap-2">
-          {/* 👁️ View repayment details in Dialog */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 px-3">
-                <Eye className="h-4 w-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Repayment Details</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-3 text-sm">
-                <p>
-                  <span className="font-medium">Customer:</span>{" "}
-                  {row.original.customerName || "N/A"}
-                </p>
-                <p>
-                  <span className="font-medium">Loan Code:</span>{" "}
-                  {row.original.loanCode || "N/A"}
-                </p>
-                <p>
-                  <span className="font-medium">Amount:</span>{" "}
-                  {formatCurrency(row.original.amount || 0)}
-                </p>
-                <p>
-                  <span className="font-medium">Date:</span>{" "}
-                  {formatDate(row.original.date || "")}
-                </p>
-                <p>
-                  <span className="font-medium">Status:</span>{" "}
-                  {getStatusBadge(row.original.status)}
-                </p>
-              </div>
-            </DialogContent>
-          </Dialog>
+      cell: ({ row }) => {
+        const repayment = row.original;
+        return (
+          <div className="flex gap-2">
+            {/* 👁️ View repayment details in Dialog */}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 px-3">
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Repayment Details</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 text-sm">
+                  <p>
+                    <span className="font-medium">Customer:</span>{" "}
+                    {repayment.customerName || "N/A"}
+                  </p>
+                  <p>
+                    <span className="font-medium">Loan Code:</span>{" "}
+                    {repayment.loanCode || "N/A"}
+                  </p>
+                  <p>
+                    <span className="font-medium">Amount:</span>{" "}
+                    {formatCurrency(repayment.amount || 0)}
+                  </p>
+                  <p>
+                    <span className="font-medium">Date:</span>{" "}
+                    {formatDate(repayment.date || "")}
+                  </p>
+                  <p>
+                    <span className="font-medium">Status:</span>{" "}
+                    {getStatusBadge(repayment.status)}
+                  </p>
+                </div>
+              </DialogContent>
+            </Dialog>
 
-          {/* ✏️ Edit repayment */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() =>
-              (window.location.href = `/repayment/${row.original.id}`)
-            }
-            className="h-8 px-3"
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
+            {/* ✏️ Edit repayment inline dialog */}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="secondary" size="sm" className="h-8 px-3">
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Edit Repayment</DialogTitle>
+                </DialogHeader>
+                <EditRepaymentForm repayment={repayment} />
+              </DialogContent>
+            </Dialog>
+          </div>
+        );
+      },
     },
   ];
 
@@ -443,6 +450,63 @@ export default function RepaymentTable() {
           />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ================= Edit Form Component =================
+function EditRepaymentForm({ repayment }) {
+  const [amount, setAmount] = useState(repayment.amount || 0);
+  const [status, setStatus] = useState(repayment.status || "PENDING");
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/repayments/${repayment.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, status }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update repayment");
+      window.location.reload(); // 🔄 reload table after edit
+    } catch (err) {
+      console.error(err);
+      alert("Error updating repayment");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Amount</Label>
+        <Input
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(Number(e.target.value))}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Status</Label>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="PAID">Paid</SelectItem>
+            <SelectItem value="PENDING">Pending</SelectItem>
+            <SelectItem value="OVERDUE">Overdue</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Button onClick={handleSave} disabled={loading}>
+        {loading ? "Saving..." : "Save Changes"}
+      </Button>
     </div>
   );
 }
