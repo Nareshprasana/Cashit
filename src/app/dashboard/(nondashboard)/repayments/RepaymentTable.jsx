@@ -179,14 +179,12 @@ export default function RepaymentTable() {
   const columns = [
     {
       accessorKey: "customerCode",
-      header: () => (
-        <Button variant="ghost" className="font-semibold flex items-center">
-          <User className="h-4 w-4 mr-2" />
-          Customer
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
+      header: "Customer ID",
+      cell: ({ row }) => (
+        <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded">
+          {row.original.customerCode}
+        </span>
       ),
-      cell: ({ row }) => <div className="font-medium">{row.original.customerCode || "N/A"}</div>,
     },
     {
       accessorKey: "loanCode",
@@ -367,7 +365,11 @@ export default function RepaymentTable() {
                 onClick={() => setShowFilters(!showFilters)}
                 className="flex items-center gap-1"
               >
-                {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
+                {showFilters ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <Filter className="h-4 w-4" />
+                )}
                 {showFilters ? "Hide Filters" : "Show Filters"}
               </Button>
               {(search || status !== "ALL" || fromDate || toDate) && (
