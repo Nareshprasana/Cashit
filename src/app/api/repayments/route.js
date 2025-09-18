@@ -7,22 +7,11 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const customerId = searchParams.get("customerId");
 
-    let repayments;
-
-    if (customerId) {
-      // Fetch repayments for a specific customer
-      repayments = await prisma.repayment.findMany({
-        where: { loan: { customerId } },
-        orderBy: { createdAt: "desc" },
-        include: { loan: true }, // optional: include loan details
-      });
-    } else {
-      // Fetch all repayments
-      repayments = await prisma.repayment.findMany({
-        orderBy: { createdAt: "desc" },
-        include: { loan: true },
-      });
-    }
+    const repayments = await prisma.repayment.findMany({
+      where: customerId ? { loan: { customerId } } : undefined,
+      orderBy: { createdAt: "desc" },
+      include: { loan: true },
+    });
 
     return NextResponse.json(repayments);
   } catch (error) {
@@ -38,42 +27,25 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const {
-      loanId,
-      amount,
-      loanAmount,
-      pendingAmount,
-      dueDate,
-      paymentMethod,
-    } = body;
+    const { loanId, amount, dueDate, paymentMethod } = body;
 
     // Basic validation
-    if (
-      !loanId ||
-      amount === undefined ||
-      loanAmount === undefined ||
-      pendingAmount === undefined ||
-      !dueDate ||
-      !paymentMethod
-    ) {
+    if (!loanId || amount === undefined || !dueDate || !paymentMethod) {
       return NextResponse.json(
         { message: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    if (
-      isNaN(amount) ||
-      isNaN(loanAmount) ||
-      isNaN(pendingAmount) ||
-      isNaN(Date.parse(dueDate)) ||
-      typeof paymentMethod !== "string"
-    ) {
+    if (isNaN(amount) || isNaN(Date.parse(dueDate))) {
       return NextResponse.json(
         { message: "Invalid data format" },
         { status: 400 }
       );
     }
+
+    // Normalize payment method to match enum (example: "Cash" -> "CASH")
+    const pm = String(paymentMethod).toUpperCase().replace(/\s+/g, "_");
 
     // Check if loan exists
     const loan = await prisma.loan.findUnique({ where: { id: loanId } });
@@ -81,23 +53,34 @@ export async function POST(req) {
       return NextResponse.json({ message: "Loan not found" }, { status: 400 });
     }
 
-    // Create repayment
-    const repayment = await prisma.repayment.create({
-      data: {
-        loan: { connect: { id: loanId } },
-        amount: parseFloat(amount),
-        loanAmount: parseFloat(loanAmount),
-        pendingAmount: parseFloat(pendingAmount),
-        dueDate: new Date(dueDate),
-        paymentMethod,
-      },
+    const repaymentAmount = parseFloat(amount);
+    const newPending = Math.max(0, Number(loan.pendingAmount) - repaymentAmount);
+
+    // Transaction: update loan + create repayment
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedLoan = await tx.loan.update({
+        where: { id: loanId },
+        data: { pendingAmount: newPending },
+      });
+
+      const repayment = await tx.repayment.create({
+        data: {
+          loanId,
+          amount: repaymentAmount,
+          pendingAmount: updatedLoan.pendingAmount, // snapshot
+          dueDate: new Date(dueDate),
+          paymentMethod: pm,
+        },
+      });
+
+      return { repayment, updatedLoan };
     });
 
-    return NextResponse.json(repayment, { status: 201 });
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error("Repayment POST error:", error);
     return NextResponse.json(
-      { message: "Failed to create repayment" },
+      { message: "Failed to create repayment", detail: error.message },
       { status: 500 }
     );
   }
