@@ -21,13 +21,6 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 
 // 🆕 ShadCN Dialog
@@ -207,13 +200,12 @@ export default function RepaymentTable() {
             const res = await fetch(`/api/repayments/${row.original.id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ amount: Number(value) }), // only amount
+              body: JSON.stringify({ amount: Number(value) }),
             });
 
             if (!res.ok) throw new Error("Failed");
 
             setEditing(false);
-            window.location.reload(); // reload table
           } catch (err) {
             alert("Error updating repayment");
           }
@@ -296,6 +288,21 @@ export default function RepaymentTable() {
                     {getStatusBadge(repayment.status)}
                   </p>
                 </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* ✏️ Edit repayment inline dialog */}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="secondary" size="sm" className="h-8 px-3">
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Edit Repayment</DialogTitle>
+                </DialogHeader>
+                <EditRepaymentForm repayment={repayment} />
               </DialogContent>
             </Dialog>
           </div>
@@ -462,6 +469,48 @@ export default function RepaymentTable() {
           />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ================= Edit Form Component =================
+function EditRepaymentForm({ repayment }) {
+  const [amount, setAmount] = useState(repayment.amount || 0);
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/repayments/${repayment.id}`, {
+        method: "PATCH", // update only the amount
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update repayment");
+      window.location.reload(); // reload table after edit
+    } catch (err) {
+      console.error(err);
+      alert("Error updating repayment");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Amount</Label>
+        <Input
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(Number(e.target.value))}
+        />
+      </div>
+
+      <Button onClick={handleSave} disabled={loading}>
+        {loading ? "Saving..." : "Save Changes"}
+      </Button>
     </div>
   );
 }
