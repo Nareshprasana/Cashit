@@ -19,14 +19,13 @@ import {
   MapPin,
   Percent,
   Clock,
-  Check, // Added Check icon
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import QRScanner from "@/components/QRScanner";
-import { cn } from "@/lib/utils"; // Added cn utility
-
-// ✅ shadcn combobox
+import { cn } from "@/lib/utils";
 import {
   Command,
   CommandInput,
@@ -64,7 +63,7 @@ const NewLoanForm = () => {
   const [openArea, setOpenArea] = useState(false);
   const [openCustomer, setOpenCustomer] = useState(false);
 
-  // ✅ Fetch areas
+  // Fetch areas
   useEffect(() => {
     fetch("/api/area")
       .then((res) => res.json())
@@ -74,7 +73,7 @@ const NewLoanForm = () => {
       .catch(() => toast.error("Failed to fetch areas"));
   }, []);
 
-  // ✅ Fetch customers for selected area
+  // Fetch customers for selected area
   useEffect(() => {
     if (form.area) {
       fetch(`/api/customers/by-area/${form.area}`)
@@ -97,7 +96,7 @@ const NewLoanForm = () => {
     }
   }, [form.area]);
 
-  // ✅ Handlers
+  // Handlers
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -112,7 +111,6 @@ const NewLoanForm = () => {
     }
   };
 
-  // ✅ Handle customer selection
   const handleCustomerSelect = (customer) => {
     setForm((prev) => ({
       ...prev,
@@ -144,7 +142,26 @@ const NewLoanForm = () => {
     setPreviewUrl(null);
   };
 
-  // ✅ Submit loan
+  // Fetch customer details (aligned with RepaymentForm)
+  const fetchCustomerDetails = async (codeOrId) => {
+    try {
+      const res = await fetch(`/api/customers/${codeOrId}`);
+      if (!res.ok) {
+        toast.error(
+          res.status === 404
+            ? "Customer not found. Please check the code or QR."
+            : "Failed to load customer details."
+        );
+        return null;
+      }
+      return await res.json();
+    } catch (error) {
+      toast.error("An unexpected error occurred.");
+      return null;
+    }
+  };
+
+  // Submit loan
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -234,7 +251,7 @@ const NewLoanForm = () => {
         <div className="p-1">
           <div className="bg-white rounded-lg">
             <form onSubmit={handleSubmit} className="p-8 space-y-8">
-              {/* ✅ QR Scanner Section */}
+              {/* QR Scanner Section */}
               <Card className="bg-blue-50 border-blue-200">
                 <CardContent className="p-6">
                   <div className="flex flex-col gap-4">
@@ -248,89 +265,141 @@ const NewLoanForm = () => {
                       Scan a customer's QR code to automatically fill their
                       information
                     </p>
-                    <Button
-                      type="button"
-                      variant={scanning ? "default" : "outline"}
-                      onClick={() => setScanning((prev) => !prev)}
-                      className="flex items-center gap-2 h-10 w-full sm:w-auto"
-                    >
-                      {scanning ? (
-                        <ArrowLeft className="h-4 w-4" />
-                      ) : (
-                        <Scan className="h-4 w-4" />
-                      )}
-                      {scanning ? "Close Scanner" : "Scan Customer QR"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Popover open={openCustomer} onOpenChange={setOpenCustomer}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openCustomer}
+                            className="flex-1 justify-between h-10"
+                            disabled={!form.area}
+                          >
+                            {form.customerId
+                              ? customers.find((c) => c.id === form.customerId)
+                                  ?.customerCode
+                              : form.area
+                              ? "Select Customer"
+                              : "First select an area"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0">
+                          <Command>
+                            <CommandInput placeholder="Search customer..." />
+                            <CommandList>
+                              <CommandEmpty>No customer found.</CommandEmpty>
+                              <CommandGroup>
+                                {customers.map((cust) => (
+                                  <CommandItem
+                                    key={cust.id}
+                                    value={cust.customerCode}
+                                    onSelect={() => handleCustomerSelect(cust)}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        form.customerId === cust.id
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                    {cust.customerCode}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      <Button
+                        type="button"
+                        variant={scanning ? "default" : "outline"}
+                        onClick={() => setScanning((prev) => !prev)}
+                        className="h-10 px-3"
+                      >
+                        {scanning ? (
+                          <ArrowLeft className="h-4 w-4" />
+                        ) : (
+                          <Scan className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
 
                     {scanning && (
-                      <div className="mt-4 border-2 border-dashed border-blue-300 rounded-lg overflow-hidden">
-                        <QRScanner
-                          onScan={async (code) => {
-                            let customerCode = code;
-                            try {
-                              const url = new URL(code);
-                              customerCode = url.pathname.split("/").pop();
-                            } catch {
-                              // not a URL, keep as raw code
-                            }
-
-                            try {
-                              const res = await fetch(
-                                `/api/customers/by-code/${customerCode}`
-                              );
-                              if (!res.ok) {
-                                toast.error(
-                                  "Customer not found or invalid QR."
-                                );
-                                return;
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        className="mt-4 border rounded-lg overflow-hidden"
+                      >
+                        <div className="p-3 bg-gray-50 border-b">
+                          <p className="text-sm font-medium text-gray-700">
+                            Scan QR Code
+                          </p>
+                        </div>
+                        <div className="p-4">
+                          <QRScanner
+                            onScan={async (code) => {
+                              let customerCode = code;
+                              try {
+                                const url = new URL(code);
+                                customerCode =
+                                  url.pathname.split("/").filter(Boolean).pop()?.toLowerCase() ||
+                                  code.toLowerCase();
+                              } catch {
+                                customerCode = code.toLowerCase();
                               }
+                              console.log("Scanned customerCode:", customerCode);
 
-                              const customerData = await res.json();
+                              const customerData = await fetchCustomerDetails(customerCode);
                               if (customerData) {
-                                // load customers in same area
                                 const customersRes = await fetch(
                                   `/api/customers/by-area/${customerData.areaId}`
                                 );
-                                const customersForArea =
-                                  await customersRes.json();
-
+                                const customersForArea = await customersRes.json();
                                 const list = Array.isArray(customersForArea)
                                   ? customersForArea
                                   : Array.isArray(customersForArea.customers)
                                   ? customersForArea.customers
                                   : [];
+                                console.log("Area Customers:", list);
 
                                 setCustomers(list);
-
                                 setForm((prev) => ({
                                   ...prev,
                                   area: customerData.areaId || "",
                                   customerCode: customerData.customerCode || "",
                                   customerId: customerData.id || "",
                                 }));
-
                                 setCustomerDetails({
                                   ...customerData,
                                   ...(customerData?.loans?.[0] || {}),
                                 });
-
                                 toast.success(
-                                  `Customer ${customerData.customerCode} loaded successfully ✅`
+                                  `Details for customer ${customerData.customerCode} loaded successfully.`
                                 );
                               } else {
-                                toast.error("Unable to load customer details.");
+                                toast.error(
+                                  "Customer not found or unable to load details."
+                                );
+                                setForm((prev) => ({
+                                  ...prev,
+                                  customerCode: customerCode,
+                                  area: "",
+                                }));
+                                setCustomers([]);
                               }
-                            } catch (err) {
-                              toast.error("Error fetching customer details.");
-                            } finally {
                               setTimeout(() => {
                                 setScanning(false);
-                              }, 200);
-                            }
-                          }}
-                          onError={(err) => toast.error(err)}
-                        />
-                      </div>
+                              }, 100);
+                            }}
+                            onError={(err) => {
+                              console.error("QR Scanner Error:", err);
+                              toast.error("QR scan failed: " + err.message);
+                            }}
+                          />
+                        </div>
+                      </motion.div>
                     )}
                   </div>
                 </CardContent>
@@ -348,7 +417,7 @@ const NewLoanForm = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* ✅ Area Selector */}
+                  {/* Area Selector */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700">
                       Area <span className="text-red-500">*</span>
@@ -362,7 +431,8 @@ const NewLoanForm = () => {
                           className="w-full justify-between h-11"
                         >
                           {form.area
-                            ? areas.find((a) => a.id === form.area)?.areaName
+                            ? areas.find((a) => a.id === form.area)?.areaName ||
+                              areas.find((a) => a.id === form.area)?.name
                             : "Select area..."}
                           <MapPin className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
@@ -393,7 +463,7 @@ const NewLoanForm = () => {
                     )}
                   </div>
 
-                  {/* ✅ Customer Selector */}
+                  {/* Customer Selector */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700">
                       Customer <span className="text-red-500">*</span>
@@ -408,7 +478,8 @@ const NewLoanForm = () => {
                           disabled={!form.area}
                         >
                           {form.customerId
-                            ? customers.find((c) => c.id === form.customerId)?.customerCode
+                            ? customers.find((c) => c.id === form.customerId)
+                                ?.customerCode
                             : form.area
                             ? "Select customer..."
                             : "First select an area"}
