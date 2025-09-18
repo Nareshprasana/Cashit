@@ -266,7 +266,10 @@ const NewLoanForm = () => {
                       information
                     </p>
                     <div className="flex gap-2">
-                      <Popover open={openCustomer} onOpenChange={setOpenCustomer}>
+                      <Popover
+                        open={openCustomer}
+                        onOpenChange={setOpenCustomer}
+                      >
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
@@ -344,39 +347,50 @@ const NewLoanForm = () => {
                               try {
                                 const url = new URL(code);
                                 customerCode =
-                                  url.pathname.split("/").filter(Boolean).pop()?.toLowerCase() ||
-                                  code.toLowerCase();
+                                  url.pathname
+                                    .split("/")
+                                    .filter(Boolean)
+                                    .pop() || code;
                               } catch {
-                                customerCode = code.toLowerCase();
+                                customerCode = code;
                               }
-                              console.log("Scanned customerCode:", customerCode);
 
-                              const customerData = await fetchCustomerDetails(customerCode);
+                              console.log(
+                                "Scanned customerCode:",
+                                customerCode
+                              );
+
+                              const customerData = await fetchCustomerDetails(
+                                customerCode
+                              );
+
                               if (customerData) {
+                                // fetch customers in the same area
                                 const customersRes = await fetch(
                                   `/api/customers/by-area/${customerData.areaId}`
                                 );
-                                const customersForArea = await customersRes.json();
+                                const customersForArea =
+                                  await customersRes.json();
                                 const list = Array.isArray(customersForArea)
                                   ? customersForArea
                                   : Array.isArray(customersForArea.customers)
                                   ? customersForArea.customers
                                   : [];
-                                console.log("Area Customers:", list);
 
                                 setCustomers(list);
+
+                                // ✅ auto-fill ONLY area + customerCode + customerId
                                 setForm((prev) => ({
                                   ...prev,
                                   area: customerData.areaId || "",
                                   customerCode: customerData.customerCode || "",
                                   customerId: customerData.id || "",
                                 }));
-                                setCustomerDetails({
-                                  ...customerData,
-                                  ...(customerData?.loans?.[0] || {}),
-                                });
+
+                                setCustomerDetails(customerData);
+
                                 toast.success(
-                                  `Details for customer ${customerData.customerCode} loaded successfully.`
+                                  `Customer ${customerData.customerCode} loaded successfully.`
                                 );
                               } else {
                                 toast.error(
@@ -386,9 +400,11 @@ const NewLoanForm = () => {
                                   ...prev,
                                   customerCode: customerCode,
                                   area: "",
+                                  customerId: "",
                                 }));
                                 setCustomers([]);
                               }
+
                               setTimeout(() => {
                                 setScanning(false);
                               }, 100);
