@@ -19,12 +19,27 @@ import {
   MapPin,
   Percent,
   Clock,
-  Check,
+  Check, // Added Check icon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import QRScanner from "@/components/QRScanner";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils"; // Added cn utility
+
+// ✅ shadcn combobox
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -49,26 +64,7 @@ const NewLoanForm = () => {
   const [openArea, setOpenArea] = useState(false);
   const [openCustomer, setOpenCustomer] = useState(false);
 
-  // Shared helper like RepaymentForm (no TS types)
-  const fetchCustomerDetails = async (codeOrId) => {
-    try {
-      const res = await fetch(`/api/customers/${codeOrId}`);
-      if (!res.ok) {
-        toast.error(
-          res.status === 404
-            ? "Customer not found. Please check the code or QR."
-            : "Failed to load customer details."
-        );
-        return null;
-      }
-      return await res.json();
-    } catch {
-      toast.error("An unexpected error occurred.");
-      return null;
-    }
-  };
-
-  // Fetch areas
+  // ✅ Fetch areas
   useEffect(() => {
     fetch("/api/area")
       .then((res) => res.json())
@@ -78,7 +74,7 @@ const NewLoanForm = () => {
       .catch(() => toast.error("Failed to fetch areas"));
   }, []);
 
-  // Fetch customers for selected area
+  // ✅ Fetch customers for selected area
   useEffect(() => {
     if (form.area) {
       fetch(`/api/customers/by-area/${form.area}`)
@@ -86,7 +82,7 @@ const NewLoanForm = () => {
         .then((data) => {
           const customersList = Array.isArray(data)
             ? data
-            : Array.isArray(data && data.customers)
+            : Array.isArray(data.customers)
             ? data.customers
             : [];
           setCustomers(customersList);
@@ -101,7 +97,7 @@ const NewLoanForm = () => {
     }
   }, [form.area]);
 
-  // Handlers
+  // ✅ Handlers
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -116,6 +112,7 @@ const NewLoanForm = () => {
     }
   };
 
+  // ✅ Handle customer selection
   const handleCustomerSelect = (customer) => {
     setForm((prev) => ({
       ...prev,
@@ -127,7 +124,7 @@ const NewLoanForm = () => {
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files && e.target.files[0];
+    const file = e.target.files[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
         toast.error("File size must be less than 5MB");
@@ -147,7 +144,7 @@ const NewLoanForm = () => {
     setPreviewUrl(null);
   };
 
-  // Submit loan
+  // ✅ Submit loan
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -176,7 +173,9 @@ const NewLoanForm = () => {
 
       const res = await fetch("/api/loans", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
 
@@ -235,7 +234,7 @@ const NewLoanForm = () => {
         <div className="p-1">
           <div className="bg-white rounded-lg">
             <form onSubmit={handleSubmit} className="p-8 space-y-8">
-              {/* QR Scanner Section */}
+              {/* ✅ QR Scanner Section */}
               <Card className="bg-blue-50 border-blue-200">
                 <CardContent className="p-6">
                   <div className="flex flex-col gap-4">
@@ -267,58 +266,67 @@ const NewLoanForm = () => {
                       <div className="mt-4 border-2 border-dashed border-blue-300 rounded-lg overflow-hidden">
                         <QRScanner
                           onScan={async (code) => {
-                            // Normalize URL-or-code like RepaymentForm
-                            let codeOrId = code;
+                            let customerCode = code;
                             try {
                               const url = new URL(code);
-                              codeOrId = url.pathname.split("/").pop() || "";
-                            } catch {}
-
-                            // Fetch customer
-                            const customerData = await fetchCustomerDetails(codeOrId);
-
-                            if (customerData) {
-                              // Load customers for same area
-                              const customersRes = await fetch(
-                                `/api/customers/by-area/${customerData.areaId}`
-                              );
-                              const customersForArea = await customersRes.json();
-                              const list = Array.isArray(customersForArea)
-                                ? customersForArea
-                                : Array.isArray(customersForArea && customersForArea.customers)
-                                ? customersForArea.customers
-                                : [];
-                              setCustomers(list);
-
-                              // Auto-fill fields for loan creation
-                              setForm((prev) => ({
-                                ...prev,
-                                area: customerData.areaId || "",
-                                customerCode: customerData.customerCode || "",
-                                customerId: customerData.id || "",
-                              }));
-
-                              // Keep details + first loan (if any)
-                              const loan = (customerData && customerData.loans && customerData.loans[0]) || {};
-                              setCustomerDetails({ ...customerData, ...loan });
-
-                              toast.success(
-                                `Details for customer ${customerData.customerCode} loaded successfully.`
-                              );
-                            } else {
-                              // Preserve scanned string; clear area/customers
-                              setForm((prev) => ({
-                                ...prev,
-                                customerCode: codeOrId || "",
-                                area: "",
-                                customerId: "",
-                              }));
-                              setCustomers([]);
-                              toast.error("Customer not found or unable to load details.");
+                              customerCode = url.pathname.split("/").pop();
+                            } catch {
+                              // not a URL, keep as raw code
                             }
 
-                            // Close like RepaymentForm
-                            setTimeout(() => setScanning(false), 100);
+                            try {
+                              const res = await fetch(
+                                `/api/customers/by-code/${customerCode}`
+                              );
+                              if (!res.ok) {
+                                toast.error(
+                                  "Customer not found or invalid QR."
+                                );
+                                return;
+                              }
+
+                              const customerData = await res.json();
+                              if (customerData) {
+                                // load customers in same area
+                                const customersRes = await fetch(
+                                  `/api/customers/by-area/${customerData.areaId}`
+                                );
+                                const customersForArea =
+                                  await customersRes.json();
+
+                                const list = Array.isArray(customersForArea)
+                                  ? customersForArea
+                                  : Array.isArray(customersForArea.customers)
+                                  ? customersForArea.customers
+                                  : [];
+
+                                setCustomers(list);
+
+                                setForm((prev) => ({
+                                  ...prev,
+                                  area: customerData.areaId || "",
+                                  customerCode: customerData.customerCode || "",
+                                  customerId: customerData.id || "",
+                                }));
+
+                                setCustomerDetails({
+                                  ...customerData,
+                                  ...(customerData?.loans?.[0] || {}),
+                                });
+
+                                toast.success(
+                                  `Customer ${customerData.customerCode} loaded successfully ✅`
+                                );
+                              } else {
+                                toast.error("Unable to load customer details.");
+                              }
+                            } catch (err) {
+                              toast.error("Error fetching customer details.");
+                            } finally {
+                              setTimeout(() => {
+                                setScanning(false);
+                              }, 200);
+                            }
                           }}
                           onError={(err) => toast.error(err)}
                         />
@@ -340,7 +348,7 @@ const NewLoanForm = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Area Selector */}
+                  {/* ✅ Area Selector */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700">
                       Area <span className="text-red-500">*</span>
@@ -354,8 +362,7 @@ const NewLoanForm = () => {
                           className="w-full justify-between h-11"
                         >
                           {form.area
-                            ? areas.find((a) => a.id === form.area)?.areaName ||
-                              areas.find((a) => a.id === form.area)?.name
+                            ? areas.find((a) => a.id === form.area)?.areaName
                             : "Select area..."}
                           <MapPin className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
@@ -386,7 +393,7 @@ const NewLoanForm = () => {
                     )}
                   </div>
 
-                  {/* Customer Selector */}
+                  {/* ✅ Customer Selector */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700">
                       Customer <span className="text-red-500">*</span>
@@ -401,8 +408,7 @@ const NewLoanForm = () => {
                           disabled={!form.area}
                         >
                           {form.customerId
-                            ? customers.find((c) => c.id === form.customerId)
-                                ?.customerCode
+                            ? customers.find((c) => c.id === form.customerId)?.customerCode
                             : form.area
                             ? "Select customer..."
                             : "First select an area"}
@@ -494,7 +500,7 @@ const NewLoanForm = () => {
                         value={form.rate}
                         onChange={handleChange}
                         placeholder="0.0"
-                        className="w-full h-11"
+                        className="w-full h-11 pl-10"
                       />
                     </div>
                     {errors.rate && (
@@ -515,7 +521,7 @@ const NewLoanForm = () => {
                         value={form.tenure}
                         onChange={handleChange}
                         placeholder="12"
-                        className="w-full h-11"
+                        className="w-full h-11 pl-10"
                       />
                     </div>
                     {errors.tenure && (
@@ -537,7 +543,7 @@ const NewLoanForm = () => {
                         name="loanDate"
                         value={form.loanDate}
                         onChange={handleChange}
-                        className="h-11"
+                        className="h-11 pl-10"
                       />
                     </div>
                   </div>
