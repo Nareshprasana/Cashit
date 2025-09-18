@@ -35,6 +35,15 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 
+// 🆕 ShadCN Dialog
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
 export default function RepaymentTable() {
   const [repayments, setRepayments] = useState([]);
   const [filtered, setFiltered] = useState([]);
@@ -224,14 +233,43 @@ export default function RepaymentTable() {
       header: "Actions",
       cell: ({ row }) => (
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => alert(`View repayment ${row.original.id}`)}
-            className="h-8 px-3"
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
+          {/* 👁️ View repayment details in Dialog */}
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 px-3">
+                <Eye className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Repayment Details</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 text-sm">
+                <p>
+                  <span className="font-medium">Customer:</span>{" "}
+                  {row.original.customerName || "N/A"}
+                </p>
+                <p>
+                  <span className="font-medium">Loan Code:</span>{" "}
+                  {row.original.loanCode || "N/A"}
+                </p>
+                <p>
+                  <span className="font-medium">Amount:</span>{" "}
+                  {formatCurrency(row.original.amount || 0)}
+                </p>
+                <p>
+                  <span className="font-medium">Date:</span>{" "}
+                  {formatDate(row.original.date || "")}
+                </p>
+                <p>
+                  <span className="font-medium">Status:</span>{" "}
+                  {getStatusBadge(row.original.status)}
+                </p>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* ✏️ Edit repayment */}
           <Button
             variant="secondary"
             size="sm"
