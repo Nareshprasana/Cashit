@@ -13,7 +13,6 @@ import {
   Edit,
   Download,
   Calendar,
-  User,
   CreditCard,
   BadgeCheck,
   Clock,
@@ -22,7 +21,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-
 import {
   Dialog,
   DialogContent,
@@ -30,7 +28,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-
 import {
   Select,
   SelectTrigger,
@@ -39,6 +36,146 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
+// ================= Status Badge =================
+const getStatusBadge = (status) => {
+  switch (status) {
+    case "PAID":
+      return (
+        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+          <BadgeCheck className="h-3 w-3 mr-1" /> Paid
+        </Badge>
+      );
+    case "PENDING":
+      return (
+        <Badge variant="outline" className="text-amber-600 border-amber-300">
+          <Clock className="h-3 w-3 mr-1" /> Pending
+        </Badge>
+      );
+    case "OVERDUE":
+      return (
+        <Badge variant="destructive">
+          <AlertCircle className="h-3 w-3 mr-1" /> Overdue
+        </Badge>
+      );
+    case "ACTIVE":
+      return (
+        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+          Active
+        </Badge>
+      );
+    case "CLOSED":
+      return (
+        <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">
+          Closed
+        </Badge>
+      );
+    default:
+      return <Badge variant="outline">{status}</Badge>;
+  }
+};
+
+// ================= Formatters =================
+const formatCurrency = (amount) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+
+const formatDate = (dateString) =>
+  new Date(dateString).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
+// ================= Editable Amount Component =================
+function EditableAmount({ repayment, onUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(repayment.amount);
+
+  const saveChange = async () => {
+    try {
+      const res = await fetch(`/api/repayments/${repayment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: Number(value) }),
+      });
+
+      if (!res.ok) throw new Error("Failed");
+      setEditing(false);
+      if (onUpdate) onUpdate();
+    } catch (err) {
+      alert("Error updating repayment");
+    }
+  };
+
+  return editing ? (
+    <div className="flex items-center gap-2">
+      <Input
+        type="number"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="w-24 h-8 text-sm"
+      />
+      <Button size="sm" className="h-7 px-2" onClick={saveChange}>
+        Save
+      </Button>
+    </div>
+  ) : (
+    <div
+      className="text-right font-semibold cursor-pointer hover:underline"
+      onClick={() => setEditing(true)}
+    >
+      {formatCurrency(repayment.amount || 0)}
+    </div>
+  );
+}
+
+// ================= Edit Repayment Form =================
+function EditRepaymentForm({ repayment }) {
+  const [amount, setAmount] = useState(repayment.amount || 0);
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/repayments/${repayment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update repayment");
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Error updating repayment");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Amount</Label>
+        <Input
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(Number(e.target.value))}
+        />
+      </div>
+
+      <Button onClick={handleSave} disabled={loading}>
+        {loading ? "Saving..." : "Save Changes"}
+      </Button>
+    </div>
+  );
+}
+
+// ================= Main Component =================
 export default function RepaymentTable() {
   const [repayments, setRepayments] = useState([]);
   const [filtered, setFiltered] = useState([]);
@@ -89,61 +226,7 @@ export default function RepaymentTable() {
     setFiltered(data);
   }, [search, status, fromDate, toDate, repayments]);
 
-  // Status badges
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case "PAID":
-        return (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-            <BadgeCheck className="h-3 w-3 mr-1" /> Paid
-          </Badge>
-        );
-      case "PENDING":
-        return (
-          <Badge variant="outline" className="text-amber-600 border-amber-300">
-            <Clock className="h-3 w-3 mr-1" /> Pending
-          </Badge>
-        );
-      case "OVERDUE":
-        return (
-          <Badge variant="destructive">
-            <AlertCircle className="h-3 w-3 mr-1" /> Overdue
-          </Badge>
-        );
-      case "ACTIVE":
-        return (
-          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-            Active
-          </Badge>
-        );
-      case "CLOSED":
-        return (
-          <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">
-            Closed
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
+  // Export CSV
   const handleExport = () => {
     if (filtered.length === 0) return;
 
@@ -203,47 +286,7 @@ export default function RepaymentTable() {
     {
       accessorKey: "amount",
       header: "Amount",
-      cell: ({ row }) => {
-        const [editing, setEditing] = useState(false);
-        const [value, setValue] = useState(row.original.amount);
-
-        const saveChange = async () => {
-          try {
-            const res = await fetch(`/api/repayments/${row.original.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ amount: Number(value) }),
-            });
-
-            if (!res.ok) throw new Error("Failed");
-
-            setEditing(false);
-          } catch (err) {
-            alert("Error updating repayment");
-          }
-        };
-
-        return editing ? (
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              className="w-24 h-8 text-sm"
-            />
-            <Button size="sm" className="h-7 px-2" onClick={saveChange}>
-              Save
-            </Button>
-          </div>
-        ) : (
-          <div
-            className="text-right font-semibold cursor-pointer hover:underline"
-            onClick={() => setEditing(true)}
-          >
-            {formatCurrency(row.original.amount || 0)}
-          </div>
-        );
-      },
+      cell: ({ row }) => <EditableAmount repayment={row.original} />,
     },
     {
       accessorKey: "date",
@@ -326,12 +369,8 @@ export default function RepaymentTable() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Repayment Records
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Manage and track all loan repayments
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">Repayment Records</h1>
+          <p className="text-gray-600 mt-1">Manage and track all loan repayments</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="px-3 py-1">
@@ -352,47 +391,40 @@ export default function RepaymentTable() {
 
       {/* Filters Card */}
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-5 w-5 text-blue-600" />
-              <CardTitle className="text-lg">Filters</CardTitle>
-            </div>
-            <div className="flex gap-2">
+        <CardHeader className="pb-3 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Filter className="h-5 w-5 text-blue-600" />
+            <CardTitle className="text-lg">Filters</CardTitle>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-1"
+            >
+              {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
+              {showFilters ? "Hide Filters" : "Show Filters"}
+            </Button>
+            {(search || status !== "ALL" || fromDate || toDate) && (
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-1"
+                onClick={() => {
+                  setSearch("");
+                  setStatus("ALL");
+                  setFromDate("");
+                  setToDate("");
+                }}
               >
-                {showFilters ? (
-                  <X className="h-4 w-4" />
-                ) : (
-                  <Filter className="h-4 w-4" />
-                )}
-                {showFilters ? "Hide Filters" : "Show Filters"}
+                Clear All
               </Button>
-              {(search || status !== "ALL" || fromDate || toDate) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSearch("");
-                    setStatus("ALL");
-                    setFromDate("");
-                    setToDate("");
-                  }}
-                >
-                  Clear All
-                </Button>
-              )}
-            </div>
+            )}
           </div>
         </CardHeader>
 
         <CardContent>
           <div className="flex flex-col gap-4">
-            {/* Main search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
@@ -403,7 +435,6 @@ export default function RepaymentTable() {
               />
             </div>
 
-            {/* Advanced filters */}
             {showFilters && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
                 <div className="space-y-2">
@@ -429,7 +460,6 @@ export default function RepaymentTable() {
                     type="date"
                     value={fromDate}
                     onChange={(e) => setFromDate(e.target.value)}
-                    className="w-full"
                   />
                 </div>
 
@@ -439,7 +469,6 @@ export default function RepaymentTable() {
                     type="date"
                     value={toDate}
                     onChange={(e) => setToDate(e.target.value)}
-                    className="w-full"
                   />
                 </div>
               </div>
@@ -447,19 +476,6 @@ export default function RepaymentTable() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Results Summary */}
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-600">
-          Showing <span className="font-medium">{filtered.length}</span> of{" "}
-          <span className="font-medium">{repayments.length}</span> repayments
-        </p>
-        {filtered.length === 0 && repayments.length > 0 && (
-          <p className="text-sm text-amber-600">
-            No repayments match your filters
-          </p>
-        )}
-      </div>
 
       {/* Table */}
       <Card>
@@ -481,48 +497,6 @@ export default function RepaymentTable() {
           />
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-// ================= Edit Form Component =================
-function EditRepaymentForm({ repayment }) {
-  const [amount, setAmount] = useState(repayment.amount || 0);
-  const [loading, setLoading] = useState(false);
-
-  const handleSave = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/repayments/${repayment.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount }),
-      });
-
-      if (!res.ok) throw new Error("Failed to update repayment");
-      window.location.reload();
-    } catch (err) {
-      console.error(err);
-      alert("Error updating repayment");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label>Amount</Label>
-        <Input
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(Number(e.target.value))}
-        />
-      </div>
-
-      <Button onClick={handleSave} disabled={loading}>
-        {loading ? "Saving..." : "Save Changes"}
-      </Button>
     </div>
   );
 }
