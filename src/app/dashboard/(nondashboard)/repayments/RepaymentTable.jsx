@@ -207,12 +207,13 @@ export default function RepaymentTable() {
             const res = await fetch(`/api/repayments/${row.original.id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ amount: Number(value) }),
+              body: JSON.stringify({ amount: Number(value) }), // only amount
             });
 
             if (!res.ok) throw new Error("Failed");
 
             setEditing(false);
+            window.location.reload(); // reload table
           } catch (err) {
             alert("Error updating repayment");
           }
@@ -295,21 +296,6 @@ export default function RepaymentTable() {
                     {getStatusBadge(repayment.status)}
                   </p>
                 </div>
-              </DialogContent>
-            </Dialog>
-
-            {/* ✏️ Edit repayment inline dialog */}
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="secondary" size="sm" className="h-8 px-3">
-                  <Edit className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Edit Repayment</DialogTitle>
-                </DialogHeader>
-                <EditRepaymentForm repayment={repayment} />
               </DialogContent>
             </Dialog>
           </div>
@@ -476,63 +462,6 @@ export default function RepaymentTable() {
           />
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-// ================= Edit Form Component =================
-function EditRepaymentForm({ repayment }) {
-  const [amount, setAmount] = useState(repayment.amount || 0);
-  const [status, setStatus] = useState(repayment.status || "PENDING");
-  const [loading, setLoading] = useState(false);
-
-  const handleSave = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/repayments/${repayment.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, status }),
-      });
-
-      if (!res.ok) throw new Error("Failed to update repayment");
-      window.location.reload(); // 🔄 reload table after edit
-    } catch (err) {
-      console.error(err);
-      alert("Error updating repayment");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label>Amount</Label>
-        <Input
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(Number(e.target.value))}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label>Status</Label>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="PAID">Paid</SelectItem>
-            <SelectItem value="PENDING">Pending</SelectItem>
-            <SelectItem value="OVERDUE">Overdue</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Button onClick={handleSave} disabled={loading}>
-        {loading ? "Saving..." : "Save Changes"}
-      </Button>
     </div>
   );
 }
