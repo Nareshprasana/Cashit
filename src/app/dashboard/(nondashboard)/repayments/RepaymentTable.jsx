@@ -254,7 +254,7 @@ export default function RepaymentTable() {
       header: "Customer ID",
       cell: ({ row }) => (
         <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded">
-          {row.original.loan?.customerCode || "N/A"}
+          {row.original.loan?.customerId || "N/A"}
         </span>
       ),
     },
