@@ -19,12 +19,7 @@ import {
   Clock,
   AlertCircle,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -104,10 +99,7 @@ export default function RepaymentTable() {
         );
       case "PENDING":
         return (
-          <Badge
-            variant="outline"
-            className="text-amber-600 border-amber-300"
-          >
+          <Badge variant="outline" className="text-amber-600 border-amber-300">
             <Clock className="h-3 w-3 mr-1" /> Pending
           </Badge>
         );
@@ -186,9 +178,7 @@ export default function RepaymentTable() {
         </Button>
       ),
       cell: ({ row }) => (
-        <div className="font-medium">
-          {row.original.customerName || "N/A"}
-        </div>
+        <div className="font-medium">{row.original.customerName || "N/A"}</div>
       ),
     },
     {
@@ -208,11 +198,47 @@ export default function RepaymentTable() {
     {
       accessorKey: "amount",
       header: "Amount",
-      cell: ({ row }) => (
-        <div className="text-right font-semibold">
-          {formatCurrency(row.original.amount || 0)}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const [editing, setEditing] = useState(false);
+        const [value, setValue] = useState(row.original.amount);
+
+        const saveChange = async () => {
+          try {
+            const res = await fetch(`/api/repayments/${row.original.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ amount: Number(value) }),
+            });
+
+            if (!res.ok) throw new Error("Failed");
+
+            setEditing(false);
+          } catch (err) {
+            alert("Error updating repayment");
+          }
+        };
+
+        return editing ? (
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="w-24 h-8 text-sm"
+            />
+            <Button size="sm" className="h-7 px-2" onClick={saveChange}>
+              Save
+            </Button>
+          </div>
+        ) : (
+          <div
+            className="text-right font-semibold cursor-pointer hover:underline"
+            onClick={() => setEditing(true)}
+          >
+            {formatCurrency(row.original.amount || 0)}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "date",
