@@ -4,10 +4,36 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import { ArrowUpDown, Search, Filter, X, Eye, Edit, Download, Calendar, User, CreditCard, BadgeCheck, Clock, AlertCircle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  ArrowUpDown,
+  Search,
+  Filter,
+  X,
+  Eye,
+  Edit,
+  Download,
+  Calendar,
+  User,
+  CreditCard,
+  BadgeCheck,
+  Clock,
+  AlertCircle,
+} from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 export default function RepaymentTable() {
   const [repayments, setRepayments] = useState([]);
@@ -37,7 +63,6 @@ export default function RepaymentTable() {
   useEffect(() => {
     let data = [...repayments];
 
-    // search
     if (search) {
       data = data.filter(
         (r) =>
@@ -46,12 +71,10 @@ export default function RepaymentTable() {
       );
     }
 
-    // status
     if (status !== "ALL") {
       data = data.filter((r) => r.status === status);
     }
 
-    // date range
     if (fromDate) {
       data = data.filter((r) => new Date(r.date) >= new Date(fromDate));
     }
@@ -65,54 +88,74 @@ export default function RepaymentTable() {
   const getStatusBadge = (status) => {
     switch (status) {
       case "PAID":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100"><BadgeCheck className="h-3 w-3 mr-1" /> Paid</Badge>;
+        return (
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+            <BadgeCheck className="h-3 w-3 mr-1" /> Paid
+          </Badge>
+        );
       case "PENDING":
-        return <Badge variant="outline" className="text-amber-600 border-amber-300"><Clock className="h-3 w-3 mr-1" /> Pending</Badge>;
+        return (
+          <Badge
+            variant="outline"
+            className="text-amber-600 border-amber-300"
+          >
+            <Clock className="h-3 w-3 mr-1" /> Pending
+          </Badge>
+        );
       case "OVERDUE":
-        return <Badge variant="destructive"><AlertCircle className="h-3 w-3 mr-1" /> Overdue</Badge>;
+        return (
+          <Badge variant="destructive">
+            <AlertCircle className="h-3 w-3 mr-1" /> Overdue
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
+    return new Date(dateString).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
     });
   };
 
   const handleExport = () => {
     if (filtered.length === 0) return;
-    
+
     const headers = ["Customer", "Loan Code", "Amount", "Date", "Status"];
     const csvContent = [
       headers.join(","),
-      ...filtered.map(row => [
-        `"${row.customerName || ''}"`,
-        `"${row.loanCode || ''}"`,
-        row.amount || 0,
-        `"${formatDate(row.date || '')}"`,
-        `"${row.status || ''}"`
-      ].join(","))
+      ...filtered.map((row) =>
+        [
+          `"${row.customerName || ""}"`,
+          `"${row.loanCode || ""}"`,
+          row.amount || 0,
+          `"${formatDate(row.date || "")}"`,
+          `"${row.status || ""}"`,
+        ].join(",")
+      ),
     ].join("\n");
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `repayments_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
+    link.setAttribute(
+      "download",
+      `repayments_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -121,11 +164,11 @@ export default function RepaymentTable() {
   const columns = [
     {
       accessorKey: "customerName",
-      header: ({ column }) => (
+      header: () => (
         <Button
           variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold"
+          onClick={() => {}}
+          className="font-semibold flex items-center"
         >
           <User className="h-4 w-4 mr-2" />
           Customer
@@ -133,7 +176,9 @@ export default function RepaymentTable() {
         </Button>
       ),
       cell: ({ row }) => (
-        <div className="font-medium">{row.original.customerName || "N/A"}</div>
+        <div className="font-medium">
+          {row.original.customerName || "N/A"}
+        </div>
       ),
     },
     {
@@ -190,7 +235,9 @@ export default function RepaymentTable() {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => (window.location.href = `/repayment/${row.original.id}`)}
+            onClick={() =>
+              (window.location.href = `/repayment/${row.original.id}`)
+            }
             className="h-8 px-3"
           >
             <Edit className="h-4 w-4" />
@@ -205,16 +252,20 @@ export default function RepaymentTable() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Repayment Records</h1>
-          <p className="text-gray-600 mt-1">Manage and track all loan repayments</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Repayment Records
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Manage and track all loan repayments
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="px-3 py-1">
             <CreditCard className="h-4 w-4 mr-1" />
-            {filtered.length} repayment{filtered.length !== 1 ? 's' : ''}
+            {filtered.length} repayment{filtered.length !== 1 ? "s" : ""}
           </Badge>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={handleExport}
             disabled={filtered.length === 0}
             className="h-10"
@@ -234,19 +285,23 @@ export default function RepaymentTable() {
               <CardTitle className="text-lg">Filters</CardTitle>
             </div>
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setShowFilters(!showFilters)}
                 className="flex items-center gap-1"
               >
-                {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
-                {showFilters ? 'Hide Filters' : 'Show Filters'}
+                {showFilters ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <Filter className="h-4 w-4" />
+                )}
+                {showFilters ? "Hide Filters" : "Show Filters"}
               </Button>
               {(search || status !== "ALL" || fromDate || toDate) && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     setSearch("");
                     setStatus("ALL");
@@ -260,7 +315,7 @@ export default function RepaymentTable() {
             </div>
           </div>
         </CardHeader>
-        
+
         <CardContent>
           <div className="flex flex-col gap-4">
             {/* Main search */}
@@ -333,16 +388,16 @@ export default function RepaymentTable() {
       {/* Table */}
       <Card>
         <CardContent className="p-0">
-          <DataTable 
-            columns={columns} 
+          <DataTable
+            columns={columns}
             data={filtered}
             emptyMessage={
               <div className="text-center py-12">
                 <CreditCard className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500">No repayment records found</p>
                 <p className="text-sm text-gray-400 mt-1">
-                  {repayments.length === 0 
-                    ? "No repayments have been recorded yet" 
+                  {repayments.length === 0
+                    ? "No repayments have been recorded yet"
                     : "Try adjusting your filters to see more results"}
                 </p>
               </div>
