@@ -196,66 +196,49 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
           Location Information
         </h2>
         {/* Area Dropdown */}
-        <div className="space-y-2 mb-6">
-          <label htmlFor="area" className="block text-sm font-medium text-gray-700">
-            Area <span className="text-red-500">*</span>
-          </label>
-          <div className="flex gap-2 w-1/2">
-            <Popover open={open} onOpenChange={setOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" className="w-full justify-between h-11">
-                  <span className="flex items-center gap-2">
-                    <Home size={16} className="text-gray-500" />
-                    {form.area
-                      ? areas.find((a) => a.id === form.area)?.areaName
-                      : "Select Area"}
-                  </span>
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Search area..." className="h-9" />
-                  <CommandList>
-                    <CommandEmpty>No area found.</CommandEmpty>
-                    <CommandGroup>
-                      {areas.map((area) => (
-                        <CommandItem
-                          key={area.id}
-                          value={area.areaName}
-                          onSelect={() => {
-                            onChange({ target: { name: "area", value: area.id } });
-                            setOpen(false);
-                          }}
-                          className="flex items-center gap-2"
-                        >
-                          <Home className="h-4 w-4 text-gray-500" />
-                          {area.areaName}
-                          {form.area === area.id && (
-                            <Check className="ml-auto h-4 w-4 text-blue-600" />
-                          )}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-
-            {/* Add Area Button */}
-            <AddArea
-              onAreaCreated={(newArea) => {
-                setAreas((prev) => [...prev, newArea]);
-                onChange({ target: { name: "area", value: newArea.id } });
-              }}
-            />
-          </div>
-          {getError("area") && (
-            <p className="text-xs text-red-500 flex items-center gap-1">
-              <AlertCircle size={12} /> {getError("area")}
-            </p>
-          )}
+        {/* Area Dropdown */}
+      <div className="space-y-1">
+        <label
+          htmlFor="area"
+          className="block text-sm font-medium text-gray-700"
+        >
+          Area
+        </label>
+        <div className="flex gap-2">
+          <select
+            id="area"
+            name="area"
+            value={form.area}
+            onChange={onChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-600 focus:outline-none"
+          >
+            <option value="">Select Area</option>
+            {areas.map((area) => (
+              <option key={area.id} value={String(area.id)}>
+                {area.areaName}
+              </option>
+            ))}
+          </select>
+          <AddArea
+            onAreaCreated={(newArea) => {
+              const normalized = {
+                id: String(newArea.id),
+                areaName: newArea.areaName,
+                shortCode: newArea.shortCode,
+              };
+              // 1. Add new area to dropdown options
+              setAreas((prev) => [...prev, normalized]);
+              // 2. Immediately set it as selected
+              onChange({
+                target: { name: "area", value: normalized.id },
+              });
+            }}
+          />
         </div>
+        {getError("area") && (
+          <p className="text-xs text-red-500">* {getError("area")}</p>
+        )}
+      </div>
 
         <div className="space-y-2">
           <label htmlFor="address" className="block text-sm font-medium text-gray-700">

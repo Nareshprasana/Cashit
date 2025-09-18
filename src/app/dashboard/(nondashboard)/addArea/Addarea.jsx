@@ -76,7 +76,7 @@ export function AddArea({ onAreaCreated = () => {} }) {
       toast.success(`${data.areaName} has been successfully added.`, {
         description: "Area created",
       });
-      onAreaCreated(data.areaName);
+      onAreaCreated(data);
 
       setFormData({ areaName: "", shortCode: "", pincode: "" });
       setOpen(false);
