@@ -1,8 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Search, Filter, Download, Plus } from "lucide-react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Loader2, Search, Filter, Download, Plus, Eye, Pencil, Trash2, X, Save, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function ExpenseForm() {
   const [form, setForm] = useState({
@@ -15,6 +14,9 @@ export default function ExpenseForm() {
   const [loading, setLoading] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   // Filters
   const [filterTitle, setFilterTitle] = useState("");
@@ -23,24 +25,34 @@ export default function ExpenseForm() {
   const [filterMinAmount, setFilterMinAmount] = useState("");
   const [filterInvoice, setFilterInvoice] = useState("");
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   useEffect(() => {
-    async function fetchExpenses() {
-      try {
-        const res = await fetch("/api/expense");
-        if (!res.ok) throw new Error("Fetch failed");
-        const data = await res.json();
-        setExpenses(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Error fetching expenses:", err);
-        setExpenses([]);
-      }
-    }
     fetchExpenses();
   }, []);
+
+  async function fetchExpenses() {
+    try {
+      const res = await fetch("/api/expense");
+      if (!res.ok) throw new Error("Fetch failed");
+      const data = await res.json();
+      setExpenses(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error fetching expenses:", err);
+      setExpenses([]);
+    }
+  }
 
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  }
+
+  function handleEditChange(e) {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
   }
 
   async function handleSubmit(e) {
@@ -68,6 +80,59 @@ export default function ExpenseForm() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleUpdate(id) {
+    try {
+      const res = await fetch(`/api/expense?id=${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      
+      if (!res.ok) throw new Error("Failed to update expense");
+      
+      setExpenses(expenses.map(exp => 
+        exp.id === id ? { ...exp, ...editForm } : exp
+      ));
+      setEditingId(null);
+      setEditForm({});
+    } catch (err) {
+      console.error(err);
+      alert("Error updating expense");
+    }
+  }
+
+  async function handleDelete(id) {
+    try {
+      const res = await fetch(`/api/expense?id=${id}`, {
+        method: "DELETE",
+      });
+      
+      if (!res.ok) throw new Error("Failed to delete expense");
+      
+      setExpenses(expenses.filter(exp => exp.id !== id));
+      setDeleteConfirm(null);
+    } catch (err) {
+      console.error(err);
+      alert("Error deleting expense");
+    }
+  }
+
+  function startEdit(expense) {
+    setEditingId(expense.id);
+    setEditForm({
+      invoiceNumber: expense.invoiceNumber,
+      title: expense.title,
+      amount: expense.amount,
+      date: expense.date,
+      notes: expense.notes || "",
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditForm({});
   }
 
   function handleExport() {
@@ -114,6 +179,11 @@ export default function ExpenseForm() {
       matchesMinAmount
     );
   });
+
+  // Pagination
+  const totalPages = Math.ceil(filteredExpenses.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedExpenses = filteredExpenses.slice(startIndex, startIndex + itemsPerPage);
 
   const totalAmount = filteredExpenses.reduce(
     (sum, exp) => sum + Number(exp.amount || 0),
@@ -315,6 +385,50 @@ export default function ExpenseForm() {
             </p>
           </div>
 
+          {/* Pagination Controls */}
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Rows per page:</label>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="border rounded px-2 py-1 text-sm"
+              >
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages}
+              </span>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
           {/* Table */}
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="w-full">
@@ -325,32 +439,125 @@ export default function ExpenseForm() {
                   <th className="p-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                   <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                   <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredExpenses.length > 0 ? (
-                  filteredExpenses.map((exp, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50 transition">
-                      <td className="p-3 text-sm font-medium text-gray-900">{exp.invoiceNumber}</td>
-                      <td className="p-3 text-sm text-gray-700">{exp.title}</td>
-                      <td className="p-3 text-sm text-right font-medium text-blue-600">
-                        {Number(exp.amount).toFixed(2)}
-                      </td>
-                      <td className="p-3 text-sm text-gray-700">
-                        {exp.date ? new Date(exp.date).toLocaleDateString() : ""}
-                      </td>
-                      <td className="p-3 text-sm text-gray-600 max-w-xs truncate">{exp.notes}</td>
+                {paginatedExpenses.length > 0 ? (
+                  paginatedExpenses.map((exp) => (
+                    <tr key={exp.id} className="hover:bg-gray-50 transition">
+                      {editingId === exp.id ? (
+                        <>
+                          <td className="p-3">
+                            <input
+                              type="text"
+                              name="invoiceNumber"
+                              value={editForm.invoiceNumber}
+                              onChange={handleEditChange}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                            />
+                          </td>
+                          <td className="p-3">
+                            <input
+                              type="text"
+                              name="title"
+                              value={editForm.title}
+                              onChange={handleEditChange}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                            />
+                          </td>
+                          <td className="p-3">
+                            <input
+                              type="number"
+                              name="amount"
+                              value={editForm.amount}
+                              onChange={handleEditChange}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm text-right"
+                              step="0.01"
+                            />
+                          </td>
+                          <td className="p-3">
+                            <input
+                              type="date"
+                              name="date"
+                              value={editForm.date}
+                              onChange={handleEditChange}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                            />
+                          </td>
+                          <td className="p-3">
+                            <input
+                              type="text"
+                              name="notes"
+                              value={editForm.notes}
+                              onChange={handleEditChange}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                            />
+                          </td>
+                          <td className="p-3">
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleUpdate(exp.id)}
+                                className="bg-green-600 hover:bg-green-700 h-8"
+                              >
+                                <Save className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={cancelEdit}
+                                className="h-8"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="p-3 text-sm font-medium text-gray-900">{exp.invoiceNumber}</td>
+                          <td className="p-3 text-sm text-gray-700">{exp.title}</td>
+                          <td className="p-3 text-sm text-right font-medium text-blue-600">
+                            {Number(exp.amount).toFixed(2)}
+                          </td>
+                          <td className="p-3 text-sm text-gray-700">
+                            {exp.date ? new Date(exp.date).toLocaleDateString() : ""}
+                          </td>
+                          <td className="p-3 text-sm text-gray-600 max-w-xs truncate">{exp.notes}</td>
+                          <td className="p-3">
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => startEdit(exp)}
+                                className="h-8"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setDeleteConfirm(exp.id)}
+                                className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="5" className="p-8 text-center text-gray-500">
+                    <td colSpan="6" className="p-8 text-center text-gray-500">
                       No expenses found matching your filters
                     </td>
                   </tr>
                 )}
               </tbody>
-              {filteredExpenses.length > 0 && (
+              {paginatedExpenses.length > 0 && (
                 <tfoot className="bg-blue-50 border-t border-gray-200">
                   <tr>
                     <td className="p-3 text-sm font-medium text-right" colSpan={2}>
@@ -359,11 +566,35 @@ export default function ExpenseForm() {
                     <td className="p-3 text-sm font-medium text-right text-blue-600">
                       {totalAmount.toFixed(2)}
                     </td>
-                    <td className="p-3" colSpan={2}></td>
+                    <td className="p-3" colSpan={3}></td>
                   </tr>
                 </tfoot>
               )}
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Delete</h3>
+            <p className="text-gray-600 mb-6">Are you sure you want to delete this expense? This action cannot be undone.</p>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteConfirm(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => handleDelete(deleteConfirm)}
+              >
+                Delete
+              </Button>
+            </div>
           </div>
         </div>
       )}
