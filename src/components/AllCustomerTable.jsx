@@ -19,6 +19,9 @@ import {
   X,
   Edit,
   Loader2,
+  Plus,
+  Trash2,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -76,6 +79,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 
 // Pagination imports
 import {
@@ -131,6 +135,11 @@ export default function AllCustomerTable() {
   // Dialog-in-Dialog actions state
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  
+  // Document management
+  const [documents, setDocuments] = useState([]);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState(null);
 
   const router = useRouter();
 
@@ -185,9 +194,19 @@ export default function AllCustomerTable() {
           console.error("Error loading repayments:", err);
           setRepayments([]);
         });
+        
+      // Fetch documents
+      fetch(`/api/documents?customerId=${selectedCustomer.id}`)
+        .then((res) => res.json())
+        .then((data) => setDocuments(Array.isArray(data) ? data : []))
+        .catch((err) => {
+          console.error("Error loading documents:", err);
+          setDocuments([]);
+        });
     } else {
       setQrCodeUrl("");
       setRepayments([]);
+      setDocuments([]);
     }
   }, [selectedCustomer]);
 
@@ -266,6 +285,65 @@ export default function AllCustomerTable() {
       setDeletingId(null);
     }
   }
+
+  // Handle document upload
+  const handleDocumentUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !selectedCustomer) return;
+    
+    setUploadingDoc(true);
+    
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("customerId", selectedCustomer.id);
+    formData.append("documentName", file.name);
+    
+    try {
+      const res = await fetch("/api/documents", {
+        method: "POST",
+        body: formData,
+      });
+      
+      if (res.ok) {
+        const newDoc = await res.json();
+        setDocuments(prev => [...prev, newDoc]);
+        alert("Document uploaded successfully!");
+        e.target.value = ""; // Reset file input
+      } else {
+        throw new Error("Failed to upload document");
+      }
+    } catch (error) {
+      console.error("Document upload error:", error);
+      alert("Failed to upload document");
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  // Handle document deletion
+  const handleDocumentDelete = async (docId) => {
+    if (!confirm("Are you sure you want to delete this document?")) return;
+    
+    setDeletingDocId(docId);
+    
+    try {
+      const res = await fetch(`/api/documents?id=${docId}`, {
+        method: "DELETE",
+      });
+      
+      if (res.ok) {
+        setDocuments(prev => prev.filter(doc => doc.id !== docId));
+        alert("Document deleted successfully!");
+      } else {
+        throw new Error("Failed to delete document");
+      }
+    } catch (error) {
+      console.error("Document deletion error:", error);
+      alert("Failed to delete document");
+    } finally {
+      setDeletingDocId(null);
+    }
+  };
 
   // QR Code download handler
   const handleDownloadQRCode = () => {
@@ -473,6 +551,7 @@ export default function AllCustomerTable() {
   }, [filteredData, currentPage, rowsPerPage]);
 
   const numberOfRepayments = useMemo(() => repayments.length, [repayments]);
+  const numberOfDocuments = useMemo(() => documents.length, [documents]);
 
   const handleDownloadStatement = () => {
     if (!selectedCustomer) return;
@@ -1004,10 +1083,13 @@ export default function AllCustomerTable() {
               {/* Right Column - Details & Repayments */}
               <div className="lg:col-span-3 space-y-6">
                 <Tabs defaultValue="details" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="details">Customer Details</TabsTrigger>
                     <TabsTrigger value="repayments">
                       Repayments ({numberOfRepayments})
+                    </TabsTrigger>
+                    <TabsTrigger value="documents">
+                      Documents ({numberOfDocuments})
                     </TabsTrigger>
                   </TabsList>
 
@@ -1203,6 +1285,113 @@ export default function AllCustomerTable() {
                       </CardContent>
                     </Card>
                   </TabsContent>
+                  
+                  <TabsContent value="documents">
+                    <Card>
+                      <CardHeader>
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <CardTitle className="text-lg">
+                              Customer Documents
+                            </CardTitle>
+                            <CardDescription>
+                              Upload and manage documents for {selectedCustomer.name}
+                            </CardDescription>
+                          </div>
+                          <div>
+                            <label htmlFor="document-upload" className="cursor-pointer">
+                              <Button as="span" size="sm" className="flex items-center gap-1">
+                                <Upload className="h-4 w-4" />
+                                Upload Document
+                              </Button>
+                              <input
+                                id="document-upload"
+                                type="file"
+                                className="hidden"
+                                onChange={handleDocumentUpload}
+                                disabled={uploadingDoc}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {uploadingDoc && (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                            Uploading document...
+                          </div>
+                        )}
+                        
+                        {documents.length === 0 ? (
+                          <div className="text-center py-8 text-gray-500">
+                            <FileText className="h-12 w-12 mx-auto text-gray-300 mb-2" />
+                            <p>No documents found.</p>
+                            <p className="text-sm mt-2">
+                              Click "Upload Document" to add documents for this customer.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="text-left p-3 font-medium">Document Name</th>
+                                  <th className="text-left p-3 font-medium">Uploaded Date</th>
+                                  <th className="text-left p-3 font-medium">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y">
+                                {documents.map((doc) => (
+                                  <tr key={doc.id} className="hover:bg-gray-50">
+                                    <td className="p-3 font-medium">{doc.documentName}</td>
+                                    <td className="p-3">
+                                      {doc.uploadedAt
+                                        ? new Date(doc.uploadedAt).toLocaleDateString("en-IN", {
+                                            day: "2-digit",
+                                            month: "short",
+                                            year: "numeric",
+                                          })
+                                        : "—"}
+                                    </td>
+                                    <td className="p-3">
+                                      <div className="flex gap-2">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          asChild
+                                        >
+                                          <a 
+                                            href={doc.fileUrl} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                          >
+                                            View
+                                          </a>
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleDocumentDelete(doc.id)}
+                                          disabled={deletingDocId === doc.id}
+                                        >
+                                          {deletingDocId === doc.id ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          ) : (
+                                            <Trash2 className="h-4 w-4" />
+                                          )}
+                                        </Button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
                 </Tabs>
               </div>
             </div>
@@ -1214,7 +1403,7 @@ export default function AllCustomerTable() {
 
           {/* Inline Edit Dialog inside details dialog */}
           <Dialog open={editOpen} onOpenChange={setEditOpen}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Edit Customer</DialogTitle>
                 <DialogDescription>
@@ -1228,6 +1417,13 @@ export default function AllCustomerTable() {
                   if (!selectedCustomer) return;
                   const fd = new FormData(e.currentTarget);
                   fd.set("id", String(selectedCustomer.id));
+                  
+                  // Handle photo upload if a new file is selected
+                  const photoInput = e.target.querySelector('input[name="photo"]');
+                  if (photoInput?.files[0]) {
+                    fd.set("photo", photoInput.files[0]);
+                  }
+                  
                   try {
                     const res = await fetch("/api/customers", {
                       method: "PUT",
@@ -1246,38 +1442,116 @@ export default function AllCustomerTable() {
                         : prev
                     );
                     setEditOpen(false);
+                    alert("Customer updated successfully!");
                   } catch (err) {
                     console.error("Update error:", err);
+                    alert("Failed to update customer");
                   }
                 }}
                 className="space-y-4"
               >
-                <div className="grid gap-2">
-                  <Label>Name</Label>
-                  <Input
-                    name="customerName"
-                    defaultValue={selectedCustomer?.name || ""}
-                    required
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Name *</Label>
+                    <Input
+                      name="customerName"
+                      defaultValue={selectedCustomer?.name || ""}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Mobile</Label>
+                    <Input
+                      name="mobile"
+                      defaultValue={selectedCustomer?.mobile || ""}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Customer Code</Label>
+                    <Input
+                      name="customerCode"
+                      defaultValue={selectedCustomer?.customerCode || ""}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Aadhar Number</Label>
+                    <Input
+                      name="aadhar"
+                      defaultValue={selectedCustomer?.aadhar || ""}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Area</Label>
+                    <Input
+                      name="area"
+                      defaultValue={selectedCustomer?.area || ""}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Loan Amount</Label>
+                    <Input
+                      name="loanAmount"
+                      type="number"
+                      defaultValue={selectedCustomer?.loanAmount || ""}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Loan Date</Label>
+                    <Input
+                      name="loanDate"
+                      type="date"
+                      defaultValue={
+                        selectedCustomer?.loanDate
+                          ? new Date(selectedCustomer.loanDate).toISOString().split('T')[0]
+                          : ""
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Tenure (months)</Label>
+                    <Input
+                      name="tenure"
+                      type="number"
+                      defaultValue={selectedCustomer?.tenure || ""}
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Address</Label>
+                    <Textarea
+                      name="address"
+                      defaultValue={selectedCustomer?.address || ""}
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Profile Photo</Label>
+                    <Input
+                      name="photo"
+                      type="file"
+                      accept="image/*"
+                    />
+                    {selectedCustomer?.photoUrl && (
+                      <div className="mt-2">
+                        <img
+                          src={selectedCustomer.photoUrl}
+                          alt="Current profile"
+                          className="h-16 w-16 rounded-full object-cover"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="grid gap-2">
-                  <Label>Mobile</Label>
-                  <Input
-                    name="mobile"
-                    defaultValue={selectedCustomer?.mobile || ""}
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label>Customer Code</Label>
-                  <Input
-                    name="customerCode"
-                    defaultValue={selectedCustomer?.customerCode || ""}
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="flex justify-end gap-2 pt-4">
                   <Button
                     type="button"
                     variant="outline"
