@@ -135,11 +135,11 @@ export default function AllCustomerTable() {
   // Dialog-in-Dialog actions state
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  
+
   // Document management
-  const [documents, setDocuments] = useState([]);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
-  const [deletingDocId, setDeletingDocId] = useState(null);
+  // const [documents, setDocuments] = useState([]);
+  // const [uploadingDoc, setUploadingDoc] = useState(false);
+  // const [deletingDocId, setDeletingDocId] = useState(null);
 
   const router = useRouter();
 
@@ -194,19 +194,11 @@ export default function AllCustomerTable() {
           console.error("Error loading repayments:", err);
           setRepayments([]);
         });
-        
-      // Fetch documents
-      fetch(`/api/documents?customerId=${selectedCustomer.id}`)
-        .then((res) => res.json())
-        .then((data) => setDocuments(Array.isArray(data) ? data : []))
-        .catch((err) => {
-          console.error("Error loading documents:", err);
-          setDocuments([]);
-        });
+
+      // Remove document fetching since it doesn't exist in your API
     } else {
       setQrCodeUrl("");
       setRepayments([]);
-      setDocuments([]);
     }
   }, [selectedCustomer]);
 
@@ -287,52 +279,52 @@ export default function AllCustomerTable() {
   }
 
   // Handle document upload
-  const handleDocumentUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file || !selectedCustomer) return;
-    
-    setUploadingDoc(true);
-    
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("customerId", selectedCustomer.id);
-    formData.append("documentName", file.name);
-    
-    try {
-      const res = await fetch("/api/documents", {
-        method: "POST",
-        body: formData,
-      });
-      
-      if (res.ok) {
-        const newDoc = await res.json();
-        setDocuments(prev => [...prev, newDoc]);
-        alert("Document uploaded successfully!");
-        e.target.value = ""; // Reset file input
-      } else {
-        throw new Error("Failed to upload document");
-      }
-    } catch (error) {
-      console.error("Document upload error:", error);
-      alert("Failed to upload document");
-    } finally {
-      setUploadingDoc(false);
-    }
-  };
+  // const handleDocumentUpload = async (e) => {
+  //   const file = e.target.files[0];
+  //   if (!file || !selectedCustomer) return;
+
+  //   setUploadingDoc(true);
+
+  //   const formData = new FormData();
+  //   formData.append("file", file);
+  //   formData.append("customerId", selectedCustomer.id);
+  //   formData.append("documentName", file.name);
+
+  //   try {
+  //     const res = await fetch("/api/documents", {
+  //       method: "POST",
+  //       body: formData,
+  //     });
+
+  //     if (res.ok) {
+  //       const newDoc = await res.json();
+  //       setDocuments((prev) => [...prev, newDoc]);
+  //       alert("Document uploaded successfully!");
+  //       e.target.value = ""; // Reset file input
+  //     } else {
+  //       throw new Error("Failed to upload document");
+  //     }
+  //   } catch (error) {
+  //     console.error("Document upload error:", error);
+  //     alert("Failed to upload document");
+  //   } finally {
+  //     setUploadingDoc(false);
+  //   }
+  // };
 
   // Handle document deletion
   const handleDocumentDelete = async (docId) => {
     if (!confirm("Are you sure you want to delete this document?")) return;
-    
+
     setDeletingDocId(docId);
-    
+
     try {
       const res = await fetch(`/api/documents?id=${docId}`, {
         method: "DELETE",
       });
-      
+
       if (res.ok) {
-        setDocuments(prev => prev.filter(doc => doc.id !== docId));
+        setDocuments((prev) => prev.filter((doc) => doc.id !== docId));
         alert("Document deleted successfully!");
       } else {
         throw new Error("Failed to delete document");
@@ -551,7 +543,15 @@ export default function AllCustomerTable() {
   }, [filteredData, currentPage, rowsPerPage]);
 
   const numberOfRepayments = useMemo(() => repayments.length, [repayments]);
-  const numberOfDocuments = useMemo(() => documents.length, [documents]);
+  const numberOfDocuments = useMemo(() => {
+    if (!selectedCustomer) return 0;
+    let count = 0;
+    if (selectedCustomer.photoUrl) count++;
+    if (selectedCustomer.aadharDocumentUrl) count++;
+    if (selectedCustomer.incomeProofUrl) count++;
+    if (selectedCustomer.residenceProofUrl) count++;
+    return count;
+  }, [selectedCustomer]);
 
   const handleDownloadStatement = () => {
     if (!selectedCustomer) return;
@@ -1285,7 +1285,7 @@ export default function AllCustomerTable() {
                       </CardContent>
                     </Card>
                   </TabsContent>
-                  
+
                   <TabsContent value="documents">
                     <Card>
                       <CardHeader>
@@ -1295,12 +1295,20 @@ export default function AllCustomerTable() {
                               Customer Documents
                             </CardTitle>
                             <CardDescription>
-                              Upload and manage documents for {selectedCustomer.name}
+                              Upload and manage documents for{" "}
+                              {selectedCustomer.name}
                             </CardDescription>
                           </div>
                           <div>
-                            <label htmlFor="document-upload" className="cursor-pointer">
-                              <Button as="span" size="sm" className="flex items-center gap-1">
+                            <label
+                              htmlFor="document-upload"
+                              className="cursor-pointer"
+                            >
+                              <Button
+                                as="span"
+                                size="sm"
+                                className="flex items-center gap-1"
+                              >
                                 <Upload className="h-4 w-4" />
                                 Upload Document
                               </Button>
@@ -1322,71 +1330,67 @@ export default function AllCustomerTable() {
                             Uploading document...
                           </div>
                         )}
-                        
+
                         {documents.length === 0 ? (
                           <div className="text-center py-8 text-gray-500">
                             <FileText className="h-12 w-12 mx-auto text-gray-300 mb-2" />
                             <p>No documents found.</p>
                             <p className="text-sm mt-2">
-                              Click "Upload Document" to add documents for this customer.
+                              Click "Upload Document" to add documents for this
+                              customer.
                             </p>
                           </div>
                         ) : (
-                          <div className="border rounded-lg overflow-hidden">
-                            <table className="w-full text-sm">
-                              <thead className="bg-gray-50">
-                                <tr>
-                                  <th className="text-left p-3 font-medium">Document Name</th>
-                                  <th className="text-left p-3 font-medium">Uploaded Date</th>
-                                  <th className="text-left p-3 font-medium">Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y">
-                                {documents.map((doc) => (
-                                  <tr key={doc.id} className="hover:bg-gray-50">
-                                    <td className="p-3 font-medium">{doc.documentName}</td>
-                                    <td className="p-3">
-                                      {doc.uploadedAt
-                                        ? new Date(doc.uploadedAt).toLocaleDateString("en-IN", {
-                                            day: "2-digit",
-                                            month: "short",
-                                            year: "numeric",
-                                          })
-                                        : "—"}
-                                    </td>
-                                    <td className="p-3">
-                                      <div className="flex gap-2">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          asChild
-                                        >
-                                          <a 
-                                            href={doc.fileUrl} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                          >
-                                            View
-                                          </a>
-                                        </Button>
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => handleDocumentDelete(doc.id)}
-                                          disabled={deletingDocId === doc.id}
-                                        >
-                                          {deletingDocId === doc.id ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                          ) : (
-                                            <Trash2 className="h-4 w-4" />
-                                          )}
-                                        </Button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {documents.map((doc) => (
+                              <div
+                                key={doc.id}
+                                className="border rounded-lg p-4 flex flex-col"
+                              >
+                                <div className="flex-grow">
+                                  <FileText className="h-10 w-10 text-blue-500 mb-2" />
+                                  <h3 className="font-medium text-sm truncate">
+                                    {doc.documentName}
+                                  </h3>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Uploaded:{" "}
+                                    {doc.uploadedAt
+                                      ? new Date(
+                                          doc.uploadedAt
+                                        ).toLocaleDateString("en-IN")
+                                      : "Unknown date"}
+                                  </p>
+                                </div>
+                                <div className="flex gap-2 mt-4">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1"
+                                    asChild
+                                  >
+                                    <a
+                                      href={doc.fileUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      View
+                                    </a>
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDocumentDelete(doc.id)}
+                                    disabled={deletingDocId === doc.id}
+                                  >
+                                    {deletingDocId === doc.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </CardContent>
@@ -1417,13 +1421,15 @@ export default function AllCustomerTable() {
                   if (!selectedCustomer) return;
                   const fd = new FormData(e.currentTarget);
                   fd.set("id", String(selectedCustomer.id));
-                  
+
                   // Handle photo upload if a new file is selected
-                  const photoInput = e.target.querySelector('input[name="photo"]');
+                  const photoInput = e.target.querySelector(
+                    'input[name="photo"]'
+                  );
                   if (photoInput?.files[0]) {
                     fd.set("photo", photoInput.files[0]);
                   }
-                  
+
                   try {
                     const res = await fetch("/api/customers", {
                       method: "PUT",
@@ -1508,7 +1514,9 @@ export default function AllCustomerTable() {
                       type="date"
                       defaultValue={
                         selectedCustomer?.loanDate
-                          ? new Date(selectedCustomer.loanDate).toISOString().split('T')[0]
+                          ? new Date(selectedCustomer.loanDate)
+                              .toISOString()
+                              .split("T")[0]
                           : ""
                       }
                     />
@@ -1534,11 +1542,7 @@ export default function AllCustomerTable() {
 
                   <div className="space-y-2">
                     <Label>Profile Photo</Label>
-                    <Input
-                      name="photo"
-                      type="file"
-                      accept="image/*"
-                    />
+                    <Input name="photo" type="file" accept="image/*" />
                     {selectedCustomer?.photoUrl && (
                       <div className="mt-2">
                         <img
