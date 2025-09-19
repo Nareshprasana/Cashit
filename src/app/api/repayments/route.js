@@ -10,7 +10,13 @@ export async function GET(req) {
     const repayments = await prisma.repayment.findMany({
       where: customerId ? { loan: { customerId } } : undefined,
       orderBy: { createdAt: "desc" },
-      include: { loan: true },
+      include: {
+        loan: {
+          include: {
+            customer: true, // ✅ Include customer details from customer table
+          },
+        },
+      },
     });
 
     return NextResponse.json(repayments);
@@ -46,10 +52,14 @@ export async function POST(req) {
     const pm = String(paymentMethod).toUpperCase().replace(/\s+/g, "_");
 
     const loan = await prisma.loan.findUnique({ where: { id: loanId } });
-    if (!loan) return NextResponse.json({ message: "Loan not found" }, { status: 400 });
+    if (!loan)
+      return NextResponse.json({ message: "Loan not found" }, { status: 400 });
 
     const repaymentAmount = parseFloat(amount);
-    const newPending = Math.max(0, Number(loan.pendingAmount) - repaymentAmount);
+    const newPending = Math.max(
+      0,
+      Number(loan.pendingAmount) - repaymentAmount
+    );
 
     const result = await prisma.$transaction(async (tx) => {
       const updatedLoan = await tx.loan.update({
@@ -64,6 +74,13 @@ export async function POST(req) {
           pendingAmount: updatedLoan.pendingAmount,
           dueDate: new Date(dueDate),
           paymentMethod: pm,
+        },
+        include: {
+          loan: {
+            include: {
+              customer: true, // ✅ also include customer for new repayment
+            },
+          },
         },
       });
 
