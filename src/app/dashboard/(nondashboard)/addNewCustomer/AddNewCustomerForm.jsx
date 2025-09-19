@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CustomerSchema } from "./validation";
 import StepOneForm from "./components/StepOneForm";
 import StepTwoPreview from "./components/StepTwoPreview";
 import StepThreeSuccess from "./components/StepThreeSuccess";
@@ -31,7 +30,6 @@ const AddNewCustomerForm = () => {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState([]);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [successCustomer, setSuccessCustomer] = useState(null);
   const [alertMessage, setAlertMessage] = useState("");
@@ -76,73 +74,14 @@ const AddNewCustomerForm = () => {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ✅ Age validation helper
-  const isAbove18 = (dob) => {
-    if (!dob) return false;
-    const today = new Date();
-    const birthDate = new Date(dob);
-    const age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      return age - 1 >= 18;
-    }
-    return age >= 18;
-  };
-
+  // 🚀 Always go to next step (no validation)
   const nextStep = () => {
-    setAlertMessage(""); // reset alert
-
-    const stepOneData = {
-      customerName: form.customerName,
-      parentName: form.parentName,
-      mobile: form.mobile,
-      gender: form.gender,
-      dob: form.dob,
-      aadhar: form.aadhar,
-      guarantorName: form.guarantorName,
-      guarantorAadhar: form.guarantorAadhar,
-      area: form.area,
-      address: form.address,
-      customerCode: form.customerCode,
-    };
-
-    const result = CustomerSchema.pick({
-      customerName: true,
-      parentName: true,
-      mobile: true,
-      gender: true,
-      dob: true,
-      aadhar: true,
-      guarantorName: true,
-      guarantorAadhar: true,
-      area: true,
-      address: true,
-      customerCode: true,
-    }).safeParse(stepOneData);
-
-    if (!result.success) {
-      setErrors(result.error?.errors || []);
-      setAlertMessage("⚠️ Please correct the highlighted errors.");
-    } else if (!isAbove18(form.dob)) {
-      setErrors([{ path: ["dob"], message: "Customer must be at least 18 years old" }]);
-      setAlertMessage("⚠️ Customer must be at least 18 years old.");
-    } else {
-      setErrors([]);
-      setStep(2);
-    }
+    setAlertMessage("");
+    setStep(2);
   };
 
   const handleSubmit = async () => {
     setAlertMessage("");
-
-    const result = CustomerSchema.safeParse(form);
-    if (!result.success) {
-      setErrors(result.error?.errors || []);
-      setAlertMessage("⚠️ Please correct all required fields before submitting.");
-      setStep(1);
-      return;
-    }
-
     setIsSubmitting(true);
 
     const formData = new FormData();
@@ -188,7 +127,6 @@ const AddNewCustomerForm = () => {
           residenceProof: null,
         });
         setPhotoPreview(null);
-        setErrors([]);
       } else {
         setAlertMessage("❌ Error submitting form. Please try again.");
       }
@@ -210,7 +148,6 @@ const AddNewCustomerForm = () => {
       <ProgressBar step={step} />
       <h1 className="text-xl font-bold mb-4">Add New Customer</h1>
 
-      {/* 🚨 Alert message */}
       {alertMessage && (
         <div className="p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-lg">
           {alertMessage}
@@ -228,7 +165,6 @@ const AddNewCustomerForm = () => {
             >
               <StepOneForm
                 form={form}
-                errors={errors}
                 onChange={handleChange}
                 photoPreview={photoPreview}
                 setPhotoPreview={setPhotoPreview}

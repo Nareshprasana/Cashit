@@ -12,33 +12,15 @@ import {
   Home,
   Upload,
   Image as ImageIcon,
-  ChevronsUpDown,
-  Check,
   MapPin,
   DollarSign,
   FileCheck,
   Camera,
-  AlertCircle,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) => {
+const StepOneForm = ({ form, onChange, photoPreview, setPhotoPreview }) => {
   const [areas, setAreas] = useState([]);
-  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const fetchAreas = async () => {
@@ -82,9 +64,6 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
     }
   }, [form.area, areas, onChange]);
 
-  const getError = (name) =>
-    errors.find((e) => e.path[0] === name)?.message;
-
   // Input field icons
   const fieldIcons = {
     customerName: <User size={18} className="text-gray-500" />,
@@ -110,23 +89,21 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
         <h2 className="text-2xl font-bold text-gray-800 mb-2">
           Personal Information
         </h2>
-        <p className="text-gray-600">
-          Fill in the customer's personal details
-        </p>
+        <p className="text-gray-600">Fill in the customer's personal details</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[
-          ["Customer Name", "customerName", false],
-          ["Spouse Name", "spouseName", false],
-          ["Parent Name", "parentName", false],
-          ["Mobile", "mobile", false, { maxLength: 10, inputMode: "numeric", type: "tel" }],
-          ["DOB", "dob", false, { type: "date" }],
-          ["Aadhar Number", "aadhar", false, { maxLength: 12, inputMode: "numeric" }],
-          ["Guarantor Name", "guarantorName", false],
-          ["Guarantor Aadhar", "guarantorAadhar", false, { maxLength: 12, inputMode: "numeric" }],
-          ["Customer Code", "customerCode", false, { readOnly: true }],
-        ].map(([label, name, required, props = {}]) => (
+          ["Customer Name", "customerName", {}],
+          ["Spouse Name", "spouseName", {}],
+          ["Parent Name", "parentName", {}],
+          ["Mobile", "mobile", { maxLength: 10, inputMode: "numeric", type: "tel" }],
+          ["DOB", "dob", { type: "date" }],
+          ["Aadhar Number", "aadhar", { maxLength: 12, inputMode: "numeric" }],
+          ["Guarantor Name", "guarantorName", {}],
+          ["Guarantor Aadhar", "guarantorAadhar", { maxLength: 12, inputMode: "numeric" }],
+          ["Customer Code", "customerCode", { readOnly: true }],
+        ].map(([label, name, props = {}]) => (
           <div key={name} className="space-y-2">
             <label htmlFor={name} className="block text-sm font-medium text-gray-700">
               {label}
@@ -146,27 +123,17 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
                 readOnly={props.readOnly}
                 className={cn(
                   "w-full pl-10 pr-3 py-2.5 border rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors",
-                  getError(name)
-                    ? "border-red-300 bg-red-50"
-                    : "border-gray-300",
                   props.readOnly && "bg-gray-100 cursor-not-allowed"
                 )}
                 placeholder={`Enter ${label}`}
               />
             </div>
-            {getError(name) && (
-              <p className="text-xs text-red-500 flex items-center gap-1">
-                <AlertCircle size={12} /> {getError(name)}
-              </p>
-            )}
           </div>
         ))}
 
         {/* Gender */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
-            Gender
-          </label>
+          <label className="block text-sm font-medium text-gray-700">Gender</label>
           <div className="flex gap-6">
             {["Male", "Female"].map((g) => (
               <label key={g} className="flex items-center gap-2 cursor-pointer">
@@ -182,11 +149,6 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
               </label>
             ))}
           </div>
-          {getError("gender") && (
-            <p className="text-xs text-red-500 flex items-center gap-1">
-              <AlertCircle size={12} /> {getError("gender")}
-            </p>
-          )}
         </div>
       </div>
 
@@ -195,12 +157,8 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
         <h2 className="text-xl font-semibold text-gray-800 mb-4">
           Location Information
         </h2>
-        {/* Area Dropdown */}
         <div className="space-y-1">
-          <label
-            htmlFor="area"
-            className="block text-sm font-medium text-gray-700"
-          >
+          <label htmlFor="area" className="block text-sm font-medium text-gray-700">
             Area
           </label>
           <div className="flex gap-2">
@@ -225,18 +183,11 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
                   areaName: newArea.areaName,
                   shortCode: newArea.shortCode,
                 };
-                // 1. Add new area to dropdown options
                 setAreas((prev) => [...prev, normalized]);
-                // 2. Immediately set it as selected
-                onChange({
-                  target: { name: "area", value: normalized.id },
-                });
+                onChange({ target: { name: "area", value: normalized.id } });
               }}
             />
           </div>
-          {getError("area") && (
-            <p className="text-xs text-red-500">* {getError("area")}</p>
-          )}
         </div>
 
         <div className="space-y-2">
@@ -253,32 +204,16 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
               value={form.address || ""}
               onChange={onChange}
               rows={3}
-              className={cn(
-                "w-full pl-10 pr-3 py-2.5 border rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors resize-none",
-                getError("address")
-                  ? "border-red-300 bg-red-50"
-                  : "border-gray-300"
-              )}
+              className="w-full pl-10 pr-3 py-2.5 border rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors resize-none"
               placeholder="Enter complete address"
             />
           </div>
-          {getError("address") && (
-            <p className="text-xs text-red-500 flex items-center gap-1">
-              <AlertCircle size={12} /> {getError("address")}
-            </p>
-          )}
         </div>
       </div>
 
       {/* File Uploads */}
       <div className="border-t pt-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">
-          Document Uploads
-        </h2>
-        <p className="text-gray-600 text-sm mb-6">
-          Upload required documents for verification
-        </p>
-
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Document Uploads</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Photo Upload */}
           <div className="space-y-2">
@@ -286,12 +221,7 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
               Customer Photo
             </label>
             <div
-              className={cn(
-                "border-2 border-dashed rounded-lg p-5 text-center transition-colors",
-                getError("photo")
-                  ? "border-red-300 bg-red-50"
-                  : "border-gray-300 hover:border-blue-400"
-              )}
+              className="border-2 border-dashed rounded-lg p-5 text-center transition-colors border-gray-300 hover:border-blue-400"
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
@@ -355,16 +285,7 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
                   className="hidden"
                 />
               </label>
-
-              <p className="text-xs text-gray-500 mt-3">
-                Supports: JPG, PNG (Max 5MB)
-              </p>
             </div>
-            {getError("photo") && (
-              <p className="text-xs text-red-500 flex items-center gap-1">
-                <AlertCircle size={12} /> {getError("photo")}
-              </p>
-            )}
           </div>
 
           {/* Document Uploads */}
@@ -378,12 +299,7 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
                   : "Residence Proof"}
               </label>
               <div
-                className={cn(
-                  "border-2 border-dashed rounded-lg p-5 text-center transition-colors",
-                  getError(docKey)
-                    ? "border-red-300 bg-red-50"
-                    : "border-gray-300 hover:border-blue-400"
-                )}
+                className="border-2 border-dashed rounded-lg p-5 text-center transition-colors border-gray-300 hover:border-blue-400"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -438,16 +354,7 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
                     className="hidden"
                   />
                 </label>
-
-                <p className="text-xs text-gray-500 mt-3">
-                  Supports: PDF, DOC, JPG (Max 10MB)
-                </p>
               </div>
-              {getError(docKey) && (
-                <p className="text-xs text-red-500 flex items-center gap-1">
-                  <AlertCircle size={12} /> {getError(docKey)}
-                </p>
-              )}
             </div>
           ))}
         </div>
