@@ -17,6 +17,10 @@ import {
   BadgeCheck,
   Clock,
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  User,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -35,38 +40,46 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // ================= Status Badge =================
 const getStatusBadge = (status) => {
   switch (status) {
     case "PAID":
       return (
-        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-          <BadgeCheck className="h-3 w-3 mr-1" /> Paid
+        <Badge className="bg-green-100 text-green-800 hover:bg-green-100 flex items-center gap-1 py-1">
+          <BadgeCheck className="h-3 w-3" /> Paid
         </Badge>
       );
     case "PENDING":
       return (
-        <Badge variant="outline" className="text-amber-600 border-amber-300">
-          <Clock className="h-3 w-3 mr-1" /> Pending
+        <Badge variant="outline" className="text-amber-600 border-amber-300 flex items-center gap-1 py-1">
+          <Clock className="h-3 w-3" /> Pending
         </Badge>
       );
     case "OVERDUE":
       return (
-        <Badge variant="destructive">
-          <AlertCircle className="h-3 w-3 mr-1" /> Overdue
+        <Badge variant="destructive" className="flex items-center gap-1 py-1">
+          <AlertCircle className="h-3 w-3" /> Overdue
         </Badge>
       );
     case "ACTIVE":
       return (
-        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-          Active
+        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 flex items-center gap-1 py-1">
+          <BadgeCheck className="h-3 w-3" /> Active
         </Badge>
       );
     case "CLOSED":
       return (
-        <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">
-          Closed
+        <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100 flex items-center gap-1 py-1">
+          <FileText className="h-3 w-3" /> Closed
         </Badge>
       );
     default:
@@ -94,8 +107,10 @@ const formatDate = (dateString) =>
 function EditableAmount({ repayment, onUpdate }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(repayment.amount);
+  const [loading, setLoading] = useState(false);
 
   const saveChange = async () => {
+    setLoading(true);
     try {
       const res = await fetch(`/api/repayments/${repayment.id}`, {
         method: "PATCH",
@@ -107,7 +122,14 @@ function EditableAmount({ repayment, onUpdate }) {
       if (onUpdate) onUpdate();
     } catch (err) {
       alert("Error updating repayment");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const cancelEdit = () => {
+    setValue(repayment.amount);
+    setEditing(false);
   };
 
   return editing ? (
@@ -117,18 +139,31 @@ function EditableAmount({ repayment, onUpdate }) {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         className="w-24 h-8 text-sm"
+        autoFocus
       />
-      <Button size="sm" className="h-7 px-2" onClick={saveChange}>
-        Save
+      <Button size="sm" className="h-7 px-2" onClick={saveChange} disabled={loading}>
+        {loading ? "..." : "✓"}
+      </Button>
+      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={cancelEdit}>
+        <X className="h-3 w-3" />
       </Button>
     </div>
   ) : (
-    <div
-      className="text-right font-semibold cursor-pointer hover:underline"
-      onClick={() => setEditing(true)}
-    >
-      {formatCurrency(repayment.amount || 0)}
-    </div>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className="text-right font-semibold cursor-pointer hover:underline hover:text-blue-600 transition-colors"
+            onClick={() => setEditing(true)}
+          >
+            {formatCurrency(repayment.amount || 0)}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Click to edit amount</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -147,10 +182,10 @@ function EditRepaymentForm({ repayment, onUpdate }) {
       });
       if (!res.ok) throw new Error("Failed to update repayment");
       if (onUpdate) onUpdate();
-      setLoading(false);
     } catch (err) {
       console.error(err);
       alert("Error updating repayment");
+    } finally {
       setLoading(false);
     }
   };
@@ -158,16 +193,21 @@ function EditRepaymentForm({ repayment, onUpdate }) {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>Amount</Label>
+        <Label>Amount (₹)</Label>
         <Input
           type="number"
           value={amount}
           onChange={(e) => setAmount(Number(e.target.value))}
         />
       </div>
-      <Button onClick={handleSave} disabled={loading}>
-        {loading ? "Saving..." : "Save Changes"}
-      </Button>
+      <div className="flex gap-2 justify-end">
+        <Button variant="outline" onClick={() => onUpdate?.()}>
+          Cancel
+        </Button>
+        <Button onClick={handleSave} disabled={loading}>
+          {loading ? "Saving..." : "Save Changes"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -181,15 +221,20 @@ export default function RepaymentTable() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
 
   const fetchRepayments = async () => {
     try {
+      setLoading(true);
       const res = await fetch("/api/repayments");
       const data = await res.json();
       setRepayments(data);
       setFiltered(data);
     } catch (error) {
       console.error("Failed to fetch repayments:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -204,7 +249,8 @@ export default function RepaymentTable() {
       data = data.filter(
         (r) =>
           r.loan?.customerCode?.toLowerCase().includes(search.toLowerCase()) ||
-          r.loanId?.toLowerCase().includes(search.toLowerCase())
+          r.loanId?.toLowerCase().includes(search.toLowerCase()) ||
+          r.loan?.customer?.customerName?.toLowerCase().includes(search.toLowerCase())
       );
     }
 
@@ -217,18 +263,40 @@ export default function RepaymentTable() {
     if (toDate)
       data = data.filter((r) => new Date(r.dueDate) <= new Date(toDate));
 
+    // Apply sorting
+    if (sortConfig.key) {
+      data.sort((a, b) => {
+        if (a[sortConfig.key] < b[sortConfig.key]) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
+        }
+        if (a[sortConfig.key] > b[sortConfig.key]) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+
     setFiltered(data);
-  }, [search, status, fromDate, toDate, repayments]);
+  }, [search, status, fromDate, toDate, repayments, sortConfig]);
+
+  const handleSort = (key) => {
+    let direction = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
 
   const handleExport = () => {
     if (filtered.length === 0) return;
 
-    const headers = ["Customer", "Loan ID", "Amount", "Due Date", "Status"];
+    const headers = ["Customer ID", "Customer Name", "Loan ID", "Amount", "Due Date", "Status"];
     const csvContent = [
       headers.join(","),
       ...filtered.map((row) =>
         [
-          `"${row.loan?.customerCode || ""}"`,
+          `"${row.loan?.customer?.customerCode || ""}"`,
+          `"${row.loan?.customer?.customerName || ""}"`,
           `"${row.loanId || ""}"`,
           row.amount || 0,
           `"${formatDate(row.dueDate || "")}"`,
@@ -250,60 +318,83 @@ export default function RepaymentTable() {
     document.body.removeChild(link);
   };
 
+  const SortableHeader = ({ columnKey, children }) => (
+    <div 
+      className="flex items-center cursor-pointer hover:text-blue-600 transition-colors"
+      onClick={() => handleSort(columnKey)}
+    >
+      {children}
+      {sortConfig.key === columnKey ? (
+        sortConfig.direction === 'ascending' ? 
+          <ChevronUp className="h-4 w-4 ml-1" /> : 
+          <ChevronDown className="h-4 w-4 ml-1" />
+      ) : (
+        <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />
+      )}
+    </div>
+  );
+
   const columns = [
     {
       accessorKey: "customerCode",
-      header: "Customer ID",
+      header: () => <SortableHeader columnKey="customerCode">Customer ID</SortableHeader>,
       cell: ({ row }) => (
-        <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded">
-          {row.original.loan?.customer?.customerCode || "N/A"}
-        </span>
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-blue-100 rounded-full">
+            <User className="h-3.5 w-3.5 text-blue-700" />
+          </div>
+          <span className="font-medium text-sm">
+            {row.original.loan?.customer?.customerCode || "N/A"}
+          </span>
+        </div>
       ),
     },
     {
       accessorKey: "customerName",
-      header: "Name",
+      header: () => <SortableHeader columnKey="customerName">Customer Name</SortableHeader>,
       cell: ({ row }) => (
-        <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded">
+        <span className="text-sm">
           {row.original.loan?.customer?.customerName || "N/A"}
         </span>
       ),
     },
     {
+      accessorKey: "loanId",
+      header: () => <SortableHeader columnKey="loanId">Loan ID</SortableHeader>,
+      cell: ({ row }) => (
+        <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+          {row.original.loanId || "N/A"}
+        </span>
+      ),
+    },
+    {
       accessorKey: "amount",
-      header: () => <div className="text-right">Amount</div>, // align header
+      header: () => (
+        <div className="text-right">
+          <SortableHeader columnKey="amount">Amount</SortableHeader>
+        </div>
+      ),
       cell: ({ row }) => (
         <div className="text-right">
           <EditableAmount repayment={row.original} onUpdate={fetchRepayments} />
         </div>
       ),
     },
-
     {
       accessorKey: "dueDate",
-      header: "Due Date",
-      cell: ({ row }) => formatDate(row.original.dueDate),
+      header: () => <SortableHeader columnKey="dueDate">Due Date</SortableHeader>,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-1 text-sm">
+          <Calendar className="h-3.5 w-3.5 text-gray-500" />
+          {formatDate(row.original.dueDate)}
+        </div>
+      ),
     },
     {
       accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.original.loan?.status; // ✅ comes from LoanStatus enum
-
-        return (
-          <span
-            className={`px-2 py-1 rounded text-xs font-medium ${
-              status === "ACTIVE"
-                ? "bg-green-100 text-green-700"
-                : "bg-gray-200 text-gray-700"
-            }`}
-          >
-            {status || "N/A"}
-          </span>
-        );
-      },
+      header: () => <SortableHeader columnKey="status">Status</SortableHeader>,
+      cell: ({ row }) => getStatusBadge(row.original.status),
     },
-
     {
       id: "actions",
       header: "Actions",
@@ -313,49 +404,68 @@ export default function RepaymentTable() {
           <div className="flex gap-2">
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="h-8 w-8 p-0">
                   <Eye className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Repayment Details</DialogTitle>
+                  <DialogTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Repayment Details
+                  </DialogTitle>
+                  <DialogDescription>
+                    View detailed information about this repayment
+                  </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-3 text-sm">
-                  <p>
-                    <span className="font-medium">Customer:</span>{" "}
-                    {repayment.loan?.customer?.customerCode || "N/A"}
-                  </p>
-                  <p>
-                    <span className="font-medium">Customer Name:</span>{" "}
-                    {repayment.loan?.customer?.customerName || "N/A"}
-                  </p>
-
-                  <p>
-                    <span className="font-medium">Amount:</span>{" "}
-                    {formatCurrency(repayment.amount)}
-                  </p>
-                  <p>
-                    <span className="font-medium">Due Date:</span>{" "}
-                    {formatDate(repayment.dueDate)}
-                  </p>
-                  <p>
-                    <span className="font-medium">Status:</span>{" "}
-                    {getStatusBadge(repayment.status)}
-                  </p>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Customer ID</Label>
+                      <p className="text-sm font-medium">{repayment.loan?.customer?.customerCode || "N/A"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Loan ID</Label>
+                      <p className="text-sm font-medium">{repayment.loanId || "N/A"}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Customer Name</Label>
+                    <p className="text-sm font-medium">{repayment.loan?.customer?.customerName || "N/A"}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Amount</Label>
+                      <p className="text-sm font-medium">{formatCurrency(repayment.amount)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Due Date</Label>
+                      <p className="text-sm font-medium">{formatDate(repayment.dueDate)}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <div>{getStatusBadge(repayment.status)}</div>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
 
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="secondary" size="sm">
+                <Button variant="secondary" size="sm" className="h-8 w-8 p-0">
                   <Edit className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Edit Repayment</DialogTitle>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Edit className="h-5 w-5" />
+                    Edit Repayment
+                  </DialogTitle>
+                  <DialogDescription>
+                    Update the repayment amount
+                  </DialogDescription>
                 </DialogHeader>
                 <EditRepaymentForm
                   repayment={repayment}
@@ -374,60 +484,127 @@ export default function RepaymentTable() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Repayment Records
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
+            Repayment Management
           </h1>
           <p className="text-gray-600 mt-1">
-            Manage and track all loan repayments
+            Track and manage all loan repayments in one place
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="px-3 py-1">
-            <CreditCard className="h-4 w-4 mr-1" />
+          <Badge variant="outline" className="px-3 py-1.5 gap-1.5">
+            <CreditCard className="h-4 w-4" />
             {filtered.length} repayment{filtered.length !== 1 ? "s" : ""}
           </Badge>
-          <Button variant="outline" onClick={handleExport} className="h-10">
-            <Download className="h-4 w-4 mr-2" />
+          <Button onClick={handleExport} className="h-10 gap-2" disabled={filtered.length === 0}>
+            <Download className="h-4 w-4" />
             Export
           </Button>
         </div>
       </div>
 
+      {/* Stats Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="bg-blue-50 border-blue-100">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-blue-700">Total Repayments</p>
+                <h3 className="text-2xl font-bold mt-1">{repayments.length}</h3>
+              </div>
+              <div className="p-2 bg-blue-100 rounded-full">
+                <CreditCard className="h-5 w-5 text-blue-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-green-50 border-green-100">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-green-700">Paid</p>
+                <h3 className="text-2xl font-bold mt-1">
+                  {repayments.filter(r => r.status === "PAID").length}
+                </h3>
+              </div>
+              <div className="p-2 bg-green-100 rounded-full">
+                <BadgeCheck className="h-5 w-5 text-green-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-amber-50 border-amber-100">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-amber-700">Pending</p>
+                <h3 className="text-2xl font-bold mt-1">
+                  {repayments.filter(r => r.status === "PENDING").length}
+                </h3>
+              </div>
+              <div className="p-2 bg-amber-100 rounded-full">
+                <Clock className="h-5 w-5 text-amber-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-red-50 border-red-100">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-red-700">Overdue</p>
+                <h3 className="text-2xl font-bold mt-1">
+                  {repayments.filter(r => r.status === "OVERDUE").length}
+                </h3>
+              </div>
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertCircle className="h-5 w-5 text-red-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Filters Card */}
       <Card>
-        <CardHeader className="pb-3 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Filter className="h-5 w-5 text-blue-600" />
-            <CardTitle className="text-lg">Filters</CardTitle>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-1"
-            >
-              {showFilters ? (
-                <X className="h-4 w-4" />
-              ) : (
-                <Filter className="h-4 w-4" />
-              )}
-              {showFilters ? "Hide Filters" : "Show Filters"}
-            </Button>
-            {(search || status !== "ALL" || fromDate || toDate) && (
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Filter className="h-5 w-5 text-blue-600" />
+              Filters & Search
+            </CardTitle>
+            <div className="flex gap-2">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                onClick={() => {
-                  setSearch("");
-                  setStatus("ALL");
-                  setFromDate("");
-                  setToDate("");
-                }}
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-1"
               >
-                Clear All
+                {showFilters ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <Filter className="h-4 w-4" />
+                )}
+                {showFilters ? "Hide Filters" : "Show Filters"}
               </Button>
-            )}
+              {(search || status !== "ALL" || fromDate || toDate) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearch("");
+                    setStatus("ALL");
+                    setFromDate("");
+                    setToDate("");
+                  }}
+                >
+                  Clear All
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
 
@@ -436,7 +613,7 @@ export default function RepaymentTable() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search by customer code or loan ID..."
+                placeholder="Search by customer code, name, or loan ID..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -444,7 +621,7 @@ export default function RepaymentTable() {
             </div>
 
             {showFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t">
                 <div className="space-y-2">
                   <Label className="text-sm">Status</Label>
                   <Select value={status} onValueChange={setStatus}>
@@ -456,8 +633,6 @@ export default function RepaymentTable() {
                       <SelectItem value="PAID">Paid</SelectItem>
                       <SelectItem value="PENDING">Pending</SelectItem>
                       <SelectItem value="OVERDUE">Overdue</SelectItem>
-                      <SelectItem value="ACTIVE">Active</SelectItem>
-                      <SelectItem value="CLOSED">Closed</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -479,6 +654,24 @@ export default function RepaymentTable() {
                     onChange={(e) => setToDate(e.target.value)}
                   />
                 </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-sm">Sort By</Label>
+                  <Select 
+                    value={sortConfig.key || "dueDate"} 
+                    onValueChange={(value) => handleSort(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dueDate">Due Date</SelectItem>
+                      <SelectItem value="amount">Amount</SelectItem>
+                      <SelectItem value="customerCode">Customer ID</SelectItem>
+                      <SelectItem value="customerName">Customer Name</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
           </div>
@@ -488,7 +681,31 @@ export default function RepaymentTable() {
       {/* Table */}
       <Card>
         <CardContent className="p-0">
-          <DataTable columns={columns} data={filtered} />
+          {loading ? (
+            <div className="p-6 space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center space-x-4">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-[250px]" />
+                    <Skeleton className="h-4 w-[200px]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="p-12 text-center">
+              <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-1">No repayments found</h3>
+              <p className="text-gray-500">
+                {repayments.length === 0 
+                  ? "No repayment records available." 
+                  : "Try adjusting your search or filters to find what you're looking for."}
+              </p>
+            </div>
+          ) : (
+            <DataTable columns={columns} data={filtered} />
+          )}
         </CardContent>
       </Card>
     </div>
