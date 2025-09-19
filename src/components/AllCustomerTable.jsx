@@ -136,11 +136,6 @@ export default function AllCustomerTable() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  // Remove document management states since they're not needed
-  // const [documents, setDocuments] = useState([]);
-  // const [uploadingDoc, setUploadingDoc] = useState(false);
-  // const [deletingDocId, setDeletingDocId] = useState(null);
-
   const router = useRouter();
 
   // Helper: calculate end date
@@ -194,8 +189,6 @@ export default function AllCustomerTable() {
           console.error("Error loading repayments:", err);
           setRepayments([]);
         });
-
-      // Remove document fetching since it doesn't exist in your API
     } else {
       setQrCodeUrl("");
       setRepayments([]);
@@ -484,7 +477,7 @@ export default function AllCustomerTable() {
   }, [filteredData, currentPage, rowsPerPage]);
 
   const numberOfRepayments = useMemo(() => repayments.length, [repayments]);
-
+  
   // Calculate number of documents based on existing customer document fields
   const numberOfDocuments = useMemo(() => {
     if (!selectedCustomer) return 0;
@@ -1228,7 +1221,7 @@ export default function AllCustomerTable() {
                       </CardContent>
                     </Card>
                   </TabsContent>
-
+                  
                   <TabsContent value="documents">
                     <Card>
                       <CardHeader>
@@ -1244,25 +1237,23 @@ export default function AllCustomerTable() {
                           <table className="w-full text-sm">
                             <thead className="bg-gray-50">
                               <tr>
-                                <th className="text-left p-3 font-medium">
-                                  Document Type
-                                </th>
-                                <th className="text-left p-3 font-medium">
-                                  Actions
-                                </th>
+                                <th className="text-left p-3 font-medium">Document Type</th>
+                                <th className="text-left p-3 font-medium">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y">
                               {selectedCustomer.photoUrl && (
                                 <tr className="hover:bg-gray-50">
-                                  <td className="p-3 font-medium">
-                                    Profile Photo
-                                  </td>
+                                  <td className="p-3 font-medium">Profile Photo</td>
                                   <td className="p-3">
-                                    <Button variant="outline" size="sm" asChild>
-                                      <a
-                                        href={selectedCustomer.photoUrl}
-                                        target="_blank"
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      asChild
+                                    >
+                                      <a 
+                                        href={selectedCustomer.photoUrl} 
+                                        target="_blank" 
                                         rel="noopener noreferrer"
                                       >
                                         View
@@ -1273,16 +1264,16 @@ export default function AllCustomerTable() {
                               )}
                               {selectedCustomer.aadharDocumentUrl && (
                                 <tr className="hover:bg-gray-50">
-                                  <td className="p-3 font-medium">
-                                    Aadhar Document
-                                  </td>
+                                  <td className="p-3 font-medium">Aadhar Document</td>
                                   <td className="p-3">
-                                    <Button variant="outline" size="sm" asChild>
-                                      <a
-                                        href={
-                                          selectedCustomer.aadharDocumentUrl
-                                        }
-                                        target="_blank"
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      asChild
+                                    >
+                                      <a 
+                                        href={selectedCustomer.aadharDocumentUrl} 
+                                        target="_blank" 
                                         rel="noopener noreferrer"
                                       >
                                         View
@@ -1293,14 +1284,16 @@ export default function AllCustomerTable() {
                               )}
                               {selectedCustomer.incomeProofUrl && (
                                 <tr className="hover:bg-gray-50">
-                                  <td className="p-3 font-medium">
-                                    Income Proof
-                                  </td>
+                                  <td className="p-3 font-medium">Income Proof</td>
                                   <td className="p-3">
-                                    <Button variant="outline" size="sm" asChild>
-                                      <a
-                                        href={selectedCustomer.incomeProofUrl}
-                                        target="_blank"
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      asChild
+                                    >
+                                      <a 
+                                        href={selectedCustomer.incomeProofUrl} 
+                                        target="_blank" 
                                         rel="noopener noreferrer"
                                       >
                                         View
@@ -1311,16 +1304,16 @@ export default function AllCustomerTable() {
                               )}
                               {selectedCustomer.residenceProofUrl && (
                                 <tr className="hover:bg-gray-50">
-                                  <td className="p-3 font-medium">
-                                    Residence Proof
-                                  </td>
+                                  <td className="p-3 font-medium">Residence Proof</td>
                                   <td className="p-3">
-                                    <Button variant="outline" size="sm" asChild>
-                                      <a
-                                        href={
-                                          selectedCustomer.residenceProofUrl
-                                        }
-                                        target="_blank"
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      asChild
+                                    >
+                                      <a 
+                                        href={selectedCustomer.residenceProofUrl} 
+                                        target="_blank" 
                                         rel="noopener noreferrer"
                                       >
                                         View
@@ -1331,10 +1324,7 @@ export default function AllCustomerTable() {
                               )}
                               {numberOfDocuments === 0 && (
                                 <tr>
-                                  <td
-                                    colSpan={2}
-                                    className="p-4 text-center text-gray-500"
-                                  >
+                                  <td colSpan={2} className="p-4 text-center text-gray-500">
                                     No documents available for this customer.
                                   </td>
                                 </tr>
@@ -1370,15 +1360,13 @@ export default function AllCustomerTable() {
                   if (!selectedCustomer) return;
                   const fd = new FormData(e.currentTarget);
                   fd.set("id", String(selectedCustomer.id));
-
+                  
                   // Handle photo upload if a new file is selected
-                  const photoInput = e.target.querySelector(
-                    'input[name="photo"]'
-                  );
+                  const photoInput = e.target.querySelector('input[name="photo"]');
                   if (photoInput?.files[0]) {
                     fd.set("photo", photoInput.files[0]);
                   }
-
+                  
                   try {
                     const res = await fetch("/api/customers", {
                       method: "PUT",
@@ -1463,9 +1451,7 @@ export default function AllCustomerTable() {
                       type="date"
                       defaultValue={
                         selectedCustomer?.loanDate
-                          ? new Date(selectedCustomer.loanDate)
-                              .toISOString()
-                              .split("T")[0]
+                          ? new Date(selectedCustomer.loanDate).toISOString().split('T')[0]
                           : ""
                       }
                     />
@@ -1491,7 +1477,11 @@ export default function AllCustomerTable() {
 
                   <div className="space-y-2">
                     <Label>Profile Photo</Label>
-                    <Input name="photo" type="file" accept="image/*" />
+                    <Input
+                      name="photo"
+                      type="file"
+                      accept="image/*"
+                    />
                     {selectedCustomer?.photoUrl && (
                       <div className="mt-2">
                         <img
