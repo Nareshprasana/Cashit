@@ -117,19 +117,19 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[
-          ["Customer Name", "customerName", true],
+          ["Customer Name", "customerName", false],
           ["Spouse Name", "spouseName", false],
-          ["Parent Name", "parentName", true],
-          ["Mobile", "mobile", true, { maxLength: 10, inputMode: "numeric", type: "tel" }],
-          ["DOB", "dob", true, { type: "date" }],
-          ["Aadhar Number", "aadhar", true, { maxLength: 12, inputMode: "numeric" }],
-          ["Guarantor Name", "guarantorName", true],
-          ["Guarantor Aadhar", "guarantorAadhar", true,{ maxLength: 12, inputMode: "numeric" }],
+          ["Parent Name", "parentName", false],
+          ["Mobile", "mobile", false, { maxLength: 10, inputMode: "numeric", type: "tel" }],
+          ["DOB", "dob", false, { type: "date" }],
+          ["Aadhar Number", "aadhar", false, { maxLength: 12, inputMode: "numeric" }],
+          ["Guarantor Name", "guarantorName", false],
+          ["Guarantor Aadhar", "guarantorAadhar", false, { maxLength: 12, inputMode: "numeric" }],
           ["Customer Code", "customerCode", false, { readOnly: true }],
         ].map(([label, name, required, props = {}]) => (
           <div key={name} className="space-y-2">
             <label htmlFor={name} className="block text-sm font-medium text-gray-700">
-              {label} {required && <span className="text-red-500">*</span>}
+              {label}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -165,7 +165,7 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
         {/* Gender */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
-            Gender <span className="text-red-500">*</span>
+            Gender
           </label>
           <div className="flex gap-6">
             {["Male", "Female"].map((g) => (
@@ -196,53 +196,52 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
           Location Information
         </h2>
         {/* Area Dropdown */}
-        {/* Area Dropdown */}
-      <div className="space-y-1">
-        <label
-          htmlFor="area"
-          className="block text-sm font-medium text-gray-700"
-        >
-          Area
-        </label>
-        <div className="flex gap-2">
-          <select
-            id="area"
-            name="area"
-            value={form.area}
-            onChange={onChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-600 focus:outline-none"
+        <div className="space-y-1">
+          <label
+            htmlFor="area"
+            className="block text-sm font-medium text-gray-700"
           >
-            <option value="">Select Area</option>
-            {areas.map((area) => (
-              <option key={area.id} value={String(area.id)}>
-                {area.areaName}
-              </option>
-            ))}
-          </select>
-          <AddArea
-            onAreaCreated={(newArea) => {
-              const normalized = {
-                id: String(newArea.id),
-                areaName: newArea.areaName,
-                shortCode: newArea.shortCode,
-              };
-              // 1. Add new area to dropdown options
-              setAreas((prev) => [...prev, normalized]);
-              // 2. Immediately set it as selected
-              onChange({
-                target: { name: "area", value: normalized.id },
-              });
-            }}
-          />
+            Area
+          </label>
+          <div className="flex gap-2">
+            <select
+              id="area"
+              name="area"
+              value={form.area}
+              onChange={onChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-600 focus:outline-none"
+            >
+              <option value="">Select Area</option>
+              {areas.map((area) => (
+                <option key={area.id} value={String(area.id)}>
+                  {area.areaName}
+                </option>
+              ))}
+            </select>
+            <AddArea
+              onAreaCreated={(newArea) => {
+                const normalized = {
+                  id: String(newArea.id),
+                  areaName: newArea.areaName,
+                  shortCode: newArea.shortCode,
+                };
+                // 1. Add new area to dropdown options
+                setAreas((prev) => [...prev, normalized]);
+                // 2. Immediately set it as selected
+                onChange({
+                  target: { name: "area", value: normalized.id },
+                });
+              }}
+            />
+          </div>
+          {getError("area") && (
+            <p className="text-xs text-red-500">* {getError("area")}</p>
+          )}
         </div>
-        {getError("area") && (
-          <p className="text-xs text-red-500">* {getError("area")}</p>
-        )}
-      </div>
 
         <div className="space-y-2">
           <label htmlFor="address" className="block text-sm font-medium text-gray-700">
-            Address <span className="text-red-500">*</span>
+            Address
           </label>
           <div className="relative">
             <div className="absolute top-3 left-3 text-gray-400">
@@ -284,7 +283,7 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
           {/* Photo Upload */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 block">
-              Customer Photo <span className="text-red-500">*</span>
+              Customer Photo
             </label>
             <div
               className={cn(
@@ -376,8 +375,7 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
                   ? "Aadhar Document"
                   : docKey === "incomeProof"
                   ? "Income Proof"
-                  : "Residence Proof"}{" "}
-                <span className="text-red-500">*</span>
+                  : "Residence Proof"}
               </label>
               <div
                 className={cn(
@@ -459,21 +457,7 @@ const StepOneForm = ({ form, errors, onChange, photoPreview, setPhotoPreview }) 
       <div className="border-t pt-6 flex justify-end">
         <button
           type="submit"
-          disabled={
-            !form.aadharDocument ||
-            !form.incomeProof ||
-            !form.residenceProof ||
-            !form.photo
-          }
-          className={cn(
-            "px-6 py-3 rounded-md shadow-sm flex items-center justify-center gap-2 font-medium transition-colors",
-            form.aadharDocument &&
-              form.incomeProof &&
-              form.residenceProof &&
-              form.photo
-              ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-gray-200 text-gray-500 cursor-not-allowed"
-          )}
+          className="px-6 py-3 rounded-md shadow-sm flex items-center justify-center gap-2 font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700"
         >
           Next Step →
         </button>
