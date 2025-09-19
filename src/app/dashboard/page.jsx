@@ -8,14 +8,20 @@ import { AllCustomerTable } from "@/components/AllCustomerTable.jsx";
 import { SectionCards } from "@/components/section-cards";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const DemodashboardPage = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
 
   const [data, setData] = useState([]);
-  const [loadingData, setLoadingData] = useState(true); // for dashboard API
-  const [loadingButton, setLoadingButton] = useState(null); // "customer" | "loan" | null
+  const [loadingData, setLoadingData] = useState(true);
+  const [loadingButton, setLoadingButton] = useState(null);
 
   // Redirect unauthenticated
   useEffect(() => {
@@ -24,7 +30,7 @@ const DemodashboardPage = () => {
     }
   }, [status, router]);
 
-  // Fetch data only if ADMIN
+  // Fetch dashboard data (ADMIN only)
   useEffect(() => {
     if (status === "authenticated" && session?.user?.role === "ADMIN") {
       const fetchDashboardData = async () => {
@@ -45,6 +51,13 @@ const DemodashboardPage = () => {
       setLoadingData(false);
     }
   }, [status, session]);
+
+  const handleNavigate = (type, path) => {
+    setLoadingButton(type);
+    setTimeout(() => {
+      router.push(path);
+    }, 600);
+  };
 
   // 🔹 Show spinner while checking auth
   if (status === "loading") {
@@ -85,15 +98,13 @@ const DemodashboardPage = () => {
               {/* Header with Buttons */}
               <div className="flex items-center justify-between mb-4 px-5">
                 <h1 className="text-2xl font-bold pl-2">Admin Dashboard</h1>
-                <div className="flex gap-3 justify-end">
-                  {/* Add Customer Button */}
+
+                {/* Desktop Buttons */}
+                <div className="hidden sm:flex gap-3 justify-end">
                   <Button
                     onClick={(e) => {
                       e.preventDefault();
-                      setLoadingButton("customer");
-                      setTimeout(() => {
-                        router.push("/dashboard/addNewCustomer");
-                      }, 600);
+                      handleNavigate("customer", "/dashboard/addNewCustomer");
                     }}
                     disabled={loadingButton === "customer"}
                   >
@@ -107,10 +118,7 @@ const DemodashboardPage = () => {
                   <Button
                     onClick={(e) => {
                       e.preventDefault();
-                      setLoadingButton("loan");
-                      setTimeout(() => {
-                        router.push("/dashboard/newloanform");
-                      }, 600);
+                      handleNavigate("loan", "/dashboard/newloanform");
                     }}
                     disabled={loadingButton === "loan"}
                   >
@@ -124,10 +132,7 @@ const DemodashboardPage = () => {
                   <Button
                     onClick={(e) => {
                       e.preventDefault();
-                      setLoadingButton("users");
-                      setTimeout(() => {
-                        router.push("/dashboard/addUser");
-                      }, 600);
+                      handleNavigate("users", "/dashboard/addUser");
                     }}
                     disabled={loadingButton === "users"}
                   >
@@ -137,6 +142,38 @@ const DemodashboardPage = () => {
                       "+ Add Users"
                     )}
                   </Button>
+                </div>
+
+                {/* Mobile Dropdown */}
+                <div className="sm:hidden">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline">+ Actions</Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() =>
+                          handleNavigate("customer", "/dashboard/addNewCustomer")
+                        }
+                      >
+                        + Add Customer
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() =>
+                          handleNavigate("loan", "/dashboard/newloanform")
+                        }
+                      >
+                        + Add Loan
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() =>
+                          handleNavigate("users", "/dashboard/addUser")
+                        }
+                      >
+                        + Add Users
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
 

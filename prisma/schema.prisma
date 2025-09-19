@@ -72,7 +72,9 @@ model Customer {
 enum LoanStatus {
   ACTIVE
   CLOSED
+  NEVER_OPENED
 }
+
 
 model Loan {
   id             String     @id @default(uuid())
