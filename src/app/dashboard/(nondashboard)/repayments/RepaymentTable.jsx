@@ -21,6 +21,8 @@ import {
   ChevronUp,
   User,
   FileText,
+  Save,
+  IndianRupee,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -166,10 +168,11 @@ function EditableAmount({ repayment, onUpdate }) {
       <Tooltip>
         <TooltipTrigger asChild>
           <div
-            className="text-right font-semibold cursor-pointer hover:underline hover:text-blue-600 transition-colors"
+            className="text-right font-semibold cursor-pointer hover:underline hover:text-blue-600 transition-colors flex items-center justify-end gap-1"
             onClick={() => setEditing(true)}
           >
-            {formatCurrency(repayment.amount || 0)}
+            <IndianRupee className="h-3.5 w-3.5" />
+            {repayment.amount?.toLocaleString() || "0"}
           </div>
         </TooltipTrigger>
         <TooltipContent>
@@ -181,8 +184,10 @@ function EditableAmount({ repayment, onUpdate }) {
 }
 
 // ================= Edit Repayment Form =================
-function EditRepaymentForm({ repayment, onUpdate }) {
+function EditRepaymentForm({ repayment, onUpdate, onClose }) {
   const [amount, setAmount] = useState(repayment.amount || 0);
+  const [date, setDate] = useState(repayment.dueDate?.split('T')[0] || '');
+  const [status, setStatus] = useState(repayment.status || 'PENDING');
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
@@ -191,10 +196,15 @@ function EditRepaymentForm({ repayment, onUpdate }) {
       const res = await fetch(`/api/repayments/${repayment.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ 
+          amount: Number(amount),
+          dueDate: date,
+          status: status
+        }),
       });
       if (!res.ok) throw new Error("Failed to update repayment");
       if (onUpdate) onUpdate();
+      if (onClose) onClose();
     } catch (err) {
       console.error(err);
       alert("Error updating repayment");
@@ -205,16 +215,41 @@ function EditRepaymentForm({ repayment, onUpdate }) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <Label>Amount (₹)</Label>
-        <Input
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(Number(e.target.value))}
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Amount (₹)</Label>
+          <Input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(Number(e.target.value))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Due Date</Label>
+          <Input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </div>
       </div>
-      <div className="flex gap-2 justify-end">
-        <Button variant="outline" onClick={() => onUpdate?.()}>
+      
+      <div className="space-y-2">
+        <Label>Status</Label>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="PENDING">Pending</SelectItem>
+            <SelectItem value="PAID">Paid</SelectItem>
+            <SelectItem value="OVERDUE">Overdue</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex gap-2 justify-end pt-4">
+        <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>
         <Button onClick={handleSave} disabled={loading}>
@@ -264,11 +299,9 @@ export default function RepaymentTable() {
     if (search) {
       data = data.filter(
         (r) =>
-          r.loan?.customerCode?.toLowerCase().includes(search.toLowerCase()) ||
-          r.loanId?.toLowerCase().includes(search.toLowerCase()) ||
-          r.loan?.customer?.customerName
-            ?.toLowerCase()
-            .includes(search.toLowerCase())
+          r.loan?.customer?.customerCode?.toLowerCase().includes(search.toLowerCase()) ||
+          r.loan?.customer?.aadhar?.toLowerCase().includes(search.toLowerCase()) ||
+          r.loan?.customer?.customerName?.toLowerCase().includes(search.toLowerCase())
       );
     }
 
@@ -284,10 +317,22 @@ export default function RepaymentTable() {
     // Apply sorting
     if (sortConfig.key) {
       data.sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+        
+        // Handle nested properties
+        if (sortConfig.key === 'aadhar') {
+          aValue = a.loan?.customer?.aadhar;
+          bValue = b.loan?.customer?.aadhar;
+        } else if (sortConfig.key === 'pendingAmount') {
+          aValue = (a.loan?.amount || 0) - (a.amount || 0);
+          bValue = (b.loan?.amount || 0) - (b.amount || 0);
+        }
+
+        if (aValue < bValue) {
           return sortConfig.direction === "ascending" ? -1 : 1;
         }
-        if (a[sortConfig.key] > b[sortConfig.key]) {
+        if (aValue > bValue) {
           return sortConfig.direction === "ascending" ? 1 : -1;
         }
         return 0;
@@ -311,8 +356,9 @@ export default function RepaymentTable() {
     const headers = [
       "Customer ID",
       "Customer Name",
-      "Loan ID",
+      "Aadhar Number",
       "Amount",
+      "Pending Amount",
       "Due Date",
       "Status",
     ];
@@ -322,8 +368,9 @@ export default function RepaymentTable() {
         [
           `"${row.loan?.customer?.customerCode || ""}"`,
           `"${row.loan?.customer?.customerName || ""}"`,
-          `"${row.loanId || ""}"`,
+          `"${row.loan?.customer?.aadhar || ""}"`,
           row.amount || 0,
+          ((row.loan?.amount || 0) - (row.amount || 0)).toLocaleString(),
           `"${formatDate(row.dueDate || "")}"`,
           `"${row.status || ""}"`,
         ].join(",")
@@ -390,11 +437,13 @@ export default function RepaymentTable() {
       ),
     },
     {
-      accessorKey: "loanId",
-      header: () => <SortableHeader columnKey="loanId">Loan ID</SortableHeader>,
+      accessorKey: "aadhar",
+      header: () => (
+        <SortableHeader columnKey="aadhar">Aadhar Number</SortableHeader>
+      ),
       cell: ({ row }) => (
         <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
-          {row.original.loanId || "N/A"}
+          {row.original.loan?.customer?.aadhar || "N/A"}
         </span>
       ),
     },
@@ -402,7 +451,7 @@ export default function RepaymentTable() {
       accessorKey: "amount",
       header: () => (
         <div className="text-right">
-          <SortableHeader columnKey="amount">Amount</SortableHeader>
+          <SortableHeader columnKey="amount">Paid Amount</SortableHeader>
         </div>
       ),
       cell: ({ row }) => (
@@ -410,6 +459,25 @@ export default function RepaymentTable() {
           <EditableAmount repayment={row.original} onUpdate={fetchRepayments} />
         </div>
       ),
+    },
+    {
+      accessorKey: "pendingAmount",
+      header: () => (
+        <div className="text-right">
+          <SortableHeader columnKey="pendingAmount">Pending Amount</SortableHeader>
+        </div>
+      ),
+      cell: ({ row }) => {
+        const loanAmount = row.original.loan?.amount || 0;
+        const paidAmount = row.original.amount || 0;
+        const pendingAmount = loanAmount - paidAmount;
+        
+        return (
+          <div className="text-right font-semibold text-red-600">
+            ₹{pendingAmount.toLocaleString()}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "dueDate",
@@ -426,27 +494,15 @@ export default function RepaymentTable() {
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => {
-        const status = row.original.loan?.status; // ✅ comes from LoanStatus enum
-
-        return (
-          <span
-            className={`px-2 py-1 rounded text-xs font-medium ${
-              status === "ACTIVE"
-                ? "bg-green-100 text-green-700"
-                : "bg-gray-200 text-gray-700"
-            }`}
-          >
-            {status || "N/A"}
-          </span>
-        );
-      },
+      cell: ({ row }) => getStatusBadge(row.original.status),
     },
     {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => {
         const repayment = row.original;
+        const [editDialogOpen, setEditDialogOpen] = useState(false);
+
         return (
           <div className="flex gap-2">
             <Dialog>
@@ -477,10 +533,10 @@ export default function RepaymentTable() {
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">
-                        Loan ID
+                        Aadhar Number
                       </Label>
                       <p className="text-sm font-medium">
-                        {repayment.loanId || "N/A"}
+                        {repayment.loan?.customer?.aadhar || "N/A"}
                       </p>
                     </div>
                   </div>
@@ -495,12 +551,22 @@ export default function RepaymentTable() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">
-                        Amount
+                        Paid Amount
                       </Label>
                       <p className="text-sm font-medium">
                         {formatCurrency(repayment.amount)}
                       </p>
                     </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        Pending Amount
+                      </Label>
+                      <p className="text-sm font-medium text-red-600">
+                        {formatCurrency((repayment.loan?.amount || 0) - (repayment.amount || 0))}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">
                         Due Date
@@ -509,18 +575,18 @@ export default function RepaymentTable() {
                         {formatDate(repayment.dueDate)}
                       </p>
                     </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">
-                      Status
-                    </Label>
-                    <div>{getStatusBadge(repayment.status)}</div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        Status
+                      </Label>
+                      <div>{getStatusBadge(repayment.status)}</div>
+                    </div>
                   </div>
                 </div>
               </DialogContent>
             </Dialog>
 
-            <Dialog>
+            <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="secondary" size="sm" className="h-8 w-8 p-0">
                   <Edit className="h-4 w-4" />
@@ -533,12 +599,13 @@ export default function RepaymentTable() {
                     Edit Repayment
                   </DialogTitle>
                   <DialogDescription>
-                    Update the repayment amount
+                    Update repayment details
                   </DialogDescription>
                 </DialogHeader>
                 <EditRepaymentForm
                   repayment={repayment}
                   onUpdate={fetchRepayments}
+                  onClose={() => setEditDialogOpen(false)}
                 />
               </DialogContent>
             </Dialog>
@@ -688,7 +755,7 @@ export default function RepaymentTable() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search by customer code, name, or loan ID..."
+                placeholder="Search by customer code, name, or Aadhar number..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -742,10 +809,8 @@ export default function RepaymentTable() {
                     <SelectContent>
                       <SelectItem value="dueDate">Due Date</SelectItem>
                       <SelectItem value="amount">Amount</SelectItem>
-                      <SelectItem value="customerCode">Customer ID</SelectItem>
-                      <SelectItem value="customerName">
-                        Customer Name
-                      </SelectItem>
+                      <SelectItem value="aadhar">Aadhar Number</SelectItem>
+                      <SelectItem value="pendingAmount">Pending Amount</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
