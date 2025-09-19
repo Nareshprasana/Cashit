@@ -22,6 +22,8 @@ import {
   Plus,
   Trash2,
   Upload,
+  Eye,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
