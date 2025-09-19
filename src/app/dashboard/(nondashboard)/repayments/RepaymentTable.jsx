@@ -212,8 +212,10 @@ export default function RepaymentTable() {
       data = data.filter((r) => r.status === status);
     }
 
-    if (fromDate) data = data.filter((r) => new Date(r.dueDate) >= new Date(fromDate));
-    if (toDate) data = data.filter((r) => new Date(r.dueDate) <= new Date(toDate));
+    if (fromDate)
+      data = data.filter((r) => new Date(r.dueDate) >= new Date(fromDate));
+    if (toDate)
+      data = data.filter((r) => new Date(r.dueDate) <= new Date(toDate));
 
     setFiltered(data);
   }, [search, status, fromDate, toDate, repayments]);
@@ -269,9 +271,14 @@ export default function RepaymentTable() {
     },
     {
       accessorKey: "amount",
-      header: "Amount",
-      cell: ({ row }) => <EditableAmount repayment={row.original} onUpdate={fetchRepayments} />,
+      header: () => <div className="text-right">Amount</div>, // align header
+      cell: ({ row }) => (
+        <div className="text-right">
+          <EditableAmount repayment={row.original} onUpdate={fetchRepayments} />
+        </div>
+      ),
     },
+
     {
       accessorKey: "dueDate",
       header: "Due Date",
@@ -302,7 +309,7 @@ export default function RepaymentTable() {
                 <div className="space-y-3 text-sm">
                   <p>
                     <span className="font-medium">Customer:</span>{" "}
-                    {repayment.loan?.customerCode || "N/A"}
+                    {repayment.loan?.customer?.customerCode || "N/A"}
                   </p>
                   <p>
                     <span className="font-medium">Loan ID:</span>{" "}
@@ -334,7 +341,10 @@ export default function RepaymentTable() {
                 <DialogHeader>
                   <DialogTitle>Edit Repayment</DialogTitle>
                 </DialogHeader>
-                <EditRepaymentForm repayment={repayment} onUpdate={fetchRepayments} />
+                <EditRepaymentForm
+                  repayment={repayment}
+                  onUpdate={fetchRepayments}
+                />
               </DialogContent>
             </Dialog>
           </div>
@@ -348,8 +358,12 @@ export default function RepaymentTable() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Repayment Records</h1>
-          <p className="text-gray-600 mt-1">Manage and track all loan repayments</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Repayment Records
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Manage and track all loan repayments
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="px-3 py-1">
@@ -377,7 +391,11 @@ export default function RepaymentTable() {
               onClick={() => setShowFilters(!showFilters)}
               className="flex items-center gap-1"
             >
-              {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
+              {showFilters ? (
+                <X className="h-4 w-4" />
+              ) : (
+                <Filter className="h-4 w-4" />
+              )}
               {showFilters ? "Hide Filters" : "Show Filters"}
             </Button>
             {(search || status !== "ALL" || fromDate || toDate) && (
