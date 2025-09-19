@@ -327,9 +327,10 @@ export default function RepaymentTable() {
                     {repayment.loan?.customer?.customerCode || "N/A"}
                   </p>
                   <p>
-                    <span className="font-medium">Loan ID:</span>{" "}
-                    {repayment.loanId || "N/A"}
+                    <span className="font-medium">Customer Name:</span>{" "}
+                    {repayment.loan?.customer?.customerName || "N/A"}
                   </p>
+
                   <p>
                     <span className="font-medium">Amount:</span>{" "}
                     {formatCurrency(repayment.amount)}
