@@ -263,7 +263,7 @@ export default function RepaymentTable() {
       header: "Name",
       cell: ({ row }) => (
         <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded">
-          {row.original.loan?.customer?.name || "N/A"}
+          {row.original.loan?.customer?.customername || "N/A"}
         </span>
       ),
     },
