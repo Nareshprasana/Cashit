@@ -477,7 +477,7 @@ export default function AllCustomerTable() {
   }, [filteredData, currentPage, rowsPerPage]);
 
   const numberOfRepayments = useMemo(() => repayments.length, [repayments]);
-  
+
   // Calculate number of documents based on existing customer document fields
   const numberOfDocuments = useMemo(() => {
     if (!selectedCustomer) return 0;
@@ -1221,7 +1221,7 @@ export default function AllCustomerTable() {
                       </CardContent>
                     </Card>
                   </TabsContent>
-                  
+
                   <TabsContent value="documents">
                     <Card>
                       <CardHeader>
@@ -1237,100 +1237,469 @@ export default function AllCustomerTable() {
                           <table className="w-full text-sm">
                             <thead className="bg-gray-50">
                               <tr>
-                                <th className="text-left p-3 font-medium">Document Type</th>
-                                <th className="text-left p-3 font-medium">Actions</th>
+                                <th className="text-left p-3 font-medium">
+                                  Document Type
+                                </th>
+                                <th className="text-left p-3 font-medium">
+                                  Status
+                                </th>
+                                <th className="text-left p-3 font-medium">
+                                  File Type
+                                </th>
+                                <th className="text-left p-3 font-medium">
+                                  Actions
+                                </th>
                               </tr>
                             </thead>
                             <tbody className="divide-y">
-                              {selectedCustomer.photoUrl && (
-                                <tr className="hover:bg-gray-50">
-                                  <td className="p-3 font-medium">Profile Photo</td>
-                                  <td className="p-3">
-                                    <Button
+                              {/* Profile Photo */}
+                              <tr className="hover:bg-gray-50">
+                                <td className="p-3 font-medium">
+                                  Profile Photo
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.photoUrl ? (
+                                    <Badge className="bg-green-100 text-green-800">
+                                      Uploaded
+                                    </Badge>
+                                  ) : (
+                                    <Badge
                                       variant="outline"
-                                      size="sm"
-                                      asChild
+                                      className="text-gray-600"
                                     >
-                                      <a 
-                                        href={selectedCustomer.photoUrl} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                      >
-                                        View
-                                      </a>
-                                    </Button>
-                                  </td>
-                                </tr>
-                              )}
-                              {selectedCustomer.aadharDocumentUrl && (
-                                <tr className="hover:bg-gray-50">
-                                  <td className="p-3 font-medium">Aadhar Document</td>
-                                  <td className="p-3">
-                                    <Button
+                                      Not Uploaded
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.photoUrl ? (
+                                    <Badge
                                       variant="outline"
-                                      size="sm"
-                                      asChild
+                                      className="text-xs"
                                     >
-                                      <a 
-                                        href={selectedCustomer.aadharDocumentUrl} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
+                                      {selectedCustomer.photoUrl
+                                        .toLowerCase()
+                                        .endsWith(".pdf")
+                                        ? "PDF"
+                                        : "Image"}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      -
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.photoUrl ? (
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
                                       >
-                                        View
-                                      </a>
-                                    </Button>
-                                  </td>
-                                </tr>
-                              )}
-                              {selectedCustomer.incomeProofUrl && (
-                                <tr className="hover:bg-gray-50">
-                                  <td className="p-3 font-medium">Income Proof</td>
-                                  <td className="p-3">
-                                    <Button
+                                        <a
+                                          href={selectedCustomer.photoUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                          {selectedCustomer.photoUrl
+                                            .toLowerCase()
+                                            .endsWith(".pdf")
+                                            ? "View PDF"
+                                            : "View"}
+                                        </a>
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <a
+                                          href={selectedCustomer.photoUrl}
+                                          download
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Download className="h-4 w-4" />
+                                          Download
+                                        </a>
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      N/A
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+
+                              {/* Aadhar Document */}
+                              <tr className="hover:bg-gray-50">
+                                <td className="p-3 font-medium">
+                                  Aadhar Document
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.aadharDocumentUrl ? (
+                                    <Badge className="bg-green-100 text-green-800">
+                                      Uploaded
+                                    </Badge>
+                                  ) : (
+                                    <Badge
                                       variant="outline"
-                                      size="sm"
-                                      asChild
+                                      className="text-gray-600"
                                     >
-                                      <a 
-                                        href={selectedCustomer.incomeProofUrl} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                      >
-                                        View
-                                      </a>
-                                    </Button>
-                                  </td>
-                                </tr>
-                              )}
-                              {selectedCustomer.residenceProofUrl && (
-                                <tr className="hover:bg-gray-50">
-                                  <td className="p-3 font-medium">Residence Proof</td>
-                                  <td className="p-3">
-                                    <Button
+                                      Not Uploaded
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.aadharDocumentUrl ? (
+                                    <Badge
                                       variant="outline"
-                                      size="sm"
-                                      asChild
+                                      className="text-xs"
                                     >
-                                      <a 
-                                        href={selectedCustomer.residenceProofUrl} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
+                                      {selectedCustomer.aadharDocumentUrl
+                                        .toLowerCase()
+                                        .endsWith(".pdf")
+                                        ? "PDF"
+                                        : "Document"}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      -
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.aadharDocumentUrl ? (
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
                                       >
-                                        View
-                                      </a>
-                                    </Button>
-                                  </td>
-                                </tr>
-                              )}
+                                        <a
+                                          href={
+                                            selectedCustomer.aadharDocumentUrl
+                                          }
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                          {selectedCustomer.aadharDocumentUrl
+                                            .toLowerCase()
+                                            .endsWith(".pdf")
+                                            ? "View PDF"
+                                            : "View"}
+                                        </a>
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <a
+                                          href={
+                                            selectedCustomer.aadharDocumentUrl
+                                          }
+                                          download
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Download className="h-4 w-4" />
+                                          Download
+                                        </a>
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      N/A
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+
+                              {/* Income Proof */}
+                              <tr className="hover:bg-gray-50">
+                                <td className="p-3 font-medium">
+                                  Income Proof
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.incomeProofUrl ? (
+                                    <Badge className="bg-green-100 text-green-800">
+                                      Uploaded
+                                    </Badge>
+                                  ) : (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-gray-600"
+                                    >
+                                      Not Uploaded
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.incomeProofUrl ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      {selectedCustomer.incomeProofUrl
+                                        .toLowerCase()
+                                        .endsWith(".pdf")
+                                        ? "PDF"
+                                        : "Document"}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      -
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.incomeProofUrl ? (
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <a
+                                          href={selectedCustomer.incomeProofUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                          {selectedCustomer.incomeProofUrl
+                                            .toLowerCase()
+                                            .endsWith(".pdf")
+                                            ? "View PDF"
+                                            : "View"}
+                                        </a>
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <a
+                                          href={selectedCustomer.incomeProofUrl}
+                                          download
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Download className="h-4 w-4" />
+                                          Download
+                                        </a>
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      N/A
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+
+                              {/* Residence Proof */}
+                              <tr className="hover:bg-gray-50">
+                                <td className="p-3 font-medium">
+                                  Residence Proof
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.residenceProofUrl ? (
+                                    <Badge className="bg-green-100 text-green-800">
+                                      Uploaded
+                                    </Badge>
+                                  ) : (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-gray-600"
+                                    >
+                                      Not Uploaded
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.residenceProofUrl ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      {selectedCustomer.residenceProofUrl
+                                        .toLowerCase()
+                                        .endsWith(".pdf")
+                                        ? "PDF"
+                                        : "Document"}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      -
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.residenceProofUrl ? (
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <a
+                                          href={
+                                            selectedCustomer.residenceProofUrl
+                                          }
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                          {selectedCustomer.residenceProofUrl
+                                            .toLowerCase()
+                                            .endsWith(".pdf")
+                                            ? "View PDF"
+                                            : "View"}
+                                        </a>
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <a
+                                          href={
+                                            selectedCustomer.residenceProofUrl
+                                          }
+                                          download
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Download className="h-4 w-4" />
+                                          Download
+                                        </a>
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      N/A
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+
+                              {/* QR Code */}
+                              <tr className="hover:bg-gray-50">
+                                <td className="p-3 font-medium">QR Code</td>
+                                <td className="p-3">
+                                  {selectedCustomer.qrUrl ? (
+                                    <Badge className="bg-green-100 text-green-800">
+                                      Uploaded
+                                    </Badge>
+                                  ) : (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-gray-600"
+                                    >
+                                      Not Uploaded
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.qrUrl ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      Image
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      -
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {selectedCustomer.qrUrl ? (
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <a
+                                          href={selectedCustomer.qrUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                          View
+                                        </a>
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <a
+                                          href={selectedCustomer.qrUrl}
+                                          download
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Download className="h-4 w-4" />
+                                          Download
+                                        </a>
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-gray-500">
+                                      N/A
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+
                               {numberOfDocuments === 0 && (
                                 <tr>
-                                  <td colSpan={2} className="p-4 text-center text-gray-500">
+                                  <td
+                                    colSpan={4}
+                                    className="p-4 text-center text-gray-500"
+                                  >
                                     No documents available for this customer.
                                   </td>
                                 </tr>
                               )}
                             </tbody>
                           </table>
+                        </div>
+
+                        {/* Debug information - remove this after testing */}
+                        <div className="mt-6 p-4 border rounded-lg bg-yellow-50">
+                          <h3 className="font-medium mb-2 text-yellow-800">
+                            Debug Information
+                          </h3>
+                          <div className="text-sm text-yellow-700 space-y-1">
+                            <div>
+                              Profile Photo:{" "}
+                              {selectedCustomer.photoUrl || "Not set"}
+                            </div>
+                            <div>
+                              Aadhar Document:{" "}
+                              {selectedCustomer.aadharDocumentUrl || "Not set"}
+                            </div>
+                            <div>
+                              Income Proof:{" "}
+                              {selectedCustomer.incomeProofUrl || "Not set"}
+                            </div>
+                            <div>
+                              Residence Proof:{" "}
+                              {selectedCustomer.residenceProofUrl || "Not set"}
+                            </div>
+                            <div>
+                              QR Code: {selectedCustomer.qrUrl || "Not set"}
+                            </div>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -1360,13 +1729,15 @@ export default function AllCustomerTable() {
                   if (!selectedCustomer) return;
                   const fd = new FormData(e.currentTarget);
                   fd.set("id", String(selectedCustomer.id));
-                  
+
                   // Handle photo upload if a new file is selected
-                  const photoInput = e.target.querySelector('input[name="photo"]');
+                  const photoInput = e.target.querySelector(
+                    'input[name="photo"]'
+                  );
                   if (photoInput?.files[0]) {
                     fd.set("photo", photoInput.files[0]);
                   }
-                  
+
                   try {
                     const res = await fetch("/api/customers", {
                       method: "PUT",
@@ -1451,7 +1822,9 @@ export default function AllCustomerTable() {
                       type="date"
                       defaultValue={
                         selectedCustomer?.loanDate
-                          ? new Date(selectedCustomer.loanDate).toISOString().split('T')[0]
+                          ? new Date(selectedCustomer.loanDate)
+                              .toISOString()
+                              .split("T")[0]
                           : ""
                       }
                     />
@@ -1477,11 +1850,7 @@ export default function AllCustomerTable() {
 
                   <div className="space-y-2">
                     <Label>Profile Photo</Label>
-                    <Input
-                      name="photo"
-                      type="file"
-                      accept="image/*"
-                    />
+                    <Input name="photo" type="file" accept="image/*" />
                     {selectedCustomer?.photoUrl && (
                       <div className="mt-2">
                         <img
