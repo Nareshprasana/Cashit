@@ -118,6 +118,10 @@ export async function GET(req) {
         name: customer.customerName,
         aadhar: customer.aadhar,
         photoUrl: customer.photoUrl,
+        aadharDocumentUrl: customer.aadharDocumentUrl, // Added
+        incomeProofUrl: customer.incomeProofUrl, // Added
+        residenceProofUrl: customer.residenceProofUrl, // Added
+        qrUrl: customer.qrUrl, // Added
         mobile: customer.mobile,
         address: customer.address || "",
         areaId: customer.area?.id ?? null,
@@ -264,19 +268,31 @@ export async function PUT(req) {
     };
 
     const photo = formData.get("photo");
-    if (photo && typeof photo !== "string")
+    if (photo && photo !== "undefined" && typeof photo !== "string")
       updateData.photoUrl = await saveFile(photo, "photo");
 
     const aadharDocument = formData.get("aadharDocument");
-    if (aadharDocument && typeof aadharDocument !== "string")
+    if (
+      aadharDocument &&
+      aadharDocument !== "undefined" &&
+      typeof aadharDocument !== "string"
+    )
       updateData.aadharDocumentUrl = await saveFile(aadharDocument, "aadhar");
 
     const incomeProof = formData.get("incomeProof");
-    if (incomeProof && typeof incomeProof !== "string")
+    if (
+      incomeProof &&
+      incomeProof !== "undefined" &&
+      typeof incomeProof !== "string"
+    )
       updateData.incomeProofUrl = await saveFile(incomeProof, "income");
 
     const residenceProof = formData.get("residenceProof");
-    if (residenceProof && typeof residenceProof !== "string")
+    if (
+      residenceProof &&
+      residenceProof !== "undefined" &&
+      typeof residenceProof !== "string"
+    )
       updateData.residenceProofUrl = await saveFile(
         residenceProof,
         "residence"
