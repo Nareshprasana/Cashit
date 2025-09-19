@@ -11,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
 import {
   Dialog,
   DialogContent,
@@ -20,7 +19,52 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import QRCode from "qrcode";
+import {
+  Search,
+  Filter,
+  Download,
+  Copy,
+  User,
+  CreditCard,
+  Calendar,
+  Phone,
+  FileText,
+  IndianRupee,
+  QrCode,
+  Eye,
+  X,
+  RefreshCw,
+  FileDown,
+  MapPin,
+  IdCard,
+  Home,
+  Wallet,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+} from "lucide-react";
 
 export default function ReportPage() {
   const [areas, setAreas] = useState([]);
@@ -28,11 +72,14 @@ export default function ReportPage() {
   const [selectedArea, setSelectedArea] = useState("");
   const [minValue, setMinValue] = useState("");
   const [maxValue, setMaxValue] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [repayments, setRepayments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [customerLoading, setCustomerLoading] = useState(false);
 
   // Fetch areas
   useEffect(() => {
@@ -52,10 +99,12 @@ export default function ReportPage() {
   // Fetch customers
   const fetchCustomers = async () => {
     try {
+      setLoading(true);
       const params = new URLSearchParams();
       if (selectedArea) params.append("areaId", selectedArea);
       if (minValue) params.append("min", minValue);
       if (maxValue) params.append("max", maxValue);
+      if (searchQuery) params.append("search", searchQuery);
 
       const res = await fetch(`/api/customers?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch customers");
@@ -63,6 +112,8 @@ export default function ReportPage() {
       setCustomers(data);
     } catch (error) {
       console.error("Failed to load customers", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -76,35 +127,38 @@ export default function ReportPage() {
     setSelectedArea("");
     setMinValue("");
     setMaxValue("");
+    setSearchQuery("");
     fetchCustomers();
   };
 
-  const handleRowClick = (customer) => {
+  const handleRowClick = async (customer) => {
     setSelectedCustomer(customer);
     setDialogOpen(true);
-  };
-
-  // Fetch QR + repayments when customer selected
-  useEffect(() => {
-    if (selectedCustomer?.customerCode) {
-      QRCode.toDataURL(selectedCustomer.customerCode)
-        .then((url) => setQrCodeUrl(url))
-        .catch((err) => console.error("QR Code Error:", err));
-
-      fetch(`/api/repayments?customerId=${selectedCustomer.id}`)
-        .then((res) => res.json())
-        .then((data) => setRepayments(Array.isArray(data) ? data : []))
-        .catch((err) => {
-          console.error("Error loading repayments:", err);
-          setRepayments([]);
-        });
-    } else {
+    setCustomerLoading(true);
+    
+    try {
+      const [qrData, repaymentsRes] = await Promise.all([
+        QRCode.toDataURL(customer.customerCode),
+        fetch(`/api/repayments?customerId=${customer.id}`).then(res => res.json())
+      ]);
+      
+      setQrCodeUrl(qrData);
+      setRepayments(Array.isArray(repaymentsRes) ? repaymentsRes : []);
+    } catch (err) {
+      console.error("Error loading customer details:", err);
       setQrCodeUrl("");
       setRepayments([]);
+    } finally {
+      setCustomerLoading(false);
     }
-  }, [selectedCustomer]);
+  };
 
   const numberOfRepayments = useMemo(() => repayments.length, [repayments]);
+
+  const totalRepaidAmount = useMemo(() => 
+    repayments.reduce((sum, r) => sum + (Number(r.amount) || 0), 0), 
+    [repayments]
+  );
 
   const handleDownloadStatement = () => {
     if (!selectedCustomer) return;
@@ -141,7 +195,7 @@ export default function ReportPage() {
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Statement_${nameSafe}.csv`;
+    a.download = `Statement_${nameSafe}_${new Date().toISOString().split('T')[0]}.csv`;
     a.style.display = "none";
     document.body.appendChild(a);
     a.click();
@@ -150,269 +204,475 @@ export default function ReportPage() {
     URL.revokeObjectURL(url);
   };
 
+  const getStatusBadge = (customer) => {
+    if (customer.pendingAmount <= 0) {
+      return <Badge className="bg-green-100 text-green-800 hover:bg-green-100"><CheckCircle className="h-3 w-3 mr-1" /> Paid</Badge>;
+    } else if (new Date(customer.dueDate) < new Date()) {
+      return <Badge variant="destructive"><AlertCircle className="h-3 w-3 mr-1" /> Overdue</Badge>;
+    } else {
+      return <Badge variant="outline" className="text-amber-600 border-amber-300"><Clock className="h-3 w-3 mr-1" /> Pending</Badge>;
+    }
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Reports</h1>
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Customer Reports</h1>
+          <p className="text-gray-600 mt-1">Manage and analyze customer loan data</p>
+        </div>
+        <Badge variant="outline" className="px-3 py-1.5 gap-1.5">
+          <FileText className="h-4 w-4" />
+          {customers.length} customer{customers.length !== 1 ? 's' : ''}
+        </Badge>
+      </div>
 
       {/* Filter Section */}
-      <div className="p-6 rounded-2xl shadow bg-white border space-y-4">
-        <h2 className="text-lg font-semibold">Filter Reports</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <Label className="mb-1 block">Area</Label>
-            <Select value={selectedArea} onValueChange={setSelectedArea}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select area" />
-              </SelectTrigger>
-              <SelectContent>
-                {areas.length > 0 ? (
-                  areas.map((area) => (
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Filter className="h-5 w-5 text-blue-600" />
+                Filters
+              </CardTitle>
+              <CardDescription>Refine your customer search</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReset}
+                className="flex items-center gap-1"
+              >
+                <X className="h-4 w-4" />
+                Reset
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSearch}
+                className="flex items-center gap-1"
+              >
+                <Search className="h-4 w-4" />
+                Search
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="md:col-span-2">
+              <Label className="mb-1.5 block">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  placeholder="Search by name, code, or mobile..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="mb-1.5 block">Area</Label>
+              <Select value={selectedArea} onValueChange={setSelectedArea}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All areas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All areas</SelectItem>
+                  {areas.map((area) => (
                     <SelectItem key={area.id} value={area.id}>
                       {area.areaName}
                     </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="none" disabled>
-                    No areas available
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div>
-            <Label className="mb-1 block">Min Amount</Label>
-            <Input
-              type="number"
-              value={minValue}
-              onChange={(e) => setMinValue(e.target.value)}
-              placeholder="Enter min"
-            />
-          </div>
+            <div>
+              <Label className="mb-1.5 block">Min Amount</Label>
+              <div className="relative">
+                <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  type="number"
+                  value={minValue}
+                  onChange={(e) => setMinValue(e.target.value)}
+                  placeholder="Min"
+                  className="pl-10"
+                />
+              </div>
+            </div>
 
-          <div>
-            <Label className="mb-1 block">Max Amount</Label>
-            <Input
-              type="number"
-              value={maxValue}
-              onChange={(e) => setMaxValue(e.target.value)}
-              placeholder="Enter max"
-            />
+            <div>
+              <Label className="mb-1.5 block">Max Amount</Label>
+              <div className="relative">
+                <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  type="number"
+                  value={maxValue}
+                  onChange={(e) => setMaxValue(e.target.value)}
+                  placeholder="Max"
+                  className="pl-10"
+                />
+              </div>
+            </div>
           </div>
-
-          <div className="flex items-end gap-2">
-            <Button onClick={handleSearch} className="flex-1">
-              Search
-            </Button>
-            <Button onClick={handleReset} variant="outline" className="flex-1">
-              Reset
-            </Button>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Customers Table */}
-      <div className="p-6 rounded-2xl shadow bg-white border">
-        <h2 className="text-lg font-semibold mb-4">All Customers</h2>
-        <div className="overflow-x-auto max-h-[500px]">
-          <table className="min-w-full border-collapse">
-            <thead className="bg-gray-100 sticky top-0">
-              <tr>
-                {[
-                  "Code",
-                  "Name",
-                  "Mobile",
-                  "Loan",
-                  "Paid",
-                  "Pending",
-                  "Due Date",
-                  "Action",
-                ].map((col) => (
-                  <th
-                    key={col}
-                    className="p-2 border text-left text-sm font-semibold"
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {customers.length > 0 ? (
-                customers.map((c, i) => (
-                  <tr
-                    key={c.id}
-                    className={`hover:bg-gray-50 ${
-                      i % 2 === 0 ? "bg-white" : "bg-gray-50/50"
-                    }`}
-                  >
-                    <td className="p-2 border">{c.customerCode}</td>
-                    <td className="p-2 border">{c.name}</td>
-                    <td className="p-2 border">{c.mobile}</td>
-                    <td className="p-2 border">₹{c.loanAmount}</td>
-                    <td className="p-2 border">₹{c.totalPaid}</td>
-                    <td className="p-2 border">₹{c.pendingAmount}</td>
-                    <td className="p-2 border">
-                      {c.dueDate
-                        ? new Date(c.dueDate).toLocaleDateString()
-                        : "-"}
-                    </td>
-                    <td className="p-2 border text-center">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={() => handleRowClick(c)}
-                      >
-                        View
-                      </Button>
-                    </td>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Customer List
+          </CardTitle>
+          <CardDescription>
+            {customers.length} customer{customers.length !== 1 ? 's' : ''} found
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-9 w-20" />
+                </div>
+              ))}
+            </div>
+          ) : customers.length > 0 ? (
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {["Customer", "Contact", "Loan Details", "Status", "Actions"].map((header) => (
+                      <th key={header} className="text-left p-3 text-sm font-medium text-gray-700">
+                        {header}
+                      </th>
+                    ))}
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    className="p-4 border text-center text-gray-500"
-                    colSpan={8}
-                  >
-                    No customers found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </thead>
+                <tbody className="divide-y">
+                  {customers.map((customer) => (
+                    <tr key={customer.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="p-3">
+                        <div className="flex items-center gap-3">
+                          {customer.photoUrl ? (
+                            <img
+                              src={customer.photoUrl}
+                              alt={customer.name}
+                              className="h-10 w-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
+                              <User className="h-5 w-5 text-gray-400" />
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-medium">{customer.name}</div>
+                            <div className="text-sm text-gray-500">{customer.customerCode}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="text-sm">
+                          <div className="flex items-center gap-1">
+                            <Phone className="h-3.5 w-3.5 text-gray-500" />
+                            {customer.mobile}
+                          </div>
+                          {customer.address && (
+                            <div className="text-gray-500 mt-1 flex items-start gap-1">
+                              <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                              <span className="line-clamp-1">{customer.address}</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="grid gap-1 text-sm">
+                          <div className="flex items-center gap-1">
+                            <CreditCard className="h-3.5 w-3.5 text-blue-500" />
+                            <span className="font-medium">{formatCurrency(customer.loanAmount)}</span>
+                            <span className="text-gray-500">loan</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Wallet className="h-3.5 w-3.5 text-green-500" />
+                            <span>{formatCurrency(customer.totalPaid)}</span>
+                            <span className="text-gray-500">paid</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+                            <span className="font-medium">{formatCurrency(customer.pendingAmount)}</span>
+                            <span className="text-gray-500">pending</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex flex-col gap-1">
+                          {getStatusBadge(customer)}
+                          {customer.dueDate && (
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(customer.dueDate).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRowClick(customer)}
+                          className="flex items-center gap-1"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-12 border rounded-lg">
+              <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-1">No customers found</h3>
+              <p className="text-gray-500 max-w-md mx-auto">
+                Try adjusting your search or filters to find what you're looking for.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Customer Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-4xl">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <User className="h-5 w-5" />
               Customer Details
             </DialogTitle>
             <DialogDescription>
-              Info and QR for {selectedCustomer?.name}
+              Complete information for {selectedCustomer?.name}
             </DialogDescription>
           </DialogHeader>
 
-          {selectedCustomer ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Left */}
-              <div className="md:col-span-1 flex flex-col items-center gap-4">
-                {selectedCustomer.photoUrl ? (
-                  <img
-                    src={selectedCustomer.photoUrl}
-                    alt="Customer"
-                    className="h-28 w-28 rounded-full object-cover border shadow"
-                  />
-                ) : (
-                  <div className="h-28 w-28 rounded-full bg-gray-200 flex items-center justify-center text-sm text-gray-500 shadow">
-                    No Photo
-                  </div>
-                )}
-
-                {qrCodeUrl ? (
-                  <img
-                    src={qrCodeUrl}
-                    alt="QR Code"
-                    className="h-32 w-32 border rounded shadow"
-                  />
-                ) : (
-                  <div className="h-32 w-32 border rounded flex items-center justify-center text-xs text-gray-500">
-                    QR Loading...
-                  </div>
-                )}
-
-                <div className="flex flex-col gap-2 w-full">
-                  <Button
-                    variant="secondary"
-                    onClick={() =>
-                      navigator.clipboard.writeText(
-                        selectedCustomer.customerCode
-                      )
-                    }
-                  >
-                    Copy Code
-                  </Button>
-                  <Button variant="outline" onClick={handleDownloadStatement}>
-                    Download Statement
-                  </Button>
-                </div>
+          {customerLoading ? (
+            <div className="space-y-4 py-6">
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-28 w-28 rounded-full" />
+                <Skeleton className="h-32 w-32 rounded" />
               </div>
-
-              {/* Right */}
-              <div className="md:col-span-2 space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <p>
-                    <strong>Mobile:</strong> {selectedCustomer.mobile}
-                  </p>
-                  <p>
-                    <strong>Aadhar:</strong> {selectedCustomer.aadhar}
-                  </p>
-                  <p>
-                    <strong>Address:</strong> {selectedCustomer.address}
-                  </p>
-                  <p>
-                    <strong>Loan:</strong> ₹{selectedCustomer.loanAmount}
-                  </p>
-                  <p>
-                    <strong>Paid:</strong> ₹{selectedCustomer.totalPaid}
-                  </p>
-                  <p>
-                    <strong>Pending:</strong> ₹{selectedCustomer.pendingAmount}
-                  </p>
-                  <p>
-                    <strong>Due Date:</strong>{" "}
-                    {selectedCustomer.dueDate
-                      ? new Date(
-                          selectedCustomer.dueDate
-                        ).toLocaleDateString()
-                      : "-"}
-                  </p>
-                  <p>
-                    <strong>Repayments:</strong> {numberOfRepayments}
-                  </p>
-                </div>
-
-                <div>
-                  <div className="font-semibold mb-2">Repayments</div>
-                  {repayments.length === 0 ? (
-                    <div className="text-sm text-gray-600">
-                      No repayments found.
-                    </div>
-                  ) : (
-                    <div className="max-h-60 overflow-auto border rounded shadow">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 sticky top-0">
-                          <tr>
-                            <th className="text-left px-3 py-2">Date</th>
-                            <th className="text-left px-3 py-2">Amount</th>
-                            <th className="text-left px-3 py-2">Note</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {repayments.map((r) => (
-                            <tr key={r.id} className="border-t">
-                              <td className="px-3 py-2">
-                                {r.date
-                                  ? new Date(r.date).toLocaleDateString()
-                                  : "—"}
-                              </td>
-                              <td className="px-3 py-2">
-                                ₹{Number(r.amount || 0).toLocaleString()}
-                              </td>
-                              <td className="px-3 py-2">{r.note || "—"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
+              <div className="grid grid-cols-2 gap-4">
+                {[...Array(8)].map((_, i) => (
+                  <Skeleton key={i} className="h-4 w-full" />
+                ))}
               </div>
             </div>
+          ) : selectedCustomer ? (
+            <Tabs defaultValue="details" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="details">Customer Details</TabsTrigger>
+                <TabsTrigger value="repayments">Repayment History</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="details" className="space-y-6 pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Left Column - Photo & QR */}
+                  <div className="flex flex-col items-center gap-4">
+                    {selectedCustomer.photoUrl ? (
+                      <img
+                        src={selectedCustomer.photoUrl}
+                        alt="Customer"
+                        className="h-28 w-28 rounded-full object-cover border shadow"
+                      />
+                    ) : (
+                      <div className="h-28 w-28 rounded-full bg-gray-200 flex items-center justify-center shadow">
+                        <User className="h-10 w-10 text-gray-400" />
+                      </div>
+                    )}
+
+                    {qrCodeUrl ? (
+                      <div className="border rounded-lg p-3 shadow-sm">
+                        <img
+                          src={qrCodeUrl}
+                          alt="QR Code"
+                          className="h-32 w-32 mx-auto"
+                        />
+                        <p className="text-center text-xs text-gray-500 mt-2">
+                          Customer Code: {selectedCustomer.customerCode}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="h-32 w-32 border rounded flex items-center justify-center text-xs text-gray-500">
+                        <QrCode className="h-8 w-8 mb-1" />
+                      </div>
+                    )}
+
+                    <div className="flex flex-col gap-2 w-full">
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedCustomer.customerCode);
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy Code
+                      </Button>
+                      <Button 
+                        onClick={handleDownloadStatement}
+                        className="flex items-center gap-2"
+                      >
+                        <FileDown className="h-4 w-4" />
+                        Download Statement
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Right Column - Details */}
+                  <div className="md:col-span-2 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          Name
+                        </Label>
+                        <p className="font-medium">{selectedCustomer.name}</p>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                          <Phone className="h-4 w-4" />
+                          Mobile
+                        </Label>
+                        <p className="font-medium">{selectedCustomer.mobile}</p>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                          <IdCard className="h-4 w-4" />
+                          Aadhar
+                        </Label>
+                        <p className="font-medium">{selectedCustomer.aadhar || "Not provided"}</p>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          Area
+                        </Label>
+                        <p className="font-medium">
+                          {areas.find(a => a.id === selectedCustomer.areaId)?.areaName || "Not specified"}
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-1 md:col-span-2">
+                        <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                          <Home className="h-4 w-4" />
+                          Address
+                        </Label>
+                        <p className="font-medium">{selectedCustomer.address || "Not provided"}</p>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <h3 className="font-semibold mb-3 flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        Loan Information
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="text-center p-3 bg-blue-50 rounded-lg">
+                          <p className="text-sm text-blue-700">Loan Amount</p>
+                          <p className="font-bold text-lg">{formatCurrency(selectedCustomer.loanAmount)}</p>
+                        </div>
+                        <div className="text-center p-3 bg-green-50 rounded-lg">
+                          <p className="text-sm text-green-700">Amount Paid</p>
+                          <p className="font-bold text-lg">{formatCurrency(selectedCustomer.totalPaid)}</p>
+                        </div>
+                        <div className="text-center p-3 bg-amber-50 rounded-lg">
+                          <p className="text-sm text-amber-700">Pending Amount</p>
+                          <p className="font-bold text-lg">{formatCurrency(selectedCustomer.pendingAmount)}</p>
+                        </div>
+                        <div className="text-center p-3 bg-gray-50 rounded-lg">
+                          <p className="text-sm text-gray-700">Status</p>
+                          <div className="mt-1">{getStatusBadge(selectedCustomer)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="repayments" className="pt-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-semibold">Repayment History</h3>
+                  <Badge variant="outline">
+                    {repayments.length} repayment{repayments.length !== 1 ? 's' : ''}
+                  </Badge>
+                </div>
+                
+                {repayments.length === 0 ? (
+                  <div className="text-center py-8 border rounded-lg">
+                    <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">No repayment history found.</p>
+                  </div>
+                ) : (
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="text-left p-3 font-medium">Date</th>
+                          <th className="text-left p-3 font-medium">Amount</th>
+                          <th className="text-left p-3 font-medium">Note</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {repayments.map((repayment) => (
+                          <tr key={repayment.id}>
+                            <td className="p-3">
+                              {repayment.date ? new Date(repayment.date).toLocaleDateString() : "—"}
+                            </td>
+                            <td className="p-3 font-medium">
+                              {formatCurrency(repayment.amount || 0)}
+                            </td>
+                            <td className="p-3 text-gray-600">{repayment.note || "—"}</td>
+                          </tr>
+                        ))}
+                        <tr className="bg-gray-50 font-semibold">
+                          <td className="p-3">Total</td>
+                          <td className="p-3">{formatCurrency(totalRepaidAmount)}</td>
+                          <td className="p-3"></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           ) : (
-            <div className="text-sm text-gray-600">No customer selected.</div>
+            <div className="text-sm text-gray-600 py-6 text-center">No customer selected.</div>
           )}
 
           <DialogFooter>

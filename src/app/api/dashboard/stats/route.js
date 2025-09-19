@@ -1,36 +1,32 @@
-// src/app/api/dashboard/stats/route.js
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-
 export async function GET() {
   try {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    // Fetch all loans (with repayments) created this month
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    endOfMonth.setHours(23, 59, 59, 999); // :white_tick: include full day
+    // Fetch all loans with repayments
     const loans = await prisma.loan.findMany({
-      where: { createdAt: { gte: startOfMonth } },
       select: {
         id: true,
         amount: true,
         interestAmount: true,
         customerId: true,
+        createdAt: true,
         repayments: {
           select: {
             amount: true,
             repaymentDate: true,
+            createdAt: true,
           },
         },
       },
     });
-
     // ----- Customer-wise stats -----
     const statsMap = {};
-
     for (const loan of loans) {
       const { customerId, amount, repayments } = loan;
-
       if (!statsMap[customerId]) {
         statsMap[customerId] = {
           customerId,
@@ -39,50 +35,39 @@ export async function GET() {
           totalPending: 0,
         };
       }
-
-      statsMap[customerId].totalLoans += 1;
-      statsMap[customerId].totalRepaid += repayments.reduce(
+      const repaid = repayments.reduce(
         (sum, r) => sum + Number(r.amount || 0),
         0
       );
-      statsMap[customerId].totalPending += Number(amount || 0);
+      statsMap[customerId].totalLoans += 1;
+      statsMap[customerId].totalRepaid += repaid;
+      statsMap[customerId].totalPending += Number(amount || 0) - repaid;
     }
-
-    Object.values(statsMap).forEach(stat => {
-      stat.totalPending = stat.totalPending - stat.totalRepaid;
-    });
-
     // ----- Overall monthly totals -----
-    const loanValueMonthly = loans.reduce(
-      (sum, loan) => sum + Number(loan.amount || 0),
-      0
-    );
-
-    const loanCountMonthly = loans.length;
-
+    const loanValueMonthly = loans
+      .filter(
+        (loan) => loan.createdAt >= startOfMonth && loan.createdAt <= endOfMonth
+      )
+      .reduce((sum, loan) => sum + Number(loan.amount || 0), 0);
+    const loanCountMonthly = loans.filter(
+      (loan) => loan.createdAt >= startOfMonth && loan.createdAt <= endOfMonth
+    ).length;
     const receivedAmountMonthly = loans.reduce(
       (sum, loan) =>
         sum +
-        loan.repayments.reduce(
-          (innerSum, r) =>
-            r.repaymentDate >= startOfMonth
-              ? innerSum + Number(r.amount || 0)
-              : innerSum,
-          0
-        ),
+        loan.repayments.reduce((innerSum, r) => {
+          const date = r.repaymentDate || r.createdAt; // :white_tick: fallback
+          if (date >= startOfMonth && date <= endOfMonth) {
+            return innerSum + Number(r.amount || 0);
+          }
+          return innerSum;
+        }, 0),
       0
     );
-
-    const interestAmountMonthly = loans.reduce(
-      (sum, loan) => sum + Number(loan.interestAmount || 0),
-      0
-    );
-
     return NextResponse.json({
       loanValueMonthly,
       loanCountMonthly,
       receivedAmountMonthly,
-      interestAmountMonthly,
       customers: Object.values(statsMap),
     });
   } catch (error) {
