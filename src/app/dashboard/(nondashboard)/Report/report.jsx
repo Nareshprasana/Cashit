@@ -40,6 +40,15 @@ import {
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 import QRCode from "qrcode";
 import {
   Search,
@@ -64,6 +73,8 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 export default function ReportPage() {
@@ -80,6 +91,10 @@ export default function ReportPage() {
   const [repayments, setRepayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [customerLoading, setCustomerLoading] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Fetch areas
   useEffect(() => {
@@ -110,6 +125,7 @@ export default function ReportPage() {
       if (!res.ok) throw new Error("Failed to fetch customers");
       const data = await res.json();
       setCustomers(data);
+      setCurrentPage(1); // Reset to first page when filters change
     } catch (error) {
       console.error("Failed to load customers", error);
     } finally {
@@ -150,6 +166,18 @@ export default function ReportPage() {
       setRepayments([]);
     } finally {
       setCustomerLoading(false);
+    }
+  };
+
+  // Pagination logic
+  const totalPages = Math.ceil(customers.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentCustomers = customers.slice(startIndex, endIndex);
+
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
     }
   };
 
@@ -221,6 +249,91 @@ export default function ReportPage() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  // Generate pagination items
+  const getPaginationItems = () => {
+    const items = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      // Show all pages if total pages is less than max visible
+      for (let i = 1; i <= totalPages; i++) {
+        items.push(
+          <PaginationItem key={i}>
+            <PaginationLink
+              isActive={currentPage === i}
+              onClick={() => handlePageChange(i)}
+            >
+              {i}
+            </PaginationLink>
+          </PaginationItem>
+        );
+      }
+    } else {
+      // Always show first page
+      items.push(
+        <PaginationItem key={1}>
+          <PaginationLink
+            isActive={currentPage === 1}
+            onClick={() => handlePageChange(1)}
+          >
+            1
+          </PaginationLink>
+        </PaginationItem>
+      );
+
+      // Show ellipsis if current page is beyond 3
+      if (currentPage > 3) {
+        items.push(
+          <PaginationItem key="ellipsis-start">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+
+      // Show current page and neighbors
+      const startPage = Math.max(2, currentPage - 1);
+      const endPage = Math.min(totalPages - 1, currentPage + 1);
+      
+      for (let i = startPage; i <= endPage; i++) {
+        if (i > 1 && i < totalPages) {
+          items.push(
+            <PaginationItem key={i}>
+              <PaginationLink
+                isActive={currentPage === i}
+                onClick={() => handlePageChange(i)}
+              >
+                {i}
+              </PaginationLink>
+            </PaginationItem>
+          );
+        }
+      }
+
+      // Show ellipsis if current page is not near the end
+      if (currentPage < totalPages - 2) {
+        items.push(
+          <PaginationItem key="ellipsis-end">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+
+      // Always show last page
+      items.push(
+        <PaginationItem key={totalPages}>
+          <PaginationLink
+            isActive={currentPage === totalPages}
+            onClick={() => handlePageChange(totalPages)}
+          >
+            {totalPages}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    }
+    
+    return items;
   };
 
   return (
@@ -335,13 +448,37 @@ export default function ReportPage() {
       {/* Customers Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            Customer List
-          </CardTitle>
-          <CardDescription>
-            {customers.length} customer{customers.length !== 1 ? 's' : ''} found
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Customer List
+              </CardTitle>
+              <CardDescription>
+                Showing {Math.min(customers.length, itemsPerPage)} of {customers.length} customer{customers.length !== 1 ? 's' : ''}
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="itemsPerPage" className="text-sm whitespace-nowrap">Rows per page:</Label>
+              <Select
+                value={itemsPerPage.toString()}
+                onValueChange={(value) => {
+                  setItemsPerPage(Number(value));
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -360,99 +497,129 @@ export default function ReportPage() {
               ))}
             </div>
           ) : customers.length > 0 ? (
-            <div className="rounded-lg border overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {["Customer", "Contact", "Loan Details", "Status", "Actions"].map((header) => (
-                      <th key={header} className="text-left p-3 text-sm font-medium text-gray-700">
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {customers.map((customer) => (
-                    <tr key={customer.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="p-3">
-                        <div className="flex items-center gap-3">
-                          {customer.photoUrl ? (
-                            <img
-                              src={customer.photoUrl}
-                              alt={customer.name}
-                              className="h-10 w-10 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                              <User className="h-5 w-5 text-gray-400" />
-                            </div>
-                          )}
-                          <div>
-                            <div className="font-medium">{customer.name}</div>
-                            <div className="text-sm text-gray-500">{customer.customerCode}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <div className="text-sm">
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3.5 w-3.5 text-gray-500" />
-                            {customer.mobile}
-                          </div>
-                          {customer.address && (
-                            <div className="text-gray-500 mt-1 flex items-start gap-1">
-                              <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                              <span className="line-clamp-1">{customer.address}</span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <div className="grid gap-1 text-sm">
-                          <div className="flex items-center gap-1">
-                            <CreditCard className="h-3.5 w-3.5 text-blue-500" />
-                            <span className="font-medium">{formatCurrency(customer.loanAmount)}</span>
-                            <span className="text-gray-500">loan</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Wallet className="h-3.5 w-3.5 text-green-500" />
-                            <span>{formatCurrency(customer.totalPaid)}</span>
-                            <span className="text-gray-500">paid</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
-                            <span className="font-medium">{formatCurrency(customer.pendingAmount)}</span>
-                            <span className="text-gray-500">pending</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex flex-col gap-1">
-                          {getStatusBadge(customer)}
-                          {customer.dueDate && (
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
-                              <Calendar className="h-3 w-3" />
-                              {new Date(customer.dueDate).toLocaleDateString()}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleRowClick(customer)}
-                          className="flex items-center gap-1"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View
-                        </Button>
-                      </td>
+            <>
+              <div className="rounded-lg border overflow-hidden mb-4">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {["Customer", "Contact", "Loan Details", "Status", "Actions"].map((header) => (
+                        <th key={header} className="text-left p-3 text-sm font-medium text-gray-700">
+                          {header}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y">
+                    {currentCustomers.map((customer) => (
+                      <tr key={customer.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="p-3">
+                          <div className="flex items-center gap-3">
+                            {customer.photoUrl ? (
+                              <img
+                                src={customer.photoUrl}
+                                alt={customer.name}
+                                className="h-10 w-10 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
+                                <User className="h-5 w-5 text-gray-400" />
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-medium">{customer.name}</div>
+                              <div className="text-sm text-gray-500">{customer.customerCode}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="text-sm">
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3.5 w-3.5 text-gray-500" />
+                              {customer.mobile}
+                            </div>
+                            {customer.address && (
+                              <div className="text-gray-500 mt-1 flex items-start gap-1">
+                                <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                                <span className="line-clamp-1">{customer.address}</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="grid gap-1 text-sm">
+                            <div className="flex items-center gap-1">
+                              <CreditCard className="h-3.5 w-3.5 text-blue-500" />
+                              <span className="font-medium">{formatCurrency(customer.loanAmount)}</span>
+                              <span className="text-gray-500">loan</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Wallet className="h-3.5 w-3.5 text-green-500" />
+                              <span>{formatCurrency(customer.totalPaid)}</span>
+                              <span className="text-gray-500">paid</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+                              <span className="font-medium">{formatCurrency(customer.pendingAmount)}</span>
+                              <span className="text-gray-500">pending</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-col gap-1">
+                            {getStatusBadge(customer)}
+                            {customer.dueDate && (
+                              <div className="flex items-center gap-1 text-xs text-gray-500">
+                                <Calendar className="h-3 w-3" />
+                                {new Date(customer.dueDate).toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRowClick(customer)}
+                            className="flex items-center gap-1"
+                          >
+                            <Eye className="h-4 w-4" />
+                            View
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">
+                  <div className="text-sm text-gray-600">
+                    Showing {startIndex + 1} to {Math.min(endIndex, customers.length)} of {customers.length} entries
+                  </div>
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                      
+                      {getPaginationItems()}
+                      
+                      <PaginationItem>
+                        <PaginationNext
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-12 border rounded-lg">
               <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />

@@ -73,7 +73,7 @@ export function NavUser({ user }) {
             </DropdownMenuLabel>
             <DropdownMenuGroup>
               {/* :white_tick: Inline redirect using router.push */}
-              <DropdownMenuItem onClick={() => router.push("/updateProfile")}>
+              <DropdownMenuItem onClick={() => router.push("/dashboard/updateProfile")}>
                 <UserCheck />
                 Update Profile
               </DropdownMenuItem>

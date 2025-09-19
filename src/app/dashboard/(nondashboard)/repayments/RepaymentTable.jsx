@@ -60,7 +60,10 @@ const getStatusBadge = (status) => {
       );
     case "PENDING":
       return (
-        <Badge variant="outline" className="text-amber-600 border-amber-300 flex items-center gap-1 py-1">
+        <Badge
+          variant="outline"
+          className="text-amber-600 border-amber-300 flex items-center gap-1 py-1"
+        >
           <Clock className="h-3 w-3" /> Pending
         </Badge>
       );
@@ -141,10 +144,20 @@ function EditableAmount({ repayment, onUpdate }) {
         className="w-24 h-8 text-sm"
         autoFocus
       />
-      <Button size="sm" className="h-7 px-2" onClick={saveChange} disabled={loading}>
+      <Button
+        size="sm"
+        className="h-7 px-2"
+        onClick={saveChange}
+        disabled={loading}
+      >
         {loading ? "..." : "✓"}
       </Button>
-      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={cancelEdit}>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 px-2"
+        onClick={cancelEdit}
+      >
         <X className="h-3 w-3" />
       </Button>
     </div>
@@ -222,7 +235,10 @@ export default function RepaymentTable() {
   const [toDate, setToDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
+  const [sortConfig, setSortConfig] = useState({
+    key: null,
+    direction: "ascending",
+  });
 
   const fetchRepayments = async () => {
     try {
@@ -250,7 +266,9 @@ export default function RepaymentTable() {
         (r) =>
           r.loan?.customerCode?.toLowerCase().includes(search.toLowerCase()) ||
           r.loanId?.toLowerCase().includes(search.toLowerCase()) ||
-          r.loan?.customer?.customerName?.toLowerCase().includes(search.toLowerCase())
+          r.loan?.customer?.customerName
+            ?.toLowerCase()
+            .includes(search.toLowerCase())
       );
     }
 
@@ -267,10 +285,10 @@ export default function RepaymentTable() {
     if (sortConfig.key) {
       data.sort((a, b) => {
         if (a[sortConfig.key] < b[sortConfig.key]) {
-          return sortConfig.direction === 'ascending' ? -1 : 1;
+          return sortConfig.direction === "ascending" ? -1 : 1;
         }
         if (a[sortConfig.key] > b[sortConfig.key]) {
-          return sortConfig.direction === 'ascending' ? 1 : -1;
+          return sortConfig.direction === "ascending" ? 1 : -1;
         }
         return 0;
       });
@@ -280,9 +298,9 @@ export default function RepaymentTable() {
   }, [search, status, fromDate, toDate, repayments, sortConfig]);
 
   const handleSort = (key) => {
-    let direction = 'ascending';
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
+    let direction = "ascending";
+    if (sortConfig.key === key && sortConfig.direction === "ascending") {
+      direction = "descending";
     }
     setSortConfig({ key, direction });
   };
@@ -290,7 +308,14 @@ export default function RepaymentTable() {
   const handleExport = () => {
     if (filtered.length === 0) return;
 
-    const headers = ["Customer ID", "Customer Name", "Loan ID", "Amount", "Due Date", "Status"];
+    const headers = [
+      "Customer ID",
+      "Customer Name",
+      "Loan ID",
+      "Amount",
+      "Due Date",
+      "Status",
+    ];
     const csvContent = [
       headers.join(","),
       ...filtered.map((row) =>
@@ -319,15 +344,17 @@ export default function RepaymentTable() {
   };
 
   const SortableHeader = ({ columnKey, children }) => (
-    <div 
+    <div
       className="flex items-center cursor-pointer hover:text-blue-600 transition-colors"
       onClick={() => handleSort(columnKey)}
     >
       {children}
       {sortConfig.key === columnKey ? (
-        sortConfig.direction === 'ascending' ? 
-          <ChevronUp className="h-4 w-4 ml-1" /> : 
+        sortConfig.direction === "ascending" ? (
+          <ChevronUp className="h-4 w-4 ml-1" />
+        ) : (
           <ChevronDown className="h-4 w-4 ml-1" />
+        )
       ) : (
         <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />
       )}
@@ -337,7 +364,9 @@ export default function RepaymentTable() {
   const columns = [
     {
       accessorKey: "customerCode",
-      header: () => <SortableHeader columnKey="customerCode">Customer ID</SortableHeader>,
+      header: () => (
+        <SortableHeader columnKey="customerCode">Customer ID</SortableHeader>
+      ),
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-blue-100 rounded-full">
@@ -351,7 +380,9 @@ export default function RepaymentTable() {
     },
     {
       accessorKey: "customerName",
-      header: () => <SortableHeader columnKey="customerName">Customer Name</SortableHeader>,
+      header: () => (
+        <SortableHeader columnKey="customerName">Customer Name</SortableHeader>
+      ),
       cell: ({ row }) => (
         <span className="text-sm">
           {row.original.loan?.customer?.customerName || "N/A"}
@@ -382,7 +413,9 @@ export default function RepaymentTable() {
     },
     {
       accessorKey: "dueDate",
-      header: () => <SortableHeader columnKey="dueDate">Due Date</SortableHeader>,
+      header: () => (
+        <SortableHeader columnKey="dueDate">Due Date</SortableHeader>
+      ),
       cell: ({ row }) => (
         <div className="flex items-center gap-1 text-sm">
           <Calendar className="h-3.5 w-3.5 text-gray-500" />
@@ -392,8 +425,22 @@ export default function RepaymentTable() {
     },
     {
       accessorKey: "status",
-      header: () => <SortableHeader columnKey="status">Status</SortableHeader>,
-      cell: ({ row }) => getStatusBadge(row.original.status),
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.original.loan?.status; // ✅ comes from LoanStatus enum
+
+        return (
+          <span
+            className={`px-2 py-1 rounded text-xs font-medium ${
+              status === "ACTIVE"
+                ? "bg-green-100 text-green-700"
+                : "bg-gray-200 text-gray-700"
+            }`}
+          >
+            {status || "N/A"}
+          </span>
+        );
+      },
     },
     {
       id: "actions",
@@ -421,30 +468,52 @@ export default function RepaymentTable() {
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Customer ID</Label>
-                      <p className="text-sm font-medium">{repayment.loan?.customer?.customerCode || "N/A"}</p>
+                      <Label className="text-xs text-muted-foreground">
+                        Customer ID
+                      </Label>
+                      <p className="text-sm font-medium">
+                        {repayment.loan?.customer?.customerCode || "N/A"}
+                      </p>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Loan ID</Label>
-                      <p className="text-sm font-medium">{repayment.loanId || "N/A"}</p>
+                      <Label className="text-xs text-muted-foreground">
+                        Loan ID
+                      </Label>
+                      <p className="text-sm font-medium">
+                        {repayment.loanId || "N/A"}
+                      </p>
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Customer Name</Label>
-                    <p className="text-sm font-medium">{repayment.loan?.customer?.customerName || "N/A"}</p>
+                    <Label className="text-xs text-muted-foreground">
+                      Customer Name
+                    </Label>
+                    <p className="text-sm font-medium">
+                      {repayment.loan?.customer?.customerName || "N/A"}
+                    </p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Amount</Label>
-                      <p className="text-sm font-medium">{formatCurrency(repayment.amount)}</p>
+                      <Label className="text-xs text-muted-foreground">
+                        Amount
+                      </Label>
+                      <p className="text-sm font-medium">
+                        {formatCurrency(repayment.amount)}
+                      </p>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Due Date</Label>
-                      <p className="text-sm font-medium">{formatDate(repayment.dueDate)}</p>
+                      <Label className="text-xs text-muted-foreground">
+                        Due Date
+                      </Label>
+                      <p className="text-sm font-medium">
+                        {formatDate(repayment.dueDate)}
+                      </p>
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <Label className="text-xs text-muted-foreground">
+                      Status
+                    </Label>
                     <div>{getStatusBadge(repayment.status)}</div>
                   </div>
                 </div>
@@ -496,7 +565,11 @@ export default function RepaymentTable() {
             <CreditCard className="h-4 w-4" />
             {filtered.length} repayment{filtered.length !== 1 ? "s" : ""}
           </Badge>
-          <Button onClick={handleExport} className="h-10 gap-2" disabled={filtered.length === 0}>
+          <Button
+            onClick={handleExport}
+            className="h-10 gap-2"
+            disabled={filtered.length === 0}
+          >
             <Download className="h-4 w-4" />
             Export
           </Button>
@@ -509,7 +582,9 @@ export default function RepaymentTable() {
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm font-medium text-blue-700">Total Repayments</p>
+                <p className="text-sm font-medium text-blue-700">
+                  Total Repayments
+                </p>
                 <h3 className="text-2xl font-bold mt-1">{repayments.length}</h3>
               </div>
               <div className="p-2 bg-blue-100 rounded-full">
@@ -518,14 +593,14 @@ export default function RepaymentTable() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-green-50 border-green-100">
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-sm font-medium text-green-700">Paid</p>
                 <h3 className="text-2xl font-bold mt-1">
-                  {repayments.filter(r => r.status === "PAID").length}
+                  {repayments.filter((r) => r.status === "PAID").length}
                 </h3>
               </div>
               <div className="p-2 bg-green-100 rounded-full">
@@ -534,14 +609,14 @@ export default function RepaymentTable() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-amber-50 border-amber-100">
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-sm font-medium text-amber-700">Pending</p>
                 <h3 className="text-2xl font-bold mt-1">
-                  {repayments.filter(r => r.status === "PENDING").length}
+                  {repayments.filter((r) => r.status === "PENDING").length}
                 </h3>
               </div>
               <div className="p-2 bg-amber-100 rounded-full">
@@ -550,14 +625,14 @@ export default function RepaymentTable() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-red-50 border-red-100">
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-sm font-medium text-red-700">Overdue</p>
                 <h3 className="text-2xl font-bold mt-1">
-                  {repayments.filter(r => r.status === "OVERDUE").length}
+                  {repayments.filter((r) => r.status === "OVERDUE").length}
                 </h3>
               </div>
               <div className="p-2 bg-red-100 rounded-full">
@@ -654,11 +729,11 @@ export default function RepaymentTable() {
                     onChange={(e) => setToDate(e.target.value)}
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label className="text-sm">Sort By</Label>
-                  <Select 
-                    value={sortConfig.key || "dueDate"} 
+                  <Select
+                    value={sortConfig.key || "dueDate"}
                     onValueChange={(value) => handleSort(value)}
                   >
                     <SelectTrigger>
@@ -668,7 +743,9 @@ export default function RepaymentTable() {
                       <SelectItem value="dueDate">Due Date</SelectItem>
                       <SelectItem value="amount">Amount</SelectItem>
                       <SelectItem value="customerCode">Customer ID</SelectItem>
-                      <SelectItem value="customerName">Customer Name</SelectItem>
+                      <SelectItem value="customerName">
+                        Customer Name
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -696,10 +773,12 @@ export default function RepaymentTable() {
           ) : filtered.length === 0 ? (
             <div className="p-12 text-center">
               <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No repayments found</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-1">
+                No repayments found
+              </h3>
               <p className="text-gray-500">
-                {repayments.length === 0 
-                  ? "No repayment records available." 
+                {repayments.length === 0
+                  ? "No repayment records available."
                   : "Try adjusting your search or filters to find what you're looking for."}
               </p>
             </div>
