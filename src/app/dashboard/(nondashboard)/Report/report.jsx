@@ -80,7 +80,7 @@ import {
 export default function ReportPage() {
   const [areas, setAreas] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [selectedArea, setSelectedArea] = useState("");
+  const [selectedArea, setSelectedArea] = useState("all");
   const [minValue, setMinValue] = useState("");
   const [maxValue, setMaxValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -116,7 +116,7 @@ export default function ReportPage() {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      if (selectedArea) params.append("areaId", selectedArea);
+      if (selectedArea && selectedArea !== "all") params.append("areaId", selectedArea);
       if (minValue) params.append("min", minValue);
       if (maxValue) params.append("max", maxValue);
       if (searchQuery) params.append("search", searchQuery);
@@ -125,9 +125,10 @@ export default function ReportPage() {
       if (!res.ok) throw new Error("Failed to fetch customers");
       const data = await res.json();
       setCustomers(data);
-      setCurrentPage(1); // Reset to first page when filters change
+      setCurrentPage(1);
     } catch (error) {
       console.error("Failed to load customers", error);
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
@@ -140,7 +141,7 @@ export default function ReportPage() {
   const handleSearch = () => fetchCustomers();
 
   const handleReset = () => {
-    setSelectedArea("");
+    setSelectedArea("all");
     setMinValue("");
     setMaxValue("");
     setSearchQuery("");
@@ -404,7 +405,7 @@ export default function ReportPage() {
                   <SelectValue placeholder="All areas" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All areas</SelectItem>
+                  <SelectItem value="all">All areas</SelectItem>
                   {areas.map((area) => (
                     <SelectItem key={area.id} value={area.id}>
                       {area.areaName}
@@ -519,6 +520,9 @@ export default function ReportPage() {
                                 src={customer.photoUrl}
                                 alt={customer.name}
                                 className="h-10 w-10 rounded-full object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                }}
                               />
                             ) : (
                               <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
@@ -673,6 +677,10 @@ export default function ReportPage() {
                         src={selectedCustomer.photoUrl}
                         alt="Customer"
                         className="h-28 w-28 rounded-full object-cover border shadow"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
                       />
                     ) : (
                       <div className="h-28 w-28 rounded-full bg-gray-200 flex items-center justify-center shadow">
