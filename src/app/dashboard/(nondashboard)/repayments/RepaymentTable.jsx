@@ -259,11 +259,11 @@ export default function RepaymentTable() {
       ),
     },
     {
-      accessorKey: "loanId",
-      header: "Loan ID",
+      accessorKey: "customerName",
+      header: "Name",
       cell: ({ row }) => (
         <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded">
-          {row.original.loanId || "N/A"}
+          {row.original.loan?.customer?.name || "N/A"}
         </span>
       ),
     },
