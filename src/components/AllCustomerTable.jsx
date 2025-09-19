@@ -136,7 +136,7 @@ export default function AllCustomerTable() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  // Document management
+  // Remove document management states since they're not needed
   // const [documents, setDocuments] = useState([]);
   // const [uploadingDoc, setUploadingDoc] = useState(false);
   // const [deletingDocId, setDeletingDocId] = useState(null);
@@ -277,65 +277,6 @@ export default function AllCustomerTable() {
       setDeletingId(null);
     }
   }
-
-  // Handle document upload
-  // const handleDocumentUpload = async (e) => {
-  //   const file = e.target.files[0];
-  //   if (!file || !selectedCustomer) return;
-
-  //   setUploadingDoc(true);
-
-  //   const formData = new FormData();
-  //   formData.append("file", file);
-  //   formData.append("customerId", selectedCustomer.id);
-  //   formData.append("documentName", file.name);
-
-  //   try {
-  //     const res = await fetch("/api/documents", {
-  //       method: "POST",
-  //       body: formData,
-  //     });
-
-  //     if (res.ok) {
-  //       const newDoc = await res.json();
-  //       setDocuments((prev) => [...prev, newDoc]);
-  //       alert("Document uploaded successfully!");
-  //       e.target.value = ""; // Reset file input
-  //     } else {
-  //       throw new Error("Failed to upload document");
-  //     }
-  //   } catch (error) {
-  //     console.error("Document upload error:", error);
-  //     alert("Failed to upload document");
-  //   } finally {
-  //     setUploadingDoc(false);
-  //   }
-  // };
-
-  // Handle document deletion
-  const handleDocumentDelete = async (docId) => {
-    if (!confirm("Are you sure you want to delete this document?")) return;
-
-    setDeletingDocId(docId);
-
-    try {
-      const res = await fetch(`/api/documents?id=${docId}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        setDocuments((prev) => prev.filter((doc) => doc.id !== docId));
-        alert("Document deleted successfully!");
-      } else {
-        throw new Error("Failed to delete document");
-      }
-    } catch (error) {
-      console.error("Document deletion error:", error);
-      alert("Failed to delete document");
-    } finally {
-      setDeletingDocId(null);
-    }
-  };
 
   // QR Code download handler
   const handleDownloadQRCode = () => {
@@ -543,6 +484,8 @@ export default function AllCustomerTable() {
   }, [filteredData, currentPage, rowsPerPage]);
 
   const numberOfRepayments = useMemo(() => repayments.length, [repayments]);
+
+  // Calculate number of documents based on existing customer document fields
   const numberOfDocuments = useMemo(() => {
     if (!selectedCustomer) return 0;
     let count = 0;
@@ -557,7 +500,7 @@ export default function AllCustomerTable() {
     if (!selectedCustomer) return;
     const headers = ["Date", "Amount", "Note"];
     const rows = repayments.map((r) => [
-      r.date ? new Date(r.date).toISOString().split("T") : "",
+      r.date ? new Date(r.date).toISOString().split("T")[0] : "",
       typeof r.amount === "number" ? r.amount : Number(r.amount || 0),
       r.note || "",
     ]);
@@ -1289,110 +1232,116 @@ export default function AllCustomerTable() {
                   <TabsContent value="documents">
                     <Card>
                       <CardHeader>
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <CardTitle className="text-lg">
-                              Customer Documents
-                            </CardTitle>
-                            <CardDescription>
-                              Upload and manage documents for{" "}
-                              {selectedCustomer.name}
-                            </CardDescription>
-                          </div>
-                          <div>
-                            <label
-                              htmlFor="document-upload"
-                              className="cursor-pointer"
-                            >
-                              <Button
-                                as="span"
-                                size="sm"
-                                className="flex items-center gap-1"
-                              >
-                                <Upload className="h-4 w-4" />
-                                Upload Document
-                              </Button>
-                              <input
-                                id="document-upload"
-                                type="file"
-                                className="hidden"
-                                onChange={handleDocumentUpload}
-                                disabled={uploadingDoc}
-                              />
-                            </label>
-                          </div>
-                        </div>
+                        <CardTitle className="text-lg">
+                          Customer Documents
+                        </CardTitle>
+                        <CardDescription>
+                          Document links for {selectedCustomer.name}
+                        </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        {uploadingDoc && (
-                          <div className="flex items-center justify-center py-4">
-                            <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                            Uploading document...
-                          </div>
-                        )}
-
-                        {documents.length === 0 ? (
-                          <div className="text-center py-8 text-gray-500">
-                            <FileText className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-                            <p>No documents found.</p>
-                            <p className="text-sm mt-2">
-                              Click "Upload Document" to add documents for this
-                              customer.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {documents.map((doc) => (
-                              <div
-                                key={doc.id}
-                                className="border rounded-lg p-4 flex flex-col"
-                              >
-                                <div className="flex-grow">
-                                  <FileText className="h-10 w-10 text-blue-500 mb-2" />
-                                  <h3 className="font-medium text-sm truncate">
-                                    {doc.documentName}
-                                  </h3>
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    Uploaded:{" "}
-                                    {doc.uploadedAt
-                                      ? new Date(
-                                          doc.uploadedAt
-                                        ).toLocaleDateString("en-IN")
-                                      : "Unknown date"}
-                                  </p>
-                                </div>
-                                <div className="flex gap-2 mt-4">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex-1"
-                                    asChild
+                        <div className="border rounded-lg overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="text-left p-3 font-medium">
+                                  Document Type
+                                </th>
+                                <th className="text-left p-3 font-medium">
+                                  Actions
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {selectedCustomer.photoUrl && (
+                                <tr className="hover:bg-gray-50">
+                                  <td className="p-3 font-medium">
+                                    Profile Photo
+                                  </td>
+                                  <td className="p-3">
+                                    <Button variant="outline" size="sm" asChild>
+                                      <a
+                                        href={selectedCustomer.photoUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                      >
+                                        View
+                                      </a>
+                                    </Button>
+                                  </td>
+                                </tr>
+                              )}
+                              {selectedCustomer.aadharDocumentUrl && (
+                                <tr className="hover:bg-gray-50">
+                                  <td className="p-3 font-medium">
+                                    Aadhar Document
+                                  </td>
+                                  <td className="p-3">
+                                    <Button variant="outline" size="sm" asChild>
+                                      <a
+                                        href={
+                                          selectedCustomer.aadharDocumentUrl
+                                        }
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                      >
+                                        View
+                                      </a>
+                                    </Button>
+                                  </td>
+                                </tr>
+                              )}
+                              {selectedCustomer.incomeProofUrl && (
+                                <tr className="hover:bg-gray-50">
+                                  <td className="p-3 font-medium">
+                                    Income Proof
+                                  </td>
+                                  <td className="p-3">
+                                    <Button variant="outline" size="sm" asChild>
+                                      <a
+                                        href={selectedCustomer.incomeProofUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                      >
+                                        View
+                                      </a>
+                                    </Button>
+                                  </td>
+                                </tr>
+                              )}
+                              {selectedCustomer.residenceProofUrl && (
+                                <tr className="hover:bg-gray-50">
+                                  <td className="p-3 font-medium">
+                                    Residence Proof
+                                  </td>
+                                  <td className="p-3">
+                                    <Button variant="outline" size="sm" asChild>
+                                      <a
+                                        href={
+                                          selectedCustomer.residenceProofUrl
+                                        }
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                      >
+                                        View
+                                      </a>
+                                    </Button>
+                                  </td>
+                                </tr>
+                              )}
+                              {numberOfDocuments === 0 && (
+                                <tr>
+                                  <td
+                                    colSpan={2}
+                                    className="p-4 text-center text-gray-500"
                                   >
-                                    <a
-                                      href={doc.fileUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                    >
-                                      View
-                                    </a>
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleDocumentDelete(doc.id)}
-                                    disabled={deletingDocId === doc.id}
-                                  >
-                                    {deletingDocId === doc.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <Trash2 className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                                    No documents available for this customer.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </CardContent>
                     </Card>
                   </TabsContent>
