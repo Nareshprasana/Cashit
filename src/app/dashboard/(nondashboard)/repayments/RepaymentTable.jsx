@@ -287,8 +287,23 @@ export default function RepaymentTable() {
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => getStatusBadge(row.original.status),
+      cell: ({ row }) => {
+        const status = row.original.loan?.status; // ✅ comes from LoanStatus enum
+
+        return (
+          <span
+            className={`px-2 py-1 rounded text-xs font-medium ${
+              status === "ACTIVE"
+                ? "bg-green-100 text-green-700"
+                : "bg-gray-200 text-gray-700"
+            }`}
+          >
+            {status || "N/A"}
+          </span>
+        );
+      },
     },
+
     {
       id: "actions",
       header: "Actions",
