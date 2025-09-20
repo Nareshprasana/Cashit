@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Search,
   Filter,
@@ -93,6 +93,8 @@ const StatusBadge = ({ status, pendingAmount, loanAmount }) => {
 
 const LoanTable = ({ loans: initialLoans, loading }) => {
   const [loans, setLoans] = useState(initialLoans);
+  const [customers, setCustomers] = useState([]);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -109,15 +111,52 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
-    customerName: "",
-    customerCode: "",
-    aadhar: "",
+    customerId: "",
     loanAmount: "",
     pendingAmount: "",
     rate: "",
     loanDate: "",
     status: "ACTIVE"
   });
+
+  // Fetch customers from API
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const response = await fetch('/api/customers');
+        if (response.ok) {
+          const customerData = await response.json();
+          setCustomers(customerData);
+        } else {
+          console.error('Failed to fetch customers');
+        }
+      } catch (error) {
+        console.error('Error fetching customers:', error);
+      } finally {
+        setIsLoadingCustomers(false);
+      }
+    };
+
+    fetchCustomers();
+  }, []);
+
+  // Enrich loans with customer data
+  const enrichedLoans = React.useMemo(() => {
+    if (!customers.length) return loans;
+    
+    return loans.map(loan => {
+      const customer = customers.find(c => c.id === loan.customerId) || {};
+      return {
+        ...loan,
+        customer: {
+          name: customer.name || "Unknown Customer",
+          customerCode: customer.customerCode || "N/A",
+          aadhar: customer.aadhar || "N/A",
+          photoUrl: customer.photoUrl || null
+        }
+      };
+    });
+  }, [loans, customers]);
 
   // Sort function
   const handleSort = (key) => {
@@ -129,7 +168,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
   };
 
   // Filter loans based on search criteria
-  const filteredLoans = loans.filter((loan) => {
+  const filteredLoans = enrichedLoans.filter((loan) => {
     const customerName = loan.customer?.name || "";
     const customerCode = loan.customer?.customerCode || "";
     const aadhar = loan.customer?.aadhar || "";
@@ -210,9 +249,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
   const handleEditLoan = (loan) => {
     setSelectedLoan(loan);
     setFormData({
-      customerName: loan.customer?.name || "",
-      customerCode: loan.customer?.customerCode || "",
-      aadhar: loan.customer?.aadhar || "",
+      customerId: loan.customerId || "",
       loanAmount: loan.loanAmount || "",
       pendingAmount: loan.pendingAmount || "",
       rate: loan.rate || "",
@@ -229,9 +266,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
 
   const handleCreateLoan = () => {
     setFormData({
-      customerName: "",
-      customerCode: "",
-      aadhar: "",
+      customerId: "",
       loanAmount: "",
       pendingAmount: "",
       rate: "",
@@ -255,50 +290,63 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
     }));
   };
 
-  const handleSubmitEdit = (e) => {
+  const handleSubmitEdit = async (e) => {
     e.preventDefault();
-    const updatedLoans = loans.map(loan => {
-      if (loan.id === selectedLoan.id) {
-        return {
-          ...loan,
+    try {
+      const response = await fetch(`/api/loans/${selectedLoan.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: formData.customerId,
           loanAmount: parseFloat(formData.loanAmount),
           pendingAmount: parseFloat(formData.pendingAmount),
           rate: parseFloat(formData.rate),
-          loanDate: formData.loanDate,
-          customer: {
-            ...loan.customer,
-            name: formData.customerName,
-            customerCode: formData.customerCode,
-            aadhar: formData.aadhar
-          }
-        };
+          loanDate: formData.loanDate
+        })
+      });
+
+      if (response.ok) {
+        const updatedLoan = await response.json();
+        setLoans(loans.map(loan => loan.id === selectedLoan.id ? updatedLoan : loan));
+        setIsEditDialogOpen(false);
+        setSelectedLoan(null);
+      } else {
+        console.error('Failed to update loan');
       }
-      return loan;
-    });
-    
-    setLoans(updatedLoans);
-    setIsEditDialogOpen(false);
-    setSelectedLoan(null);
+    } catch (error) {
+      console.error('Error updating loan:', error);
+    }
   };
 
-  const handleSubmitCreate = (e) => {
+  const handleSubmitCreate = async (e) => {
     e.preventDefault();
-    const newLoan = {
-      id: Date.now().toString(), // Simple ID generation
-      loanAmount: parseFloat(formData.loanAmount),
-      pendingAmount: parseFloat(formData.pendingAmount),
-      rate: parseFloat(formData.rate),
-      loanDate: formData.loanDate,
-      customer: {
-        name: formData.customerName,
-        customerCode: formData.customerCode,
-        aadhar: formData.aadhar,
-        photoUrl: null
+    try {
+      const response = await fetch('/api/loans', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: formData.customerId,
+          loanAmount: parseFloat(formData.loanAmount),
+          pendingAmount: parseFloat(formData.pendingAmount),
+          rate: parseFloat(formData.rate),
+          loanDate: formData.loanDate
+        })
+      });
+
+      if (response.ok) {
+        const newLoan = await response.json();
+        setLoans([...loans, newLoan]);
+        setIsCreateDialogOpen(false);
+      } else {
+        console.error('Failed to create loan');
       }
-    };
-    
-    setLoans([...loans, newLoan]);
-    setIsCreateDialogOpen(false);
+    } catch (error) {
+      console.error('Error creating loan:', error);
+    }
   };
 
   // Render pagination controls
@@ -382,12 +430,12 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
     return items;
   };
 
-  if (loading) {
+  if (loading || isLoadingCustomers) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex flex-col items-center">
           <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
-          <p className="text-gray-600">Loading loans...</p>
+          <p className="text-gray-600">Loading data...</p>
         </div>
       </div>
     );
@@ -913,37 +961,23 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
           <form onSubmit={handleSubmitEdit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="customerName" className="text-sm font-medium">Customer Name</Label>
-                <Input
-                  id="customerName"
-                  name="customerName"
-                  value={formData.customerName}
-                  onChange={handleInputChange}
-                  required
-                  className="border-gray-300 focus:border-blue-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="customerCode" className="text-sm font-medium">Customer Code</Label>
-                <Input
-                  id="customerCode"
-                  name="customerCode"
-                  value={formData.customerCode}
-                  onChange={handleInputChange}
-                  required
-                  className="border-gray-300 focus:border-blue-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="aadhar" className="text-sm font-medium">Aadhar Number</Label>
-                <Input
-                  id="aadhar"
-                  name="aadhar"
-                  value={formData.aadhar}
-                  onChange={handleInputChange}
-                  required
-                  className="border-gray-300 focus:border-blue-500"
-                />
+                <Label htmlFor="customerId" className="text-sm font-medium">Customer</Label>
+                <Select 
+                  name="customerId" 
+                  value={formData.customerId} 
+                  onValueChange={(value) => setFormData({...formData, customerId: value})}
+                >
+                  <SelectTrigger className="border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                    <SelectValue placeholder="Select a customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.name} ({customer.customerCode})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="loanAmount" className="text-sm font-medium">Loan Amount (₹)</Label>
@@ -1017,37 +1051,23 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
           <form onSubmit={handleSubmitCreate}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="create-customerName" className="text-sm font-medium">Customer Name</Label>
-                <Input
-                  id="create-customerName"
-                  name="customerName"
-                  value={formData.customerName}
-                  onChange={handleInputChange}
-                  required
-                  className="border-gray-300 focus:border-blue-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="create-customerCode" className="text-sm font-medium">Customer Code</Label>
-                <Input
-                  id="create-customerCode"
-                  name="customerCode"
-                  value={formData.customerCode}
-                  onChange={handleInputChange}
-                  required
-                  className="border-gray-300 focus:border-blue-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="create-aadhar" className="text-sm font-medium">Aadhar Number</Label>
-                <Input
-                  id="create-aadhar"
-                  name="aadhar"
-                  value={formData.aadhar}
-                  onChange={handleInputChange}
-                  required
-                  className="border-gray-300 focus:border-blue-500"
-                />
+                <Label htmlFor="create-customerId" className="text-sm font-medium">Customer</Label>
+                <Select 
+                  name="customerId" 
+                  value={formData.customerId} 
+                  onValueChange={(value) => setFormData({...formData, customerId: value})}
+                >
+                  <SelectTrigger className="border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                    <SelectValue placeholder="Select a customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.name} ({customer.customerCode})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="create-loanAmount" className="text-sm font-medium">Loan Amount (₹)</Label>
