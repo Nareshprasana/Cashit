@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import CustomerTable from "@/components/customers/CustomerTable";
 
 const DemodashboardPage = () => {
   const { data: session, status } = useSession();
@@ -188,7 +189,8 @@ const DemodashboardPage = () => {
                   <Loader2 className="h-10 w-10 animate-spin text-green-500" />
                 </div>
               ) : (
-                <AllCustomerTable />
+                // <AllCustomerTable />
+                <CustomerTable />
               )}
             </div>
           </div>
