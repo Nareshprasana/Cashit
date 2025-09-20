@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ChartLineMultiple } from "@/components/chart-line-multiple.jsx";
+import { AllCustomerTable } from "@/components/AllCustomerTable.jsx";
 import { SectionCards } from "@/components/section-cards";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import AllCustomerTable from "@/components/AllCustomerTable";
 
 const DemodashboardPage = () => {
   const { data: session, status } = useSession();
@@ -188,7 +188,6 @@ const DemodashboardPage = () => {
                   <Loader2 className="h-10 w-10 animate-spin text-green-500" />
                 </div>
               ) : (
-                // Replace AllCustomerTable with CustomerTable
                 <AllCustomerTable />
               )}
             </div>
@@ -209,4 +208,4 @@ const DemodashboardPage = () => {
   );
 };
 
-export default DemoDashboardPage;
+export default DemodashboardPage;
