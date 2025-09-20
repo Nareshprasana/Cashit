@@ -1,6 +1,12 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+// Function to calculate interest amount
+const calculateInterestAmount = (loanAmount, rate, tenure) => {
+  // Simple interest calculation: (Principal * Rate * Time) / 100
+  return (loanAmount * rate * tenure) / 100;
+};
+
 // 🔹 GET handler (summary OR full list)
 export async function GET(req) {
   try {
@@ -16,25 +22,26 @@ export async function GET(req) {
       return NextResponse.json({ active }, { status: 200 });
     }
 
-    // Otherwise return full loan list with customer data
+    // Otherwise return full loan list
     const loans = await prisma.loan.findMany({
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            customerCode: true,
-            aadhar: true,
-            photoUrl: true,
-            mobile: true,
-            area: true
-          }
-        }
+      select: {
+        id: true,
+        amount: true,
+        loanAmount: true,
+        pendingAmount: true,
+        loanDate: true,
+        createdAt: true,
       },
       orderBy: { createdAt: "asc" },
     });
 
-    return NextResponse.json(loans, { status: 200 });
+    // ✅ Add computed status field
+    const loansWithStatus = loans.map((loan) => ({
+      ...loan,
+      status: loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED",
+    }));
+
+    return NextResponse.json(loansWithStatus, { status: 200 });
   } catch (error) {
     console.error("Loan fetch error:", error);
     return NextResponse.json(
@@ -87,6 +94,7 @@ export async function POST(req) {
     );
   }
 
+  const interestAmount = calculateInterestAmount(loanAmount, rate, tenure);
   const documentUrl = data.documentUrl || null;
 
   try {
@@ -109,11 +117,12 @@ export async function POST(req) {
         area: data.area || null,
         customerId: data.customerId,
         amount,
-        rate, // Store only the interest rate percentage
+        rate,
         tenure,
         loanDate,
         loanAmount,
         pendingAmount,
+        interestAmount,
         documentUrl,
       },
     });
