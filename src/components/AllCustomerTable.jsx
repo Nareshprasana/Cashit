@@ -22,7 +22,8 @@ import {
   Plus,
   Trash2,
   Upload,
-  Eye,  
+  Eye,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -136,6 +137,11 @@ export default function AllCustomerTable() {
   // Dialog-in-Dialog actions state
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // Document management state
+  const [documentToUpdate, setDocumentToUpdate] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
 
   const router = useRouter();
 
@@ -286,6 +292,58 @@ export default function AllCustomerTable() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  // Document update handler
+  const handleDocumentUpdate = (documentField) => {
+    setDocumentToUpdate(documentField);
+    setSelectedFile(null);
+  };
+
+  // Document submission handler
+  const handleDocumentSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedFile || !documentToUpdate || !selectedCustomer) return;
+    
+    setUploadingDocument(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("id", selectedCustomer.id);
+      formData.append("documentField", documentToUpdate);
+      
+      const res = await fetch("/api/customers", {
+        method: "PUT",
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to upload document");
+      }
+      
+      const { customer } = await res.json();
+      
+      // Update the customer data with the new document URL
+      setData(prev => prev.map(c => 
+        c.id === customer.id ? { ...c, ...customer } : c
+      ));
+      
+      // Update the selected customer
+      setSelectedCustomer(prev => ({ ...prev, ...customer }));
+      
+      // Close the dialog
+      setDocumentToUpdate(null);
+      setSelectedFile(null);
+      
+      alert("Document updated successfully!");
+    } catch (error) {
+      console.error("Error uploading document:", error);
+      alert(`Failed to upload document: ${error.message}`);
+    } finally {
+      setUploadingDocument(false);
+    }
   };
 
   // Columns (no actions column)
@@ -1292,7 +1350,7 @@ export default function AllCustomerTable() {
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.photoUrl ? (
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 flex-wrap">
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -1326,11 +1384,26 @@ export default function AllCustomerTable() {
                                           Download
                                         </a>
                                       </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleDocumentUpdate("photoUrl")}
+                                        className="flex items-center gap-1"
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                        Modify
+                                      </Button>
                                     </div>
                                   ) : (
-                                    <span className="text-sm text-gray-500">
-                                      N/A
-                                    </span>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDocumentUpdate("photoUrl")}
+                                      className="flex items-center gap-1"
+                                    >
+                                      <Upload className="h-4 w-4" />
+                                      Upload
+                                    </Button>
                                   )}
                                 </td>
                               </tr>
@@ -1374,7 +1447,7 @@ export default function AllCustomerTable() {
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.aadharDocumentUrl ? (
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 flex-wrap">
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -1412,11 +1485,26 @@ export default function AllCustomerTable() {
                                           Download
                                         </a>
                                       </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleDocumentUpdate("aadharDocumentUrl")}
+                                        className="flex items-center gap-1"
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                        Modify
+                                      </Button>
                                     </div>
                                   ) : (
-                                    <span className="text-sm text-gray-500">
-                                      N/A
-                                    </span>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDocumentUpdate("aadharDocumentUrl")}
+                                      className="flex items-center gap-1"
+                                    >
+                                      <Upload className="h-4 w-4" />
+                                      Upload
+                                    </Button>
                                   )}
                                 </td>
                               </tr>
@@ -1460,7 +1548,7 @@ export default function AllCustomerTable() {
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.incomeProofUrl ? (
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 flex-wrap">
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -1494,11 +1582,26 @@ export default function AllCustomerTable() {
                                           Download
                                         </a>
                                       </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleDocumentUpdate("incomeProofUrl")}
+                                        className="flex items-center gap-1"
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                        Modify
+                                      </Button>
                                     </div>
                                   ) : (
-                                    <span className="text-sm text-gray-500">
-                                      N/A
-                                    </span>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDocumentUpdate("incomeProofUrl")}
+                                      className="flex items-center gap-1"
+                                    >
+                                      <Upload className="h-4 w-4" />
+                                      Upload
+                                    </Button>
                                   )}
                                 </td>
                               </tr>
@@ -1542,7 +1645,7 @@ export default function AllCustomerTable() {
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.residenceProofUrl ? (
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 flex-wrap">
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -1580,11 +1683,26 @@ export default function AllCustomerTable() {
                                           Download
                                         </a>
                                       </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleDocumentUpdate("residenceProofUrl")}
+                                        className="flex items-center gap-1"
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                        Modify
+                                      </Button>
                                     </div>
                                   ) : (
-                                    <span className="text-sm text-gray-500">
-                                      N/A
-                                    </span>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDocumentUpdate("residenceProofUrl")}
+                                      className="flex items-center gap-1"
+                                    >
+                                      <Upload className="h-4 w-4" />
+                                      Upload
+                                    </Button>
                                   )}
                                 </td>
                               </tr>
@@ -1622,7 +1740,7 @@ export default function AllCustomerTable() {
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.qrUrl ? (
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 flex-wrap">
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -1674,36 +1792,88 @@ export default function AllCustomerTable() {
                             </tbody>
                           </table>
                         </div>
-
-                        {/* Debug information - remove this after testing */}
-                        <div className="mt-6 p-4 border rounded-lg bg-yellow-50">
-                          <h3 className="font-medium mb-2 text-yellow-800">
-                            Debug Information
-                          </h3>
-                          <div className="text-sm text-yellow-700 space-y-1">
-                            <div>
-                              Profile Photo:{" "}
-                              {selectedCustomer.photoUrl || "Not set"}
-                            </div>
-                            <div>
-                              Aadhar Document:{" "}
-                              {selectedCustomer.aadharDocumentUrl || "Not set"}
-                            </div>
-                            <div>
-                              Income Proof:{" "}
-                              {selectedCustomer.incomeProofUrl || "Not set"}
-                            </div>
-                            <div>
-                              Residence Proof:{" "}
-                              {selectedCustomer.residenceProofUrl || "Not set"}
-                            </div>
-                            <div>
-                              QR Code: {selectedCustomer.qrUrl || "Not set"}
-                            </div>
-                          </div>
-                        </div>
                       </CardContent>
                     </Card>
+
+                    {/* Document Upload/Modify Dialog */}
+                    <Dialog open={!!documentToUpdate} onOpenChange={() => setDocumentToUpdate(null)}>
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle>
+                            {selectedCustomer?.[documentToUpdate] ? "Modify Document" : "Upload Document"}
+                          </DialogTitle>
+                          <DialogDescription>
+                            {documentToUpdate === "photoUrl" 
+                              ? "Upload or modify profile photo" 
+                              : `Upload or modify ${documentToUpdate?.replace("Url", "")} document`}
+                          </DialogDescription>
+                        </DialogHeader>
+                        
+                        <form onSubmit={handleDocumentSubmit} className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="document-file">Select File</Label>
+                            <Input
+                              id="document-file"
+                              type="file"
+                              accept={documentToUpdate === "photoUrl" ? "image/*" : "image/*,.pdf"}
+                              onChange={(e) => setSelectedFile(e.target.files[0])}
+                              required
+                            />
+                            <p className="text-xs text-gray-500">
+                              {documentToUpdate === "photoUrl" 
+                                ? "Supported formats: JPG, PNG, GIF" 
+                                : "Supported formats: JPG, PNG, GIF, PDF"}
+                            </p>
+                          </div>
+                          
+                          {selectedCustomer?.[documentToUpdate] && (
+                            <div className="space-y-2">
+                              <Label>Current Document</Label>
+                              <div className="p-2 border rounded-md">
+                                {documentToUpdate === "photoUrl" || 
+                                selectedCustomer[documentToUpdate]?.toLowerCase().endsWith(".jpg") ||
+                                selectedCustomer[documentToUpdate]?.toLowerCase().endsWith(".jpeg") ||
+                                selectedCustomer[documentToUpdate]?.toLowerCase().endsWith(".png") ||
+                                selectedCustomer[documentToUpdate]?.toLowerCase().endsWith(".gif") ? (
+                                  <img
+                                    src={selectedCustomer[documentToUpdate]}
+                                    alt="Current document"
+                                    className="h-32 object-contain mx-auto"
+                                  />
+                                ) : (
+                                  <div className="text-center py-8">
+                                    <FileText className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+                                    <p className="text-sm text-gray-500">PDF Document</p>
+                                    <a
+                                      href={selectedCustomer[documentToUpdate]}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 text-sm hover:underline"
+                                    >
+                                      View current document
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setDocumentToUpdate(null)}
+                            >
+                              Cancel
+                            </Button>
+                            <Button type="submit" disabled={uploadingDocument}>
+                              {uploadingDocument && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              {selectedCustomer?.[documentToUpdate] ? "Update Document" : "Upload Document"}
+                            </Button>
+                          </div>
+                        </form>
+                      </DialogContent>
+                    </Dialog>
                   </TabsContent>
                 </Tabs>
               </div>
