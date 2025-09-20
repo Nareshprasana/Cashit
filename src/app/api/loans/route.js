@@ -1,12 +1,6 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// Function to calculate interest amount
-const calculateInterestAmount = (loanAmount, rate, tenure) => {
-  // Simple interest calculation: (Principal * Rate * Time) / 100
-  return (loanAmount * rate * tenure) / 100;
-};
-
 // 🔹 GET handler (summary OR full list)
 export async function GET(req) {
   try {
@@ -93,7 +87,6 @@ export async function POST(req) {
     );
   }
 
-  const interestAmount = calculateInterestAmount(loanAmount, rate, tenure);
   const documentUrl = data.documentUrl || null;
 
   try {
@@ -116,12 +109,11 @@ export async function POST(req) {
         area: data.area || null,
         customerId: data.customerId,
         amount,
-        rate,
+        rate, // Store only the interest rate percentage
         tenure,
         loanDate,
         loanAmount,
         pendingAmount,
-        interestAmount,
         documentUrl,
       },
     });
