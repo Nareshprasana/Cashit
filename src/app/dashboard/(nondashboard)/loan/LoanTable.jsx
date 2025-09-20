@@ -63,7 +63,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const StatusBadge = ({ status, pendingAmount, loanAmount }) => {
   // Determine status based on pending amount if status is not explicitly provided
   const actualStatus = status || (pendingAmount > 0 ? "ACTIVE" : "CLOSED");
-  
+
   switch (actualStatus) {
     case "ACTIVE":
       return (
@@ -87,7 +87,11 @@ const StatusBadge = ({ status, pendingAmount, loanAmount }) => {
         </Badge>
       );
     default:
-      return <Badge variant="outline" className="px-2 py-1">{actualStatus}</Badge>;
+      return (
+        <Badge variant="outline" className="px-2 py-1">
+          {actualStatus}
+        </Badge>
+      );
   }
 };
 
@@ -102,8 +106,11 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
-  
+  const [sortConfig, setSortConfig] = useState({
+    key: null,
+    direction: "ascending",
+  });
+
   // CRUD state
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
@@ -116,22 +123,22 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
     pendingAmount: "",
     rate: "",
     loanDate: "",
-    status: "ACTIVE"
+    status: "ACTIVE",
   });
 
   // Fetch customers from API
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
-        const response = await fetch('/api/customers');
+        const response = await fetch("/api/customers");
         if (response.ok) {
           const customerData = await response.json();
           setCustomers(customerData);
         } else {
-          console.error('Failed to fetch customers');
+          console.error("Failed to fetch customers");
         }
       } catch (error) {
-        console.error('Error fetching customers:', error);
+        console.error("Error fetching customers:", error);
       } finally {
         setIsLoadingCustomers(false);
       }
@@ -143,26 +150,26 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
   // Enrich loans with customer data
   const enrichedLoans = React.useMemo(() => {
     if (!customers.length) return loans;
-    
-    return loans.map(loan => {
-      const customer = customers.find(c => c.id === loan.customerId) || {};
+
+    return loans.map((loan) => {
+      const customer = customers.find((c) => c.id === loan.customerId) || {};
       return {
         ...loan,
         customer: {
-          name: customer.name || "Unknown Customer",
+          name: customer.name || customer.customerName || "Unknown Customer", // Fixed: handle both name and customerName
           customerCode: customer.customerCode || "N/A",
           aadhar: customer.aadhar || "N/A",
-          photoUrl: customer.photoUrl || null
-        }
+          photoUrl: customer.photoUrl || null,
+        },
       };
     });
   }, [loans, customers]);
 
   // Sort function
   const handleSort = (key) => {
-    let direction = 'ascending';
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
+    let direction = "ascending";
+    if (sortConfig.key === key && sortConfig.direction === "ascending") {
+      direction = "descending";
     }
     setSortConfig({ key, direction });
   };
@@ -186,8 +193,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
     const loanDate = loan.loanDate ? new Date(loan.loanDate) : null;
     const matchesFromDate =
       !fromDate || (loanDate && loanDate >= new Date(fromDate));
-    const matchesToDate =
-      !toDate || (loanDate && loanDate <= new Date(toDate));
+    const matchesToDate = !toDate || (loanDate && loanDate <= new Date(toDate));
 
     return matchesGlobal && matchesStatus && matchesFromDate && matchesToDate;
   });
@@ -197,34 +203,34 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
     let sortableItems = [...filteredLoans];
     if (sortConfig.key !== null) {
       sortableItems.sort((a, b) => {
-        if (sortConfig.key === 'customerName') {
+        if (sortConfig.key === "customerName") {
           const aValue = a.customer?.name || "";
           const bValue = b.customer?.name || "";
           if (aValue < bValue) {
-            return sortConfig.direction === 'ascending' ? -1 : 1;
+            return sortConfig.direction === "ascending" ? -1 : 1;
           }
           if (aValue > bValue) {
-            return sortConfig.direction === 'ascending' ? 1 : -1;
+            return sortConfig.direction === "ascending" ? 1 : -1;
           }
           return 0;
-        } else if (sortConfig.key === 'loanDate') {
+        } else if (sortConfig.key === "loanDate") {
           const aValue = new Date(a.loanDate || 0);
           const bValue = new Date(b.loanDate || 0);
           if (aValue < bValue) {
-            return sortConfig.direction === 'ascending' ? -1 : 1;
+            return sortConfig.direction === "ascending" ? -1 : 1;
           }
           if (aValue > bValue) {
-            return sortConfig.direction === 'ascending' ? 1 : -1;
+            return sortConfig.direction === "ascending" ? 1 : -1;
           }
           return 0;
         } else {
           const aValue = a[sortConfig.key] || 0;
           const bValue = b[sortConfig.key] || 0;
           if (aValue < bValue) {
-            return sortConfig.direction === 'ascending' ? -1 : 1;
+            return sortConfig.direction === "ascending" ? -1 : 1;
           }
           if (aValue > bValue) {
-            return sortConfig.direction === 'ascending' ? 1 : -1;
+            return sortConfig.direction === "ascending" ? 1 : -1;
           }
           return 0;
         }
@@ -253,8 +259,10 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
       loanAmount: loan.loanAmount || "",
       pendingAmount: loan.pendingAmount || "",
       rate: loan.rate || "",
-      loanDate: loan.loanDate ? new Date(loan.loanDate).toISOString().split('T')[0] : "",
-      status: loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED"
+      loanDate: loan.loanDate
+        ? new Date(loan.loanDate).toISOString().split("T")[0]
+        : "",
+      status: loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED",
     });
     setIsEditDialogOpen(true);
   };
@@ -270,23 +278,23 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
       loanAmount: "",
       pendingAmount: "",
       rate: "",
-      loanDate: new Date().toISOString().split('T')[0],
-      status: "ACTIVE"
+      loanDate: new Date().toISOString().split("T")[0],
+      status: "ACTIVE",
     });
     setIsCreateDialogOpen(true);
   };
 
   const confirmDelete = () => {
-    setLoans(loans.filter(loan => loan.id !== selectedLoan.id));
+    setLoans(loans.filter((loan) => loan.id !== selectedLoan.id));
     setIsDeleteDialogOpen(false);
     setSelectedLoan(null);
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -294,47 +302,51 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
     e.preventDefault();
     try {
       const response = await fetch(`/api/loans/${selectedLoan.id}`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           customerId: formData.customerId,
           loanAmount: parseFloat(formData.loanAmount),
           pendingAmount: parseFloat(formData.pendingAmount),
           rate: parseFloat(formData.rate),
-          loanDate: formData.loanDate
-        })
+          loanDate: formData.loanDate,
+        }),
       });
 
       if (response.ok) {
         const updatedLoan = await response.json();
-        setLoans(loans.map(loan => loan.id === selectedLoan.id ? updatedLoan : loan));
+        setLoans(
+          loans.map((loan) =>
+            loan.id === selectedLoan.id ? updatedLoan : loan
+          )
+        );
         setIsEditDialogOpen(false);
         setSelectedLoan(null);
       } else {
-        console.error('Failed to update loan');
+        console.error("Failed to update loan");
       }
     } catch (error) {
-      console.error('Error updating loan:', error);
+      console.error("Error updating loan:", error);
     }
   };
 
   const handleSubmitCreate = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/loans', {
-        method: 'POST',
+      const response = await fetch("/api/loans", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           customerId: formData.customerId,
           loanAmount: parseFloat(formData.loanAmount),
           pendingAmount: parseFloat(formData.pendingAmount),
           rate: parseFloat(formData.rate),
-          loanDate: formData.loanDate
-        })
+          loanDate: formData.loanDate,
+        }),
       });
 
       if (response.ok) {
@@ -342,10 +354,10 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
         setLoans([...loans, newLoan]);
         setIsCreateDialogOpen(false);
       } else {
-        console.error('Failed to create loan');
+        console.error("Failed to create loan");
       }
     } catch (error) {
-      console.error('Error creating loan:', error);
+      console.error("Error creating loan:", error);
     }
   };
 
@@ -447,9 +459,14 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Loan Management</h2>
-          <p className="text-gray-600 mt-1">Manage all customer loans in one place</p>
+          <p className="text-gray-600 mt-1">
+            Manage all customer loans in one place
+          </p>
         </div>
-        <Button onClick={handleCreateLoan} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
+        <Button
+          onClick={handleCreateLoan}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+        >
           <Plus className="h-4 w-4" />
           Add New Loan
         </Button>
@@ -470,14 +487,16 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-white border-0 shadow-sm">
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm font-medium text-gray-600">Active Loans</p>
+                <p className="text-sm font-medium text-gray-600">
+                  Active Loans
+                </p>
                 <h3 className="text-2xl font-bold mt-1">
-                  {loans.filter(loan => loan.pendingAmount > 0).length}
+                  {loans.filter((loan) => loan.pendingAmount > 0).length}
                 </h3>
               </div>
               <div className="p-3 bg-green-100 rounded-full">
@@ -486,14 +505,16 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-white border-0 shadow-sm">
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm font-medium text-gray-600">Completed Loans</p>
+                <p className="text-sm font-medium text-gray-600">
+                  Completed Loans
+                </p>
                 <h3 className="text-2xl font-bold mt-1">
-                  {loans.filter(loan => loan.pendingAmount <= 0).length}
+                  {loans.filter((loan) => loan.pendingAmount <= 0).length}
                 </h3>
               </div>
               <div className="p-3 bg-purple-100 rounded-full">
@@ -502,14 +523,19 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-white border-0 shadow-sm">
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Pending</p>
+                <p className="text-sm font-medium text-gray-600">
+                  Total Pending
+                </p>
                 <h3 className="text-2xl font-bold mt-1">
-                  ₹{loans.reduce((sum, loan) => sum + (loan.pendingAmount || 0), 0).toLocaleString()}
+                  ₹
+                  {loans
+                    .reduce((sum, loan) => sum + (loan.pendingAmount || 0), 0)
+                    .toLocaleString()}
                 </h3>
               </div>
               <div className="p-3 bg-amber-100 rounded-full">
@@ -611,7 +637,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                     className="text-sm border-gray-300 focus:border-blue-500"
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Rows per page</Label>
                   <Select
@@ -644,7 +670,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
           Showing <span className="font-medium">{filteredLoans.length}</span> of{" "}
           <span className="font-medium">{loans.length}</span> loans
         </p>
-        
+
         <div className="flex items-center gap-2">
           <Tabs defaultValue="all" className="w-[300px]">
             <TabsList className="grid w-full grid-cols-3">
@@ -663,63 +689,77 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
             <table className="w-full text-sm">
               <thead className="bg-gray-100">
                 <tr>
-                  <th 
+                  <th
                     className="text-left p-3 font-medium text-gray-700 cursor-pointer"
-                    onClick={() => handleSort('customerName')}
+                    onClick={() => handleSort("customerName")}
                   >
                     <div className="flex items-center">
                       Customer
-                      {sortConfig.key === 'customerName' && (
-                        sortConfig.direction === 'ascending' ? 
-                        <ChevronUp className="h-4 w-4 ml-1" /> : 
-                        <ChevronDown className="h-4 w-4 ml-1" />
-                      )}
+                      {sortConfig.key === "customerName" &&
+                        (sortConfig.direction === "ascending" ? (
+                          <ChevronUp className="h-4 w-4 ml-1" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 ml-1" />
+                        ))}
                     </div>
                   </th>
-                  <th className="text-left p-3 font-medium text-gray-700">Customer Code</th>
-                  <th className="text-left p-3 font-medium text-gray-700">Aadhar</th>
-                  <th 
+                  <th className="text-left p-3 font-medium text-gray-700">
+                    Customer Code
+                  </th>
+                  <th className="text-left p-3 font-medium text-gray-700">
+                    Aadhar
+                  </th>
+                  <th
                     className="text-left p-3 font-medium text-gray-700 cursor-pointer"
-                    onClick={() => handleSort('loanAmount')}
+                    onClick={() => handleSort("loanAmount")}
                   >
                     <div className="flex items-center">
                       Loan Amount
-                      {sortConfig.key === 'loanAmount' && (
-                        sortConfig.direction === 'ascending' ? 
-                        <ChevronUp className="h-4 w-4 ml-1" /> : 
-                        <ChevronDown className="h-4 w-4 ml-1" />
-                      )}
+                      {sortConfig.key === "loanAmount" &&
+                        (sortConfig.direction === "ascending" ? (
+                          <ChevronUp className="h-4 w-4 ml-1" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 ml-1" />
+                        ))}
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="text-left p-3 font-medium text-gray-700 cursor-pointer"
-                    onClick={() => handleSort('pendingAmount')}
+                    onClick={() => handleSort("pendingAmount")}
                   >
                     <div className="flex items-center">
                       Pending Amount
-                      {sortConfig.key === 'pendingAmount' && (
-                        sortConfig.direction === 'ascending' ? 
-                        <ChevronUp className="h-4 w-4 ml-1" /> : 
-                        <ChevronDown className="h-4 w-4 ml-1" />
-                      )}
+                      {sortConfig.key === "pendingAmount" &&
+                        (sortConfig.direction === "ascending" ? (
+                          <ChevronUp className="h-4 w-4 ml-1" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 ml-1" />
+                        ))}
                     </div>
                   </th>
-                  <th className="text-left p-3 font-medium text-gray-700">Interest Rate</th>
-                  <th 
+                  <th className="text-left p-3 font-medium text-gray-700">
+                    Interest Rate
+                  </th>
+                  <th
                     className="text-left p-3 font-medium text-gray-700 cursor-pointer"
-                    onClick={() => handleSort('loanDate')}
+                    onClick={() => handleSort("loanDate")}
                   >
                     <div className="flex items-center">
                       Loan Date
-                      {sortConfig.key === 'loanDate' && (
-                        sortConfig.direction === 'ascending' ? 
-                        <ChevronUp className="h-4 w-4 ml-1" /> : 
-                        <ChevronDown className="h-4 w-4 ml-1" />
-                      )}
+                      {sortConfig.key === "loanDate" &&
+                        (sortConfig.direction === "ascending" ? (
+                          <ChevronUp className="h-4 w-4 ml-1" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 ml-1" />
+                        ))}
                     </div>
                   </th>
-                  <th className="text-left p-3 font-medium text-gray-700">Status</th>
-                  <th className="text-left p-3 font-medium text-gray-700">Actions</th>
+                  <th className="text-left p-3 font-medium text-gray-700">
+                    Status
+                  </th>
+                  <th className="text-left p-3 font-medium text-gray-700">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -728,14 +768,21 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                     <td colSpan={9} className="p-8 text-center text-gray-500">
                       <div className="flex flex-col items-center">
                         <User className="h-12 w-12 text-gray-300 mb-2" />
-                        <p className="text-gray-600 font-medium">No loans found</p>
-                        <p className="text-sm text-gray-500 mt-1">Try adjusting your search or filter criteria</p>
+                        <p className="text-gray-600 font-medium">
+                          No loans found
+                        </p>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Try adjusting your search or filter criteria
+                        </p>
                       </div>
                     </td>
                   </tr>
                 ) : (
                   paginatedLoans.map((loan) => (
-                    <tr key={loan.id} className="hover:bg-gray-50 transition-colors">
+                    <tr
+                      key={loan.id}
+                      className="hover:bg-gray-50 transition-colors"
+                    >
                       <td className="p-3">
                         <div className="flex items-center gap-3">
                           {loan.customer?.photoUrl ? (
@@ -759,17 +806,25 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                           {loan.customer?.customerCode || "N/A"}
                         </span>
                       </td>
-                      <td className="p-3 text-gray-600">{loan.customer?.aadhar || "N/A"}</td>
+                      <td className="p-3 text-gray-600">
+                        {loan.customer?.aadhar || "N/A"}
+                      </td>
                       <td className="p-3 font-medium text-gray-900">
                         <div className="flex items-center">
-                          <DollarSign className="h-4 w-4 mr-1 text-gray-500" />
-                          ₹{Number(loan.loanAmount || 0).toLocaleString()}
+                          <DollarSign className="h-4 w-4 mr-1 text-gray-500" />₹
+                          {Number(loan.loanAmount || 0).toLocaleString()}
                         </div>
                       </td>
                       <td className="p-3 font-medium">
                         <div className="flex items-center">
                           <DollarSign className="h-4 w-4 mr-1 text-gray-500" />
-                          <span className={loan.pendingAmount > 0 ? "text-amber-600" : "text-green-600"}>
+                          <span
+                            className={
+                              loan.pendingAmount > 0
+                                ? "text-amber-600"
+                                : "text-green-600"
+                            }
+                          >
                             ₹{Number(loan.pendingAmount || 0).toLocaleString()}
                           </span>
                         </div>
@@ -784,19 +839,22 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                         <div className="flex items-center">
                           <Calendar className="h-4 w-4 mr-2 text-gray-500" />
                           {loan.loanDate
-                            ? new Date(loan.loanDate).toLocaleDateString("en-IN", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              })
+                            ? new Date(loan.loanDate).toLocaleDateString(
+                                "en-IN",
+                                {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                }
+                              )
                             : "N/A"}
                         </div>
                       </td>
                       <td className="p-3">
-                        <StatusBadge 
-                          status={loan.status} 
-                          pendingAmount={loan.pendingAmount} 
-                          loanAmount={loan.loanAmount} 
+                        <StatusBadge
+                          status={loan.status}
+                          pendingAmount={loan.pendingAmount}
+                          loanAmount={loan.loanAmount}
                         />
                       </td>
                       <td className="p-3">
@@ -896,48 +954,79 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
           {selectedLoan && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-600">Customer Name</Label>
-                <p className="font-medium text-gray-900">{selectedLoan.customer?.name || "N/A"}</p>
+                <Label className="text-sm font-medium text-gray-600">
+                  Customer Name
+                </Label>
+                <p className="font-medium text-gray-900">
+                  {selectedLoan.customer?.name || "N/A"}
+                </p>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-600">Customer Code</Label>
-                <p className="font-medium text-gray-900">{selectedLoan.customer?.customerCode || "N/A"}</p>
+                <Label className="text-sm font-medium text-gray-600">
+                  Customer Code
+                </Label>
+                <p className="font-medium text-gray-900">
+                  {selectedLoan.customer?.customerCode || "N/A"}
+                </p>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-600">Aadhar Number</Label>
-                <p className="font-medium text-gray-900">{selectedLoan.customer?.aadhar || "N/A"}</p>
+                <Label className="text-sm font-medium text-gray-600">
+                  Aadhar Number
+                </Label>
+                <p className="font-medium text-gray-900">
+                  {selectedLoan.customer?.aadhar || "N/A"}
+                </p>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-600">Loan Amount</Label>
-                <p className="font-medium text-gray-900">₹{Number(selectedLoan.loanAmount || 0).toLocaleString()}</p>
+                <Label className="text-sm font-medium text-gray-600">
+                  Loan Amount
+                </Label>
+                <p className="font-medium text-gray-900">
+                  ₹{Number(selectedLoan.loanAmount || 0).toLocaleString()}
+                </p>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-600">Pending Amount</Label>
-                <p className="font-medium text-gray-900">₹{Number(selectedLoan.pendingAmount || 0).toLocaleString()}</p>
+                <Label className="text-sm font-medium text-gray-600">
+                  Pending Amount
+                </Label>
+                <p className="font-medium text-gray-900">
+                  ₹{Number(selectedLoan.pendingAmount || 0).toLocaleString()}
+                </p>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-600">Interest Rate</Label>
-                <p className="font-medium text-gray-900">{Number(selectedLoan.rate || 0).toFixed(1)}%</p>
+                <Label className="text-sm font-medium text-gray-600">
+                  Interest Rate
+                </Label>
+                <p className="font-medium text-gray-900">
+                  {Number(selectedLoan.rate || 0).toFixed(1)}%
+                </p>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-600">Loan Date</Label>
+                <Label className="text-sm font-medium text-gray-600">
+                  Loan Date
+                </Label>
                 <p className="font-medium text-gray-900">
                   {selectedLoan.loanDate
-                    ? new Date(selectedLoan.loanDate).toLocaleDateString("en-IN", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })
+                    ? new Date(selectedLoan.loanDate).toLocaleDateString(
+                        "en-IN",
+                        {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        }
+                      )
                     : "N/A"}
                 </p>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-600">Status</Label>
+                <Label className="text-sm font-medium text-gray-600">
+                  Status
+                </Label>
                 <p className="font-medium">
-                  <StatusBadge 
-                    status={selectedLoan.status} 
-                    pendingAmount={selectedLoan.pendingAmount} 
-                    loanAmount={selectedLoan.loanAmount} 
+                  <StatusBadge
+                    status={selectedLoan.status}
+                    pendingAmount={selectedLoan.pendingAmount}
+                    loanAmount={selectedLoan.loanAmount}
                   />
                 </p>
               </div>
@@ -961,11 +1050,15 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
           <form onSubmit={handleSubmitEdit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="customerId" className="text-sm font-medium">Customer</Label>
-                <Select 
-                  name="customerId" 
-                  value={formData.customerId} 
-                  onValueChange={(value) => setFormData({...formData, customerId: value})}
+                <Label htmlFor="customerId" className="text-sm font-medium">
+                  Customer
+                </Label>
+                <Select
+                  name="customerId"
+                  value={formData.customerId}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, customerId: value })
+                  }
                 >
                   <SelectTrigger className="border-gray-300 focus:ring-blue-500 focus:border-blue-500">
                     <SelectValue placeholder="Select a customer" />
@@ -980,7 +1073,9 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="loanAmount" className="text-sm font-medium">Loan Amount (₹)</Label>
+                <Label htmlFor="loanAmount" className="text-sm font-medium">
+                  Loan Amount (₹)
+                </Label>
                 <Input
                   id="loanAmount"
                   name="loanAmount"
@@ -992,7 +1087,9 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pendingAmount" className="text-sm font-medium">Pending Amount (₹)</Label>
+                <Label htmlFor="pendingAmount" className="text-sm font-medium">
+                  Pending Amount (₹)
+                </Label>
                 <Input
                   id="pendingAmount"
                   name="pendingAmount"
@@ -1004,7 +1101,9 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="rate" className="text-sm font-medium">Interest Rate (%)</Label>
+                <Label htmlFor="rate" className="text-sm font-medium">
+                  Interest Rate (%)
+                </Label>
                 <Input
                   id="rate"
                   name="rate"
@@ -1017,7 +1116,9 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="loanDate" className="text-sm font-medium">Loan Date</Label>
+                <Label htmlFor="loanDate" className="text-sm font-medium">
+                  Loan Date
+                </Label>
                 <Input
                   id="loanDate"
                   name="loanDate"
@@ -1030,7 +1131,11 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditDialogOpen(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit">Save Changes</Button>
@@ -1044,18 +1149,23 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl">Create New Loan</DialogTitle>
-            <DialogDescription>
-              Add a new loan to the system.
-            </DialogDescription>
+            <DialogDescription>Add a new loan to the system.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmitCreate}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="create-customerId" className="text-sm font-medium">Customer</Label>
-                <Select 
-                  name="customerId" 
-                  value={formData.customerId} 
-                  onValueChange={(value) => setFormData({...formData, customerId: value})}
+                <Label
+                  htmlFor="create-customerId"
+                  className="text-sm font-medium"
+                >
+                  Customer
+                </Label>
+                <Select
+                  name="customerId"
+                  value={formData.customerId}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, customerId: value })
+                  }
                 >
                   <SelectTrigger className="border-gray-300 focus:ring-blue-500 focus:border-blue-500">
                     <SelectValue placeholder="Select a customer" />
@@ -1070,7 +1180,12 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-loanAmount" className="text-sm font-medium">Loan Amount (₹)</Label>
+                <Label
+                  htmlFor="create-loanAmount"
+                  className="text-sm font-medium"
+                >
+                  Loan Amount (₹)
+                </Label>
                 <Input
                   id="create-loanAmount"
                   name="loanAmount"
@@ -1082,7 +1197,12 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-pendingAmount" className="text-sm font-medium">Pending Amount (₹)</Label>
+                <Label
+                  htmlFor="create-pendingAmount"
+                  className="text-sm font-medium"
+                >
+                  Pending Amount (₹)
+                </Label>
                 <Input
                   id="create-pendingAmount"
                   name="pendingAmount"
@@ -1094,7 +1214,9 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-rate" className="text-sm font-medium">Interest Rate (%)</Label>
+                <Label htmlFor="create-rate" className="text-sm font-medium">
+                  Interest Rate (%)
+                </Label>
                 <Input
                   id="create-rate"
                   name="rate"
@@ -1107,7 +1229,12 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-loanDate" className="text-sm font-medium">Loan Date</Label>
+                <Label
+                  htmlFor="create-loanDate"
+                  className="text-sm font-medium"
+                >
+                  Loan Date
+                </Label>
                 <Input
                   id="create-loanDate"
                   name="loanDate"
@@ -1120,7 +1247,11 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateDialogOpen(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit">Create Loan</Button>
@@ -1130,18 +1261,24 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the loan for{" "}
-              {selectedLoan?.customer?.name || "this customer"}.
+              This action cannot be undone. This will permanently delete the
+              loan for {selectedLoan?.customer?.name || "this customer"}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
