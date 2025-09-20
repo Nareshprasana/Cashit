@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AllCustomerTable from "@/components/AllCustomerTable";
+import LoanTable from "./LoanTable";
 
 const user = { name: "Admin", image: "/profile-user.png", isLoggedIn: true };
 
@@ -50,7 +51,8 @@ const LoanPage = () => {
           )}
         </button>
       </div>
-      <AllCustomerTable loans={loans} />
+      {/* <AllCustomerTable loans={loans} /> */}
+      <LoanTable loans={loans} loading={loading} />
     </div>
   );
 };
