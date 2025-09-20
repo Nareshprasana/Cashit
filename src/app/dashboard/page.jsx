@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import CustomerTable from "@/components/customers/CustomerTable/index";
+import AllCustomerTable from "@/components/AllCustomerTable";
 
 const DemodashboardPage = () => {
   const { data: session, status } = useSession();
@@ -189,7 +189,7 @@ const DemodashboardPage = () => {
                 </div>
               ) : (
                 // Replace AllCustomerTable with CustomerTable
-                <CustomerTable />
+                <AllCustomerTable />
               )}
             </div>
           </div>
