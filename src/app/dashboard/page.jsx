@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ChartLineMultiple } from "@/components/chart-line-multiple.jsx";
-import { AllCustomerTable } from "@/components/AllCustomerTable.jsx";
 import { SectionCards } from "@/components/section-cards";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -189,7 +188,7 @@ const DemodashboardPage = () => {
                   <Loader2 className="h-10 w-10 animate-spin text-green-500" />
                 </div>
               ) : (
-                // <AllCustomerTable />
+                // Replace AllCustomerTable with CustomerTable
                 <CustomerTable />
               )}
             </div>
@@ -210,4 +209,4 @@ const DemodashboardPage = () => {
   );
 };
 
-export default DemodashboardPage;
+export default DemoDashboardPage;
