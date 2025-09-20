@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import CustomerTable from "@/components/customers/CustomerTable";
+import CustomerTable from "@/components/customers/CustomerTable/index";
 
 const DemodashboardPage = () => {
   const { data: session, status } = useSession();
