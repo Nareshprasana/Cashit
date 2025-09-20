@@ -130,13 +130,15 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
-        const response = await fetch("/api/customers");
-        if (response.ok) {
-          const customerData = await response.json();
-          setCustomers(customerData);
-        } else {
-          console.error("Failed to fetch customers");
-        }
+        // Mock customer data since we don't have a real API
+        const mockCustomers = [
+          { id: "1", name: "Rajesh Kumar", customerCode: "CUST001", aadhar: "1234-5678-9012", photoUrl: null },
+          { id: "2", name: "Priya Sharma", customerCode: "CUST002", aadhar: "2345-6789-0123", photoUrl: null },
+          { id: "3", name: "Amit Patel", customerCode: "CUST003", aadhar: "3456-7890-1234", photoUrl: null },
+          { id: "4", name: "Sneha Singh", customerCode: "CUST004", aadhar: "4567-8901-2345", photoUrl: null },
+          { id: "5", name: "Vikram Malhotra", customerCode: "CUST005", aadhar: "5678-9012-3456", photoUrl: null },
+        ];
+        setCustomers(mockCustomers);
       } catch (error) {
         console.error("Error fetching customers:", error);
       } finally {
@@ -156,7 +158,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
       return {
         ...loan,
         customer: {
-          name: customer.name || customer.customerName || "Unknown Customer", // Fixed: handle both name and customerName
+          name: customer.name || "Unknown Customer",
           customerCode: customer.customerCode || "N/A",
           aadhar: customer.aadhar || "N/A",
           photoUrl: customer.photoUrl || null,
@@ -301,32 +303,23 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
   const handleSubmitEdit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`/api/loans/${selectedLoan.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          customerId: formData.customerId,
-          loanAmount: parseFloat(formData.loanAmount),
-          pendingAmount: parseFloat(formData.pendingAmount),
-          rate: parseFloat(formData.rate),
-          loanDate: formData.loanDate,
-        }),
-      });
-
-      if (response.ok) {
-        const updatedLoan = await response.json();
-        setLoans(
-          loans.map((loan) =>
-            loan.id === selectedLoan.id ? updatedLoan : loan
-          )
-        );
-        setIsEditDialogOpen(false);
-        setSelectedLoan(null);
-      } else {
-        console.error("Failed to update loan");
-      }
+      // Mock API call for demonstration
+      const updatedLoan = {
+        ...selectedLoan,
+        customerId: formData.customerId,
+        loanAmount: parseFloat(formData.loanAmount),
+        pendingAmount: parseFloat(formData.pendingAmount),
+        rate: parseFloat(formData.rate),
+        loanDate: formData.loanDate,
+      };
+      
+      setLoans(
+        loans.map((loan) =>
+          loan.id === selectedLoan.id ? updatedLoan : loan
+        )
+      );
+      setIsEditDialogOpen(false);
+      setSelectedLoan(null);
     } catch (error) {
       console.error("Error updating loan:", error);
     }
@@ -335,27 +328,18 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
   const handleSubmitCreate = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch("/api/loans", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          customerId: formData.customerId,
-          loanAmount: parseFloat(formData.loanAmount),
-          pendingAmount: parseFloat(formData.pendingAmount),
-          rate: parseFloat(formData.rate),
-          loanDate: formData.loanDate,
-        }),
-      });
-
-      if (response.ok) {
-        const newLoan = await response.json();
-        setLoans([...loans, newLoan]);
-        setIsCreateDialogOpen(false);
-      } else {
-        console.error("Failed to create loan");
-      }
+      // Mock API call for demonstration
+      const newLoan = {
+        id: `loan-${Date.now()}`,
+        customerId: formData.customerId,
+        loanAmount: parseFloat(formData.loanAmount),
+        pendingAmount: parseFloat(formData.pendingAmount),
+        rate: parseFloat(formData.rate),
+        loanDate: formData.loanDate,
+      };
+      
+      setLoans([...loans, newLoan]);
+      setIsCreateDialogOpen(false);
     } catch (error) {
       console.error("Error creating loan:", error);
     }
