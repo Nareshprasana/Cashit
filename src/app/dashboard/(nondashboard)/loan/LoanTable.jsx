@@ -28,8 +28,11 @@ import {
 } from "@/components/ui/pagination";
 
 // Status badge component
-const StatusBadge = ({ status }) => {
-  switch (status) {
+const StatusBadge = ({ status, pendingAmount, loanAmount }) => {
+  // Determine status based on pending amount if status is not explicitly provided
+  const actualStatus = status || (pendingAmount > 0 ? "ACTIVE" : "CLOSED");
+  
+  switch (actualStatus) {
     case "ACTIVE":
       return (
         <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
@@ -52,7 +55,7 @@ const StatusBadge = ({ status }) => {
         </Badge>
       );
     default:
-      return <Badge variant="outline">{status}</Badge>;
+      return <Badge variant="outline">{actualStatus}</Badge>;
   }
 };
 
@@ -67,14 +70,19 @@ const LoanTable = ({ loans, loading }) => {
 
   // Filter loans based on search criteria
   const filteredLoans = loans.filter((loan) => {
+    const customerName = loan.customer?.name || "";
+    const customerCode = loan.customer?.customerCode || "";
+    const aadhar = loan.customer?.aadhar || "";
+
     const matchesGlobal =
       !globalFilter ||
-      loan.customer?.name?.toLowerCase().includes(globalFilter.toLowerCase()) ||
-      loan.customer?.customerCode?.toLowerCase().includes(globalFilter.toLowerCase()) ||
-      loan.customer?.aadhar?.includes(globalFilter);
+      customerName.toLowerCase().includes(globalFilter.toLowerCase()) ||
+      customerCode.toLowerCase().includes(globalFilter.toLowerCase()) ||
+      aadhar.includes(globalFilter);
 
-    const matchesStatus =
-      !statusFilter || loan.status === statusFilter;
+    // Determine status based on pending amount
+    const loanStatus = loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED";
+    const matchesStatus = !statusFilter || loanStatus === statusFilter;
 
     const loanDate = loan.loanDate ? new Date(loan.loanDate) : null;
     const matchesFromDate =
@@ -317,6 +325,7 @@ const LoanTable = ({ loans, loading }) => {
                   <th className="text-left p-3 font-medium">Customer Code</th>
                   <th className="text-left p-3 font-medium">Aadhar</th>
                   <th className="text-left p-3 font-medium">Loan Amount</th>
+                  <th className="text-left p-3 font-medium">Pending Amount</th>
                   <th className="text-left p-3 font-medium">Loan Date</th>
                   <th className="text-left p-3 font-medium">Status</th>
                   <th className="text-left p-3 font-medium">Actions</th>
@@ -325,7 +334,7 @@ const LoanTable = ({ loans, loading }) => {
               <tbody className="divide-y">
                 {paginatedLoans.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-500">
+                    <td colSpan={8} className="p-8 text-center text-gray-500">
                       <div className="flex flex-col items-center">
                         <User className="h-12 w-12 text-gray-300 mb-2" />
                         <p>No loans found matching your criteria</p>
@@ -362,7 +371,13 @@ const LoanTable = ({ loans, loading }) => {
                       <td className="p-3 font-medium">
                         <div className="flex items-center">
                           <DollarSign className="h-4 w-4 mr-1 text-gray-500" />
-                          ₹{Number(loan.amount || 0).toLocaleString()}
+                          ₹{Number(loan.loanAmount || 0).toLocaleString()}
+                        </div>
+                      </td>
+                      <td className="p-3 font-medium">
+                        <div className="flex items-center">
+                          <DollarSign className="h-4 w-4 mr-1 text-gray-500" />
+                          ₹{Number(loan.pendingAmount || 0).toLocaleString()}
                         </div>
                       </td>
                       <td className="p-3">
@@ -378,7 +393,11 @@ const LoanTable = ({ loans, loading }) => {
                         </div>
                       </td>
                       <td className="p-3">
-                        <StatusBadge status={loan.status} />
+                        <StatusBadge 
+                          status={loan.status} 
+                          pendingAmount={loan.pendingAmount} 
+                          loanAmount={loan.loanAmount} 
+                        />
                       </td>
                       <td className="p-3">
                         <div className="flex gap-2">

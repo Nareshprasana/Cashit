@@ -1,4 +1,3 @@
-// app/api/loans/route.js
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
@@ -23,15 +22,20 @@ export async function GET(req) {
       return NextResponse.json({ active }, { status: 200 });
     }
 
-    // Otherwise return full loan list
+    // Otherwise return full loan list with customer data
     const loans = await prisma.loan.findMany({
-      select: {
-        id: true,
-        amount: true,
-        loanAmount: true,
-        pendingAmount: true,
-        loanDate: true,
-        createdAt: true,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            customerCode: true,
+            aadhar: true,
+            photoUrl: true,
+            mobile: true,
+            area: true
+          }
+        }
       },
       orderBy: { createdAt: "asc" },
     });
