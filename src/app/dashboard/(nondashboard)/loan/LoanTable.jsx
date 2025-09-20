@@ -12,6 +12,9 @@ import {
   XCircle,
   Clock,
   Percent,
+  Plus,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +30,24 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Status badge component
 const StatusBadge = ({ status, pendingAmount, loanAmount }) => {
@@ -60,7 +81,8 @@ const StatusBadge = ({ status, pendingAmount, loanAmount }) => {
   }
 };
 
-const LoanTable = ({ loans, loading }) => {
+const LoanTable = ({ loans: initialLoans, loading }) => {
+  const [loans, setLoans] = useState(initialLoans);
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -68,6 +90,23 @@ const LoanTable = ({ loans, loading }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  
+  // CRUD state
+  const [selectedLoan, setSelectedLoan] = useState(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    customerName: "",
+    customerCode: "",
+    aadhar: "",
+    loanAmount: "",
+    pendingAmount: "",
+    rate: "",
+    loanDate: "",
+    status: "ACTIVE"
+  });
 
   // Filter loans based on search criteria
   const filteredLoans = loans.filter((loan) => {
@@ -100,6 +139,106 @@ const LoanTable = ({ loans, loading }) => {
     (currentPage - 1) * rowsPerPage,
     currentPage * rowsPerPage
   );
+
+  // CRUD Operations
+  const handleViewLoan = (loan) => {
+    setSelectedLoan(loan);
+    setIsViewDialogOpen(true);
+  };
+
+  const handleEditLoan = (loan) => {
+    setSelectedLoan(loan);
+    setFormData({
+      customerName: loan.customer?.name || "",
+      customerCode: loan.customer?.customerCode || "",
+      aadhar: loan.customer?.aadhar || "",
+      loanAmount: loan.loanAmount || "",
+      pendingAmount: loan.pendingAmount || "",
+      rate: loan.rate || "",
+      loanDate: loan.loanDate ? new Date(loan.loanDate).toISOString().split('T')[0] : "",
+      status: loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED"
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteLoan = (loan) => {
+    setSelectedLoan(loan);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleCreateLoan = () => {
+    setFormData({
+      customerName: "",
+      customerCode: "",
+      aadhar: "",
+      loanAmount: "",
+      pendingAmount: "",
+      rate: "",
+      loanDate: new Date().toISOString().split('T')[0],
+      status: "ACTIVE"
+    });
+    setIsCreateDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    setLoans(loans.filter(loan => loan.id !== selectedLoan.id));
+    setIsDeleteDialogOpen(false);
+    setSelectedLoan(null);
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmitEdit = (e) => {
+    e.preventDefault();
+    const updatedLoans = loans.map(loan => {
+      if (loan.id === selectedLoan.id) {
+        return {
+          ...loan,
+          loanAmount: parseFloat(formData.loanAmount),
+          pendingAmount: parseFloat(formData.pendingAmount),
+          rate: parseFloat(formData.rate),
+          loanDate: formData.loanDate,
+          customer: {
+            ...loan.customer,
+            name: formData.customerName,
+            customerCode: formData.customerCode,
+            aadhar: formData.aadhar
+          }
+        };
+      }
+      return loan;
+    });
+    
+    setLoans(updatedLoans);
+    setIsEditDialogOpen(false);
+    setSelectedLoan(null);
+  };
+
+  const handleSubmitCreate = (e) => {
+    e.preventDefault();
+    const newLoan = {
+      id: Date.now().toString(), // Simple ID generation
+      loanAmount: parseFloat(formData.loanAmount),
+      pendingAmount: parseFloat(formData.pendingAmount),
+      rate: parseFloat(formData.rate),
+      loanDate: formData.loanDate,
+      customer: {
+        name: formData.customerName,
+        customerCode: formData.customerCode,
+        aadhar: formData.aadhar,
+        photoUrl: null
+      }
+    };
+    
+    setLoans([...loans, newLoan]);
+    setIsCreateDialogOpen(false);
+  };
 
   // Render pagination controls
   const renderPageWindow = () => {
@@ -195,6 +334,15 @@ const LoanTable = ({ loans, loading }) => {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Header with Create Button */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Loan Management</h2>
+        <Button onClick={handleCreateLoan} className="flex items-center gap-2">
+          <Plus className="h-4 w-4" />
+          Add New Loan
+        </Button>
+      </div>
+
       {/* Filters Card */}
       <Card>
         <CardHeader className="pb-3">
@@ -412,14 +560,29 @@ const LoanTable = ({ loans, loading }) => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              // View loan details
-                              console.log("View loan:", loan.id);
-                            }}
+                            onClick={() => handleViewLoan(loan)}
                             className="flex items-center gap-1"
                           >
                             <Eye className="h-4 w-4" />
                             View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditLoan(loan)}
+                            className="flex items-center gap-1"
+                          >
+                            <Edit className="h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteLoan(loan)}
+                            className="flex items-center gap-1 text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
                           </Button>
                         </div>
                       </td>
@@ -476,6 +639,284 @@ const LoanTable = ({ loans, loading }) => {
           </Pagination>
         </div>
       )}
+
+      {/* View Loan Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Loan Details</DialogTitle>
+            <DialogDescription>
+              View detailed information about this loan.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedLoan && (
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Customer Name</Label>
+                <p className="font-medium">{selectedLoan.customer?.name || "N/A"}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Customer Code</Label>
+                <p className="font-medium">{selectedLoan.customer?.customerCode || "N/A"}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Aadhar Number</Label>
+                <p className="font-medium">{selectedLoan.customer?.aadhar || "N/A"}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Loan Amount</Label>
+                <p className="font-medium">₹{Number(selectedLoan.loanAmount || 0).toLocaleString()}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Pending Amount</Label>
+                <p className="font-medium">₹{Number(selectedLoan.pendingAmount || 0).toLocaleString()}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Interest Rate</Label>
+                <p className="font-medium">{Number(selectedLoan.rate || 0).toFixed(1)}%</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Loan Date</Label>
+                <p className="font-medium">
+                  {selectedLoan.loanDate
+                    ? new Date(selectedLoan.loanDate).toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "N/A"}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <p className="font-medium">
+                  <StatusBadge 
+                    status={selectedLoan.status} 
+                    pendingAmount={selectedLoan.pendingAmount} 
+                    loanAmount={selectedLoan.loanAmount} 
+                  />
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setIsViewDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Loan Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Loan</DialogTitle>
+            <DialogDescription>
+              Update the loan information below.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmitEdit}>
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="customerName">Customer Name</Label>
+                <Input
+                  id="customerName"
+                  name="customerName"
+                  value={formData.customerName}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customerCode">Customer Code</Label>
+                <Input
+                  id="customerCode"
+                  name="customerCode"
+                  value={formData.customerCode}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="aadhar">Aadhar Number</Label>
+                <Input
+                  id="aadhar"
+                  name="aadhar"
+                  value={formData.aadhar}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="loanAmount">Loan Amount (₹)</Label>
+                <Input
+                  id="loanAmount"
+                  name="loanAmount"
+                  type="number"
+                  value={formData.loanAmount}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pendingAmount">Pending Amount (₹)</Label>
+                <Input
+                  id="pendingAmount"
+                  name="pendingAmount"
+                  type="number"
+                  value={formData.pendingAmount}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rate">Interest Rate (%)</Label>
+                <Input
+                  id="rate"
+                  name="rate"
+                  type="number"
+                  step="0.1"
+                  value={formData.rate}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="loanDate">Loan Date</Label>
+                <Input
+                  id="loanDate"
+                  name="loanDate"
+                  type="date"
+                  value={formData.loanDate}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Save Changes</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Loan Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Loan</DialogTitle>
+            <DialogDescription>
+              Add a new loan to the system.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmitCreate}>
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="create-customerName">Customer Name</Label>
+                <Input
+                  id="create-customerName"
+                  name="customerName"
+                  value={formData.customerName}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-customerCode">Customer Code</Label>
+                <Input
+                  id="create-customerCode"
+                  name="customerCode"
+                  value={formData.customerCode}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-aadhar">Aadhar Number</Label>
+                <Input
+                  id="create-aadhar"
+                  name="aadhar"
+                  value={formData.aadhar}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-loanAmount">Loan Amount (₹)</Label>
+                <Input
+                  id="create-loanAmount"
+                  name="loanAmount"
+                  type="number"
+                  value={formData.loanAmount}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-pendingAmount">Pending Amount (₹)</Label>
+                <Input
+                  id="create-pendingAmount"
+                  name="pendingAmount"
+                  type="number"
+                  value={formData.pendingAmount}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-rate">Interest Rate (%)</Label>
+                <Input
+                  id="create-rate"
+                  name="rate"
+                  type="number"
+                  step="0.1"
+                  value={formData.rate}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-loanDate">Loan Date</Label>
+                <Input
+                  id="create-loanDate"
+                  name="loanDate"
+                  type="date"
+                  value={formData.loanDate}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Create Loan</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the loan for{" "}
+              {selectedLoan?.customer?.name || "this customer"}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
