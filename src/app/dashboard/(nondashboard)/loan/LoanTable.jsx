@@ -15,6 +15,8 @@ import {
   Plus,
   Edit,
   Trash2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +50,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Status badge component
 const StatusBadge = ({ status, pendingAmount, loanAmount }) => {
@@ -57,27 +67,27 @@ const StatusBadge = ({ status, pendingAmount, loanAmount }) => {
   switch (actualStatus) {
     case "ACTIVE":
       return (
-        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 px-2 py-1">
           <Clock className="h-3 w-3 mr-1" />
           Active
         </Badge>
       );
     case "CLOSED":
       return (
-        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+        <Badge className="bg-green-100 text-green-800 hover:bg-green-100 px-2 py-1">
           <CheckCircle className="h-3 w-3 mr-1" />
           Completed
         </Badge>
       );
     case "NEVER_OPENED":
       return (
-        <Badge variant="outline" className="text-gray-600">
+        <Badge variant="outline" className="text-gray-600 px-2 py-1">
           <XCircle className="h-3 w-3 mr-1" />
           Never Opened
         </Badge>
       );
     default:
-      return <Badge variant="outline">{actualStatus}</Badge>;
+      return <Badge variant="outline" className="px-2 py-1">{actualStatus}</Badge>;
   }
 };
 
@@ -90,6 +100,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
   
   // CRUD state
   const [selectedLoan, setSelectedLoan] = useState(null);
@@ -107,6 +118,15 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
     loanDate: "",
     status: "ACTIVE"
   });
+
+  // Sort function
+  const handleSort = (key) => {
+    let direction = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
 
   // Filter loans based on search criteria
   const filteredLoans = loans.filter((loan) => {
@@ -133,9 +153,50 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
     return matchesGlobal && matchesStatus && matchesFromDate && matchesToDate;
   });
 
+  // Sort filtered loans
+  const sortedLoans = React.useMemo(() => {
+    let sortableItems = [...filteredLoans];
+    if (sortConfig.key !== null) {
+      sortableItems.sort((a, b) => {
+        if (sortConfig.key === 'customerName') {
+          const aValue = a.customer?.name || "";
+          const bValue = b.customer?.name || "";
+          if (aValue < bValue) {
+            return sortConfig.direction === 'ascending' ? -1 : 1;
+          }
+          if (aValue > bValue) {
+            return sortConfig.direction === 'ascending' ? 1 : -1;
+          }
+          return 0;
+        } else if (sortConfig.key === 'loanDate') {
+          const aValue = new Date(a.loanDate || 0);
+          const bValue = new Date(b.loanDate || 0);
+          if (aValue < bValue) {
+            return sortConfig.direction === 'ascending' ? -1 : 1;
+          }
+          if (aValue > bValue) {
+            return sortConfig.direction === 'ascending' ? 1 : -1;
+          }
+          return 0;
+        } else {
+          const aValue = a[sortConfig.key] || 0;
+          const bValue = b[sortConfig.key] || 0;
+          if (aValue < bValue) {
+            return sortConfig.direction === 'ascending' ? -1 : 1;
+          }
+          if (aValue > bValue) {
+            return sortConfig.direction === 'ascending' ? 1 : -1;
+          }
+          return 0;
+        }
+      });
+    }
+    return sortableItems;
+  }, [filteredLoans, sortConfig]);
+
   // Pagination
-  const totalPages = Math.ceil(filteredLoans.length / rowsPerPage) || 1;
-  const paginatedLoans = filteredLoans.slice(
+  const totalPages = Math.ceil(sortedLoans.length / rowsPerPage) || 1;
+  const paginatedLoans = sortedLoans.slice(
     (currentPage - 1) * rowsPerPage,
     currentPage * rowsPerPage
   );
@@ -333,30 +394,98 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
       {/* Header with Create Button */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Loan Management</h2>
-        <Button onClick={handleCreateLoan} className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">Loan Management</h2>
+          <p className="text-gray-600 mt-1">Manage all customer loans in one place</p>
+        </div>
+        <Button onClick={handleCreateLoan} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
           <Plus className="h-4 w-4" />
           Add New Loan
         </Button>
       </div>
 
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-white border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Loans</p>
+                <h3 className="text-2xl font-bold mt-1">{loans.length}</h3>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-full">
+                <DollarSign className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-white border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Active Loans</p>
+                <h3 className="text-2xl font-bold mt-1">
+                  {loans.filter(loan => loan.pendingAmount > 0).length}
+                </h3>
+              </div>
+              <div className="p-3 bg-green-100 rounded-full">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-white border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Completed Loans</p>
+                <h3 className="text-2xl font-bold mt-1">
+                  {loans.filter(loan => loan.pendingAmount <= 0).length}
+                </h3>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-full">
+                <Clock className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-white border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Pending</p>
+                <h3 className="text-2xl font-bold mt-1">
+                  ₹{loans.reduce((sum, loan) => sum + (loan.pendingAmount || 0), 0).toLocaleString()}
+                </h3>
+              </div>
+              <div className="p-3 bg-amber-100 rounded-full">
+                <Percent className="h-6 w-6 text-amber-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Filters Card */}
-      <Card>
+      <Card className="bg-white border-0 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex items-center gap-2">
               <Filter className="h-5 w-5 text-blue-600" />
-              <CardTitle className="text-lg">Filters</CardTitle>
+              <CardTitle className="text-lg">Filters & Search</CardTitle>
             </div>
             <div className="flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-1"
+                className="flex items-center gap-1 border-gray-300"
               >
                 {showFilters ? (
                   <X className="h-4 w-4" />
@@ -375,6 +504,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                     setFromDate("");
                     setToDate("");
                   }}
+                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                 >
                   Clear All
                 </Button>
@@ -392,7 +522,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                 placeholder="Search by customer name, code, or Aadhar number..."
                 value={globalFilter}
                 onChange={(e) => setGlobalFilter(e.target.value)}
-                className="pl-10"
+                className="pl-10 border-gray-300 focus:border-blue-500"
               />
             </div>
 
@@ -400,37 +530,59 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
             {showFilters && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
                 <div className="space-y-2">
-                  <Label className="text-sm">Status</Label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full border rounded-md px-3 py-2 text-sm"
-                  >
-                    <option value="">All Status</option>
-                    <option value="ACTIVE">Active</option>
-                    <option value="CLOSED">Completed</option>
-                    <option value="NEVER_OPENED">Never Opened</option>
-                  </select>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Status</SelectItem>
+                      <SelectItem value="ACTIVE">Active</SelectItem>
+                      <SelectItem value="CLOSED">Completed</SelectItem>
+                      <SelectItem value="NEVER_OPENED">Never Opened</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm">From Date</Label>
+                  <Label className="text-sm font-medium">From Date</Label>
                   <Input
                     type="date"
                     value={fromDate}
                     onChange={(e) => setFromDate(e.target.value)}
-                    className="text-sm"
+                    className="text-sm border-gray-300 focus:border-blue-500"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm">To Date</Label>
+                  <Label className="text-sm font-medium">To Date</Label>
                   <Input
                     type="date"
                     value={toDate}
                     onChange={(e) => setToDate(e.target.value)}
-                    className="text-sm"
+                    className="text-sm border-gray-300 focus:border-blue-500"
                   />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Rows per page</Label>
+                  <Select
+                    value={rowsPerPage.toString()}
+                    onValueChange={(value) => {
+                      setRowsPerPage(Number(value));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                      <SelectValue placeholder="Select rows" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5 rows</SelectItem>
+                      <SelectItem value="10">10 rows</SelectItem>
+                      <SelectItem value="20">20 rows</SelectItem>
+                      <SelectItem value="50">50 rows</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             )}
@@ -439,61 +591,103 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
       </Card>
 
       {/* Results Summary */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <p className="text-sm text-gray-600">
           Showing <span className="font-medium">{filteredLoans.length}</span> of{" "}
           <span className="font-medium">{loans.length}</span> loans
         </p>
+        
         <div className="flex items-center gap-2">
-          <Label className="text-sm">Rows per page:</Label>
-          <select
-            className="border rounded px-2 py-1 text-sm"
-            value={rowsPerPage}
-            onChange={(e) => {
-              setRowsPerPage(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-          >
-            {[5, 10, 20, 50].map((num) => (
-              <option key={num} value={num}>
-                {num}
-              </option>
-            ))}
-          </select>
+          <Tabs defaultValue="all" className="w-[300px]">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="active">Active</TabsTrigger>
+              <TabsTrigger value="completed">Completed</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </div>
 
       {/* Loans Table */}
-      <Card>
+      <Card className="bg-white border-0 shadow-sm overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-100">
                 <tr>
-                  <th className="text-left p-3 font-medium">Customer</th>
-                  <th className="text-left p-3 font-medium">Customer Code</th>
-                  <th className="text-left p-3 font-medium">Aadhar</th>
-                  <th className="text-left p-3 font-medium">Loan Amount</th>
-                  <th className="text-left p-3 font-medium">Pending Amount</th>
-                  <th className="text-left p-3 font-medium">Interest Rate</th>
-                  <th className="text-left p-3 font-medium">Loan Date</th>
-                  <th className="text-left p-3 font-medium">Status</th>
-                  <th className="text-left p-3 font-medium">Actions</th>
+                  <th 
+                    className="text-left p-3 font-medium text-gray-700 cursor-pointer"
+                    onClick={() => handleSort('customerName')}
+                  >
+                    <div className="flex items-center">
+                      Customer
+                      {sortConfig.key === 'customerName' && (
+                        sortConfig.direction === 'ascending' ? 
+                        <ChevronUp className="h-4 w-4 ml-1" /> : 
+                        <ChevronDown className="h-4 w-4 ml-1" />
+                      )}
+                    </div>
+                  </th>
+                  <th className="text-left p-3 font-medium text-gray-700">Customer Code</th>
+                  <th className="text-left p-3 font-medium text-gray-700">Aadhar</th>
+                  <th 
+                    className="text-left p-3 font-medium text-gray-700 cursor-pointer"
+                    onClick={() => handleSort('loanAmount')}
+                  >
+                    <div className="flex items-center">
+                      Loan Amount
+                      {sortConfig.key === 'loanAmount' && (
+                        sortConfig.direction === 'ascending' ? 
+                        <ChevronUp className="h-4 w-4 ml-1" /> : 
+                        <ChevronDown className="h-4 w-4 ml-1" />
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="text-left p-3 font-medium text-gray-700 cursor-pointer"
+                    onClick={() => handleSort('pendingAmount')}
+                  >
+                    <div className="flex items-center">
+                      Pending Amount
+                      {sortConfig.key === 'pendingAmount' && (
+                        sortConfig.direction === 'ascending' ? 
+                        <ChevronUp className="h-4 w-4 ml-1" /> : 
+                        <ChevronDown className="h-4 w-4 ml-1" />
+                      )}
+                    </div>
+                  </th>
+                  <th className="text-left p-3 font-medium text-gray-700">Interest Rate</th>
+                  <th 
+                    className="text-left p-3 font-medium text-gray-700 cursor-pointer"
+                    onClick={() => handleSort('loanDate')}
+                  >
+                    <div className="flex items-center">
+                      Loan Date
+                      {sortConfig.key === 'loanDate' && (
+                        sortConfig.direction === 'ascending' ? 
+                        <ChevronUp className="h-4 w-4 ml-1" /> : 
+                        <ChevronDown className="h-4 w-4 ml-1" />
+                      )}
+                    </div>
+                  </th>
+                  <th className="text-left p-3 font-medium text-gray-700">Status</th>
+                  <th className="text-left p-3 font-medium text-gray-700">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-gray-200">
                 {paginatedLoans.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="p-8 text-center text-gray-500">
                       <div className="flex flex-col items-center">
                         <User className="h-12 w-12 text-gray-300 mb-2" />
-                        <p>No loans found matching your criteria</p>
+                        <p className="text-gray-600 font-medium">No loans found</p>
+                        <p className="text-sm text-gray-500 mt-1">Try adjusting your search or filter criteria</p>
                       </div>
                     </td>
                   </tr>
                 ) : (
                   paginatedLoans.map((loan) => (
-                    <tr key={loan.id} className="hover:bg-gray-50">
+                    <tr key={loan.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-3">
                         <div className="flex items-center gap-3">
                           {loan.customer?.photoUrl ? (
@@ -507,18 +701,18 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                               <User className="h-4 w-4 text-gray-400" />
                             </div>
                           )}
-                          <span className="font-medium">
+                          <span className="font-medium text-gray-900">
                             {loan.customer?.name || "N/A"}
                           </span>
                         </div>
                       </td>
                       <td className="p-3">
-                        <span className="font-mono text-xs bg-blue-50 px-2 py-1 rounded">
+                        <span className="font-mono text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
                           {loan.customer?.customerCode || "N/A"}
                         </span>
                       </td>
-                      <td className="p-3">{loan.customer?.aadhar || "N/A"}</td>
-                      <td className="p-3 font-medium">
+                      <td className="p-3 text-gray-600">{loan.customer?.aadhar || "N/A"}</td>
+                      <td className="p-3 font-medium text-gray-900">
                         <div className="flex items-center">
                           <DollarSign className="h-4 w-4 mr-1 text-gray-500" />
                           ₹{Number(loan.loanAmount || 0).toLocaleString()}
@@ -527,16 +721,18 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                       <td className="p-3 font-medium">
                         <div className="flex items-center">
                           <DollarSign className="h-4 w-4 mr-1 text-gray-500" />
-                          ₹{Number(loan.pendingAmount || 0).toLocaleString()}
+                          <span className={loan.pendingAmount > 0 ? "text-amber-600" : "text-green-600"}>
+                            ₹{Number(loan.pendingAmount || 0).toLocaleString()}
+                          </span>
                         </div>
                       </td>
-                      <td className="p-3 font-medium">
+                      <td className="p-3 font-medium text-gray-900">
                         <div className="flex items-center">
                           <Percent className="h-4 w-4 mr-1 text-gray-500" />
                           {Number(loan.rate || 0).toFixed(1)}%
                         </div>
                       </td>
-                      <td className="p-3">
+                      <td className="p-3 text-gray-600">
                         <div className="flex items-center">
                           <Calendar className="h-4 w-4 mr-2 text-gray-500" />
                           {loan.loanDate
@@ -558,28 +754,28 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                       <td className="p-3">
                         <div className="flex gap-2">
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => handleViewLoan(loan)}
-                            className="flex items-center gap-1"
+                            className="flex items-center gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                           >
                             <Eye className="h-4 w-4" />
                             View
                           </Button>
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => handleEditLoan(loan)}
-                            className="flex items-center gap-1"
+                            className="flex items-center gap-1 text-gray-600 hover:text-gray-700 hover:bg-gray-100"
                           >
                             <Edit className="h-4 w-4" />
                             Edit
                           </Button>
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteLoan(loan)}
-                            className="flex items-center gap-1 text-red-600 hover:text-red-700"
+                            className="flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             <Trash2 className="h-4 w-4" />
                             Delete
@@ -597,7 +793,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
 
       {/* Table Pagination Controls */}
       {filteredLoans.length > 0 && (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 py-4">
           <p className="text-sm text-gray-600">
             Page {currentPage} of {totalPages}
           </p>
@@ -644,40 +840,40 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Loan Details</DialogTitle>
+            <DialogTitle className="text-xl">Loan Details</DialogTitle>
             <DialogDescription>
               View detailed information about this loan.
             </DialogDescription>
           </DialogHeader>
           {selectedLoan && (
-            <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
-                <Label>Customer Name</Label>
-                <p className="font-medium">{selectedLoan.customer?.name || "N/A"}</p>
+                <Label className="text-sm font-medium text-gray-600">Customer Name</Label>
+                <p className="font-medium text-gray-900">{selectedLoan.customer?.name || "N/A"}</p>
               </div>
               <div className="space-y-2">
-                <Label>Customer Code</Label>
-                <p className="font-medium">{selectedLoan.customer?.customerCode || "N/A"}</p>
+                <Label className="text-sm font-medium text-gray-600">Customer Code</Label>
+                <p className="font-medium text-gray-900">{selectedLoan.customer?.customerCode || "N/A"}</p>
               </div>
               <div className="space-y-2">
-                <Label>Aadhar Number</Label>
-                <p className="font-medium">{selectedLoan.customer?.aadhar || "N/A"}</p>
+                <Label className="text-sm font-medium text-gray-600">Aadhar Number</Label>
+                <p className="font-medium text-gray-900">{selectedLoan.customer?.aadhar || "N/A"}</p>
               </div>
               <div className="space-y-2">
-                <Label>Loan Amount</Label>
-                <p className="font-medium">₹{Number(selectedLoan.loanAmount || 0).toLocaleString()}</p>
+                <Label className="text-sm font-medium text-gray-600">Loan Amount</Label>
+                <p className="font-medium text-gray-900">₹{Number(selectedLoan.loanAmount || 0).toLocaleString()}</p>
               </div>
               <div className="space-y-2">
-                <Label>Pending Amount</Label>
-                <p className="font-medium">₹{Number(selectedLoan.pendingAmount || 0).toLocaleString()}</p>
+                <Label className="text-sm font-medium text-gray-600">Pending Amount</Label>
+                <p className="font-medium text-gray-900">₹{Number(selectedLoan.pendingAmount || 0).toLocaleString()}</p>
               </div>
               <div className="space-y-2">
-                <Label>Interest Rate</Label>
-                <p className="font-medium">{Number(selectedLoan.rate || 0).toFixed(1)}%</p>
+                <Label className="text-sm font-medium text-gray-600">Interest Rate</Label>
+                <p className="font-medium text-gray-900">{Number(selectedLoan.rate || 0).toFixed(1)}%</p>
               </div>
               <div className="space-y-2">
-                <Label>Loan Date</Label>
-                <p className="font-medium">
+                <Label className="text-sm font-medium text-gray-600">Loan Date</Label>
+                <p className="font-medium text-gray-900">
                   {selectedLoan.loanDate
                     ? new Date(selectedLoan.loanDate).toLocaleDateString("en-IN", {
                         day: "2-digit",
@@ -688,7 +884,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                 </p>
               </div>
               <div className="space-y-2">
-                <Label>Status</Label>
+                <Label className="text-sm font-medium text-gray-600">Status</Label>
                 <p className="font-medium">
                   <StatusBadge 
                     status={selectedLoan.status} 
@@ -709,45 +905,48 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Edit Loan</DialogTitle>
+            <DialogTitle className="text-xl">Edit Loan</DialogTitle>
             <DialogDescription>
               Update the loan information below.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmitEdit}>
-            <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="customerName">Customer Name</Label>
+                <Label htmlFor="customerName" className="text-sm font-medium">Customer Name</Label>
                 <Input
                   id="customerName"
                   name="customerName"
                   value={formData.customerName}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="customerCode">Customer Code</Label>
+                <Label htmlFor="customerCode" className="text-sm font-medium">Customer Code</Label>
                 <Input
                   id="customerCode"
                   name="customerCode"
                   value={formData.customerCode}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="aadhar">Aadhar Number</Label>
+                <Label htmlFor="aadhar" className="text-sm font-medium">Aadhar Number</Label>
                 <Input
                   id="aadhar"
                   name="aadhar"
                   value={formData.aadhar}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="loanAmount">Loan Amount (₹)</Label>
+                <Label htmlFor="loanAmount" className="text-sm font-medium">Loan Amount (₹)</Label>
                 <Input
                   id="loanAmount"
                   name="loanAmount"
@@ -755,10 +954,11 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                   value={formData.loanAmount}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pendingAmount">Pending Amount (₹)</Label>
+                <Label htmlFor="pendingAmount" className="text-sm font-medium">Pending Amount (₹)</Label>
                 <Input
                   id="pendingAmount"
                   name="pendingAmount"
@@ -766,10 +966,11 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                   value={formData.pendingAmount}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="rate">Interest Rate (%)</Label>
+                <Label htmlFor="rate" className="text-sm font-medium">Interest Rate (%)</Label>
                 <Input
                   id="rate"
                   name="rate"
@@ -778,10 +979,11 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                   value={formData.rate}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="loanDate">Loan Date</Label>
+                <Label htmlFor="loanDate" className="text-sm font-medium">Loan Date</Label>
                 <Input
                   id="loanDate"
                   name="loanDate"
@@ -789,6 +991,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                   value={formData.loanDate}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
             </div>
@@ -806,45 +1009,48 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Create New Loan</DialogTitle>
+            <DialogTitle className="text-xl">Create New Loan</DialogTitle>
             <DialogDescription>
               Add a new loan to the system.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmitCreate}>
-            <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="create-customerName">Customer Name</Label>
+                <Label htmlFor="create-customerName" className="text-sm font-medium">Customer Name</Label>
                 <Input
                   id="create-customerName"
                   name="customerName"
                   value={formData.customerName}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-customerCode">Customer Code</Label>
+                <Label htmlFor="create-customerCode" className="text-sm font-medium">Customer Code</Label>
                 <Input
                   id="create-customerCode"
                   name="customerCode"
                   value={formData.customerCode}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-aadhar">Aadhar Number</Label>
+                <Label htmlFor="create-aadhar" className="text-sm font-medium">Aadhar Number</Label>
                 <Input
                   id="create-aadhar"
                   name="aadhar"
                   value={formData.aadhar}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-loanAmount">Loan Amount (₹)</Label>
+                <Label htmlFor="create-loanAmount" className="text-sm font-medium">Loan Amount (₹)</Label>
                 <Input
                   id="create-loanAmount"
                   name="loanAmount"
@@ -852,10 +1058,11 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                   value={formData.loanAmount}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-pendingAmount">Pending Amount (₹)</Label>
+                <Label htmlFor="create-pendingAmount" className="text-sm font-medium">Pending Amount (₹)</Label>
                 <Input
                   id="create-pendingAmount"
                   name="pendingAmount"
@@ -863,10 +1070,11 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                   value={formData.pendingAmount}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-rate">Interest Rate (%)</Label>
+                <Label htmlFor="create-rate" className="text-sm font-medium">Interest Rate (%)</Label>
                 <Input
                   id="create-rate"
                   name="rate"
@@ -875,10 +1083,11 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                   value={formData.rate}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="create-loanDate">Loan Date</Label>
+                <Label htmlFor="create-loanDate" className="text-sm font-medium">Loan Date</Label>
                 <Input
                   id="create-loanDate"
                   name="loanDate"
@@ -886,6 +1095,7 @@ const LoanTable = ({ loans: initialLoans, loading }) => {
                   value={formData.loanDate}
                   onChange={handleInputChange}
                   required
+                  className="border-gray-300 focus:border-blue-500"
                 />
               </div>
             </div>
