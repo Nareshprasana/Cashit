@@ -22,23 +22,36 @@ export async function GET(req) {
       return NextResponse.json({ active }, { status: 200 });
     }
 
-    // Otherwise return full loan list
+    // Otherwise return full loan list with customer details
     const loans = await prisma.loan.findMany({
-      select: {
-        id: true,
-        amount: true,
-        loanAmount: true,
-        pendingAmount: true,
-        loanDate: true,
-        createdAt: true,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            customerCode: true,
+            customerName: true,
+            aadhar: true,
+          },
+        },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
     });
 
-    // ✅ Add computed status field
+    // ✅ Add computed status + flatten customer data
     const loansWithStatus = loans.map((loan) => ({
-      ...loan,
+      id: loan.id,
+      amount: loan.amount,
+      loanAmount: loan.loanAmount,
+      pendingAmount: loan.pendingAmount,
+      loanDate: loan.loanDate,
+      createdAt: loan.createdAt,
+      rate: loan.rate,
+      tenure: loan.tenure,
       status: loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED",
+      customerId: loan.customer?.id || null,
+      customerCode: loan.customer?.customerCode || null,
+      customerName: loan.customer?.customerName || null,
+      aadhar: loan.customer?.aadhar || null,
     }));
 
     return NextResponse.json(loansWithStatus, { status: 200 });
