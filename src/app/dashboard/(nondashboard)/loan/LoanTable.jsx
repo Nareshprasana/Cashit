@@ -35,8 +35,6 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
 
 // Status badge component
 const StatusBadge = ({ status, pendingAmount }) => {
@@ -65,7 +63,7 @@ const StatusBadge = ({ status, pendingAmount }) => {
   }
 };
 
-const LoanTable = ({ loans, loading }) => {
+const LoanTable = ({ loans = [], loading }) => {
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -141,23 +139,23 @@ const LoanTable = ({ loans, loading }) => {
   // Sort loans
   const sortedLoans = [...loans].sort((a, b) => {
     let aValue, bValue;
-    
+
     if (sortField.includes('customer.')) {
       const field = sortField.split('.')[1];
       aValue = a.customer?.[field] || '';
       bValue = b.customer?.[field] || '';
     } else {
-      aValue = a[sortField] || '';
-      bValue = b[sortField] || '';
+      aValue = a[sortField] || 0;
+      bValue = b[sortField] || 0;
     }
 
     if (typeof aValue === 'string') {
       return sortDirection === 'asc' 
-        ? aValue.localeCompare(bValue)
+        ? aValue.localeCompare(bValue) 
         : bValue.localeCompare(aValue);
     }
-    
-    return sortDirection === 'asc' ? aValue - bValue : bValue - bValue;
+
+    return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
   });
 
   // Filter loans
@@ -172,7 +170,7 @@ const LoanTable = ({ loans, loading }) => {
       customerCode.toLowerCase().includes(globalFilter.toLowerCase()) ||
       aadhar.includes(globalFilter);
 
-    const loanStatus = loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED";
+    const loanStatus = loan.status || (loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED");
     const matchesStatus = !statusFilter || loanStatus === statusFilter;
 
     const loanDate = loan.loanDate ? new Date(loan.loanDate) : null;
@@ -199,9 +197,7 @@ const LoanTable = ({ loans, loading }) => {
 
   const SortIcon = ({ field }) => {
     if (sortField !== field) return <ChevronDown className="h-4 w-4 opacity-50" />;
-    return sortDirection === 'asc' 
-      ? <ChevronUp className="h-4 w-4" /> 
-      : <ChevronDown className="h-4 w-4" />;
+    return sortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />;
   };
 
   const renderPageWindow = () => {
@@ -218,10 +214,7 @@ const LoanTable = ({ loans, loading }) => {
         <PaginationItem key={1}>
           <PaginationLink
             href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              setCurrentPage(1);
-            }}
+            onClick={(e) => { e.preventDefault(); setCurrentPage(1); }}
             isActive={currentPage === 1}
           >
             1
@@ -236,10 +229,7 @@ const LoanTable = ({ loans, loading }) => {
         <PaginationItem key={p}>
           <PaginationLink
             href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              setCurrentPage(p);
-            }}
+            onClick={(e) => { e.preventDefault(); setCurrentPage(p); }}
             isActive={currentPage === p}
           >
             {p}
@@ -254,10 +244,7 @@ const LoanTable = ({ loans, loading }) => {
         <PaginationItem key={totalPages}>
           <PaginationLink
             href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              setCurrentPage(totalPages);
-            }}
+            onClick={(e) => { e.preventDefault(); setCurrentPage(totalPages); }}
             isActive={currentPage === totalPages}
           >
             {totalPages}
@@ -293,56 +280,44 @@ const LoanTable = ({ loans, loading }) => {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-r from-blue-50 to-blue-100">
-          <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm font-medium text-blue-600">Total Loans</p>
-                <p className="text-2xl font-bold text-blue-800">{loans.length}</p>
-              </div>
-              <DollarSign className="h-8 w-8 text-blue-400" />
+          <CardContent className="p-4 flex justify-between items-center">
+            <div>
+              <p className="text-sm font-medium text-blue-600">Total Loans</p>
+              <p className="text-2xl font-bold text-blue-800">{loans.length}</p>
             </div>
+            <DollarSign className="h-8 w-8 text-blue-400" />
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-r from-green-50 to-green-100">
-          <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm font-medium text-green-600">Active Loans</p>
-                <p className="text-2xl font-bold text-green-800">
-                  {loans.filter(loan => loan.pendingAmount > 0).length}
-                </p>
-              </div>
-              <Clock className="h-8 w-8 text-green-400" />
+          <CardContent className="p-4 flex justify-between items-center">
+            <div>
+              <p className="text-sm font-medium text-green-600">Active Loans</p>
+              <p className="text-2xl font-bold text-green-800">{loans.filter(l => l.pendingAmount > 0).length}</p>
             </div>
+            <Clock className="h-8 w-8 text-green-400" />
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-r from-purple-50 to-purple-100">
-          <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm font-medium text-purple-600">Completed Loans</p>
-                <p className="text-2xl font-bold text-purple-800">
-                  {loans.filter(loan => loan.pendingAmount === 0).length}
-                </p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-purple-400" />
+          <CardContent className="p-4 flex justify-between items-center">
+            <div>
+              <p className="text-sm font-medium text-purple-600">Completed Loans</p>
+              <p className="text-2xl font-bold text-purple-800">{loans.filter(l => l.pendingAmount === 0).length}</p>
             </div>
+            <CheckCircle className="h-8 w-8 text-purple-400" />
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-r from-orange-50 to-orange-100">
-          <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm font-medium text-orange-600">Total Pending</p>
-                <p className="text-2xl font-bold text-orange-800">
-                  ₹{loans.reduce((sum, loan) => sum + (loan.pendingAmount || 0), 0).toLocaleString()}
-                </p>
-              </div>
-              <DollarSign className="h-8 w-8 text-orange-400" />
+          <CardContent className="p-4 flex justify-between items-center">
+            <div>
+              <p className="text-sm font-medium text-orange-600">Total Pending</p>
+              <p className="text-2xl font-bold text-orange-800">
+                ₹{loans.reduce((sum, l) => sum + (l.pendingAmount || 0), 0).toLocaleString()}
+              </p>
             </div>
+            <DollarSign className="h-8 w-8 text-orange-400" />
           </CardContent>
         </Card>
       </div>
@@ -672,7 +647,7 @@ const LoanTable = ({ loans, loading }) => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+   </div>
   );
 };
 
