@@ -28,27 +28,7 @@ const LoanPage = () => {
 
     fetchLoans();
   }, []);
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      try {
-        const response = await fetch("/api/customers");
-        if (response.ok) {
-          const customerData = await response.json();
-          console.log("Customers from API:", customerData); // Add this
-          setCustomers(customerData);
-        } else {
-          console.error("Failed to fetch customers");
-        }
-      } catch (error) {
-        console.error("Error fetching customers:", error);
-      } finally {
-        setIsLoadingCustomers(false);
-      }
-    };
-
-    fetchCustomers();
-  }, []);
-
+  
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Loan Management</h1>
