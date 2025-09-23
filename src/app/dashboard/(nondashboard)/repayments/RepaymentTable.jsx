@@ -325,8 +325,9 @@ export default function RepaymentTable() {
           aValue = a.loan?.customer?.aadhar;
           bValue = b.loan?.customer?.aadhar;
         } else if (sortConfig.key === 'pendingAmount') {
-          aValue = (a.loan?.amount || 0) - (a.amount || 0);
-          bValue = (b.loan?.amount || 0) - (b.amount || 0);
+          // Use the pendingAmount from API response
+          aValue = a.pendingAmount || 0;
+          bValue = b.pendingAmount || 0;
         }
 
         if (aValue < bValue) {
@@ -370,7 +371,7 @@ export default function RepaymentTable() {
           `"${row.loan?.customer?.customerName || ""}"`,
           `"${row.loan?.customer?.aadhar || ""}"`,
           row.amount || 0,
-          ((row.loan?.amount || 0) - (row.amount || 0)).toLocaleString(),
+          (row.pendingAmount || 0).toLocaleString(), // Use pendingAmount from API
           `"${formatDate(row.dueDate || "")}"`,
           `"${row.status || ""}"`,
         ].join(",")
@@ -468,9 +469,8 @@ export default function RepaymentTable() {
         </div>
       ),
       cell: ({ row }) => {
-        const loanAmount = row.original.loan?.amount || 0;
-        const paidAmount = row.original.amount || 0;
-        const pendingAmount = loanAmount - paidAmount;
+        // Use the pendingAmount from API response instead of calculating
+        const pendingAmount = row.original.pendingAmount || 0;
         
         return (
           <div className="text-right font-semibold text-red-600">
@@ -548,13 +548,21 @@ export default function RepaymentTable() {
                       {repayment.loan?.customer?.customerName || "N/A"}
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        Loan Amount
+                      </Label>
+                      <p className="text-sm font-medium">
+                        {formatCurrency(repayment.loan?.amount || 0)}
+                      </p>
+                    </div>
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">
                         Paid Amount
                       </Label>
-                      <p className="text-sm font-medium">
-                        {formatCurrency(repayment.amount)}
+                      <p className="text-sm font-medium text-green-600">
+                        {formatCurrency(repayment.amount || 0)}
                       </p>
                     </div>
                     <div className="space-y-1">
@@ -562,7 +570,7 @@ export default function RepaymentTable() {
                         Pending Amount
                       </Label>
                       <p className="text-sm font-medium text-red-600">
-                        {formatCurrency((repayment.loan?.amount || 0) - (repayment.amount || 0))}
+                        {formatCurrency(repayment.pendingAmount || 0)}
                       </p>
                     </div>
                   </div>
