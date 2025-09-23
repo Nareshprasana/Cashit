@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
 import {
   ArrowUpDown,
   Search,
@@ -21,7 +20,6 @@ import {
   ChevronUp,
   User,
   FileText,
-  Save,
   IndianRupee,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -303,6 +301,36 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, loanTotals }) {
     </div>
   );
 }
+
+// ================= Simple Table Component (replacing DataTable) =================
+const SimpleTable = ({ columns, data }) => {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b">
+            {columns.map((column, index) => (
+              <th key={index} className="text-left p-4 font-medium">
+                {typeof column.header === 'function' ? column.header() : column.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row, rowIndex) => (
+            <tr key={rowIndex} className="border-b hover:bg-gray-50">
+              {columns.map((column, colIndex) => (
+                <td key={colIndex} className="p-4">
+                  {column.cell ? column.cell({ row: { original: row } }) : row[column.accessorKey]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 // ================= Main Component =================
 export default function RepaymentTable() {
@@ -963,7 +991,7 @@ export default function RepaymentTable() {
               </p>
             </div>
           ) : (
-            <DataTable columns={columns} data={filtered} />
+            <SimpleTable columns={columns} data={filtered} />
           )}
         </CardContent>
       </Card>
