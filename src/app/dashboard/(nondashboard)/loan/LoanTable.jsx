@@ -65,7 +65,7 @@ const StatusBadge = ({ status, pendingAmount }) => {
 
 const LoanTable = ({ loans = [], loading }) => {
   const [globalFilter, setGlobalFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -171,7 +171,7 @@ const LoanTable = ({ loans = [], loading }) => {
       aadhar.includes(globalFilter);
 
     const loanStatus = loan.status || (loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED");
-    const matchesStatus = !statusFilter || loanStatus === statusFilter;
+    const matchesStatus = statusFilter === "ALL" || loanStatus === statusFilter;
 
     const loanDate = loan.loanDate ? new Date(loan.loanDate) : null;
     const matchesFromDate = !fromDate || (loanDate && loanDate >= new Date(fromDate));
@@ -363,7 +363,7 @@ const LoanTable = ({ loans = [], loading }) => {
                     <SelectValue placeholder="All Status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Status</SelectItem>
+                    <SelectItem value="ALL">All Status</SelectItem>
                     <SelectItem value="ACTIVE">Active</SelectItem>
                     <SelectItem value="CLOSED">Completed</SelectItem>
                   </SelectContent>
