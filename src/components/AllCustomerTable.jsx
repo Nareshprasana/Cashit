@@ -114,8 +114,6 @@ export default function AllCustomerTable() {
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [areaFilter, setAreaFilter] = useState("");
-  const [minAmount, setMinAmount] = useState("");
-  const [maxAmount, setMaxAmount] = useState("");
   const [startEndDate, setStartEndDate] = useState("");
   const [endEndDate, setEndEndDate] = useState("");
   const [availableAreas, setAvailableAreas] = useState([]);
@@ -508,8 +506,6 @@ export default function AllCustomerTable() {
       (statusFilter === "closed" && !isActive);
 
     const matchesArea = !areaFilter || cust.area === areaFilter;
-    const matchesMinAmount = !minAmount || loanAmount >= Number(minAmount);
-    const matchesMaxAmount = !maxAmount || loanAmount <= Number(maxAmount);
 
     const endDateObj = cust.endDate ? new Date(cust.endDate) : null;
     const matchesStartDate =
@@ -521,8 +517,6 @@ export default function AllCustomerTable() {
       matchesGlobal &&
       matchesStatus &&
       matchesArea &&
-      matchesMinAmount &&
-      matchesMaxAmount &&
       matchesStartDate &&
       matchesEndDate
     );
@@ -727,8 +721,6 @@ export default function AllCustomerTable() {
               {(globalFilter ||
                 statusFilter ||
                 areaFilter ||
-                minAmount ||
-                maxAmount ||
                 startEndDate ||
                 endEndDate) && (
                 <Button
@@ -738,8 +730,6 @@ export default function AllCustomerTable() {
                     setGlobalFilter("");
                     setStatusFilter("");
                     setAreaFilter("");
-                    setMinAmount("");
-                    setMaxAmount("");
                     setStartEndDate("");
                     setEndEndDate("");
                   }}
@@ -766,7 +756,7 @@ export default function AllCustomerTable() {
 
             {/* Advanced filters */}
             {showFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t">
                 <div className="space-y-2">
                   <Label className="text-sm">Status</Label>
                   <select
@@ -826,26 +816,6 @@ export default function AllCustomerTable() {
                       </Command>
                     </PopoverContent>
                   </Popover>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm">Loan Amount Range</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      placeholder="Min"
-                      value={minAmount}
-                      onChange={(e) => setMinAmount(e.target.value)}
-                      className="text-sm"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Max"
-                      value={maxAmount}
-                      onChange={(e) => setMaxAmount(e.target.value)}
-                      className="text-sm"
-                    />
-                  </div>
                 </div>
 
                 <div className="space-y-2">
