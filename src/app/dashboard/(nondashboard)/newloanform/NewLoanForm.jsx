@@ -23,6 +23,9 @@ import {
   ChevronsUpDown,
   Phone,
   Mail,
+  IdCard,
+  Home,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -156,7 +159,8 @@ const NewLoanForm = () => {
         );
         return null;
       }
-      return await res.json();
+      const data = await res.json();
+      return data;
     } catch (error) {
       toast.error("An unexpected error occurred.");
       return null;
@@ -479,7 +483,7 @@ const NewLoanForm = () => {
                                         : "opacity-0"
                                     )}
                                   />
-                                  {cust.customerCode} - {cust.name || "Unnamed Customer"}
+                                  {cust.customerCode} - {cust.customerName || "Unnamed Customer"}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
@@ -520,7 +524,7 @@ const NewLoanForm = () => {
                               <Label className="text-xs text-gray-500">Full Name</Label>
                               <p className="text-sm font-medium flex items-center gap-1">
                                 <User className="h-3 w-3" />
-                                {customerDetails.name || "N/A"}
+                                {customerDetails.customerName || "N/A"}
                               </p>
                             </div>
                             <div>
@@ -528,6 +532,13 @@ const NewLoanForm = () => {
                               <p className="text-sm font-medium flex items-center gap-1">
                                 <Phone className="h-3 w-3" />
                                 {customerDetails.mobile || "N/A"}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-gray-500">Aadhar</Label>
+                              <p className="text-sm font-medium flex items-center gap-1">
+                                <IdCard className="h-3 w-3" />
+                                {customerDetails.aadhar || "N/A"}
                               </p>
                             </div>
                           </div>
@@ -542,10 +553,10 @@ const NewLoanForm = () => {
                               </p>
                             </div>
                             <div>
-                              <Label className="text-xs text-gray-500">Email</Label>
+                              <Label className="text-xs text-gray-500">Address</Label>
                               <p className="text-sm font-medium flex items-center gap-1">
-                                <Mail className="h-3 w-3" />
-                                {customerDetails.email || "N/A"}
+                                <Home className="h-3 w-3" />
+                                {customerDetails.address || "N/A"}
                               </p>
                             </div>
                             <div>
@@ -556,6 +567,33 @@ const NewLoanForm = () => {
                             </div>
                           </div>
                         </div>
+                        
+                        {/* Document Links */}
+                        {(customerDetails.aadharDocumentUrl || customerDetails.incomeProofUrl || customerDetails.residenceProofUrl) && (
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <Label className="text-xs text-gray-500 mb-2 block">Documents</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {customerDetails.aadharDocumentUrl && (
+                                <Badge variant="outline" className="bg-gray-50">
+                                  <IdCard className="h-3 w-3 mr-1" />
+                                  Aadhar
+                                </Badge>
+                              )}
+                              {customerDetails.incomeProofUrl && (
+                                <Badge variant="outline" className="bg-gray-50">
+                                  <Briefcase className="h-3 w-3 mr-1" />
+                                  Income Proof
+                                </Badge>
+                              )}
+                              {customerDetails.residenceProofUrl && (
+                                <Badge variant="outline" className="bg-gray-50">
+                                  <Home className="h-3 w-3 mr-1" />
+                                  Residence Proof
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </motion.div>
