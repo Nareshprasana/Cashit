@@ -479,7 +479,7 @@ const NewLoanForm = () => {
                                         : "opacity-0"
                                     )}
                                   />
-                                  {cust.customerCode}
+                                  {cust.customerCode} - {cust.name || "Unnamed Customer"}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
@@ -510,15 +510,18 @@ const NewLoanForm = () => {
                           Customer Details
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             <div className="flex items-center gap-2">
                               <Badge variant="outline" className="bg-blue-50 text-blue-700">
                                 Code: {customerDetails.customerCode}
                               </Badge>
                             </div>
                             <div>
-                              <Label className="text-xs text-gray-500">Name</Label>
-                              <p className="text-sm font-medium">{customerDetails.name || "N/A"}</p>
+                              <Label className="text-xs text-gray-500">Full Name</Label>
+                              <p className="text-sm font-medium flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {customerDetails.name || "N/A"}
+                              </p>
                             </div>
                             <div>
                               <Label className="text-xs text-gray-500">Mobile</Label>
@@ -528,7 +531,7 @@ const NewLoanForm = () => {
                               </p>
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             <div>
                               <Label className="text-xs text-gray-500">Area</Label>
                               <p className="text-sm font-medium flex items-center gap-1">
@@ -536,6 +539,13 @@ const NewLoanForm = () => {
                                 {areas.find(a => a.id === customerDetails.areaId)?.areaName || 
                                  areas.find(a => a.id === customerDetails.areaId)?.name || 
                                  "N/A"}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-gray-500">Email</Label>
+                              <p className="text-sm font-medium flex items-center gap-1">
+                                <Mail className="h-3 w-3" />
+                                {customerDetails.email || "N/A"}
                               </p>
                             </div>
                             <div>
