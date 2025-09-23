@@ -13,13 +13,29 @@ export async function GET(req) {
       include: {
         loan: {
           include: {
-            customer: true, // ✅ Include customer details from customer table
+            customer: true,
+            repayments: {
+              select: {
+                amount: true
+              }
+            }
           },
         },
       },
     });
 
-    return NextResponse.json(repayments);
+    // Calculate pending amount (loan amount - total repayments) - NO INTEREST
+    const repaymentsWithPending = repayments.map(repayment => {
+      const totalPaid = repayment.loan.repayments.reduce((sum, r) => sum + Number(r.amount), 0);
+      const pendingAmount = Math.max(0, Number(repayment.loan.amount) - totalPaid);
+      
+      return {
+        ...repayment,
+        pendingAmount: pendingAmount
+      };
+    });
+
+    return NextResponse.json(repaymentsWithPending);
   } catch (error) {
     console.error("Repayment GET error:", error);
     return NextResponse.json(
@@ -51,15 +67,23 @@ export async function POST(req) {
 
     const pm = String(paymentMethod).toUpperCase().replace(/\s+/g, "_");
 
-    const loan = await prisma.loan.findUnique({ where: { id: loanId } });
+    const loan = await prisma.loan.findUnique({ 
+      where: { id: loanId },
+      include: {
+        repayments: {
+          select: { amount: true }
+        }
+      }
+    });
+    
     if (!loan)
       return NextResponse.json({ message: "Loan not found" }, { status: 400 });
 
     const repaymentAmount = parseFloat(amount);
-    const newPending = Math.max(
-      0,
-      Number(loan.pendingAmount) - repaymentAmount
-    );
+    const totalPaid = loan.repayments.reduce((sum, r) => sum + Number(r.amount), 0);
+    
+    // Simple calculation: Loan amount - total repayments (no interest)
+    const newPending = Math.max(0, Number(loan.amount) - (totalPaid + repaymentAmount));
 
     const result = await prisma.$transaction(async (tx) => {
       const updatedLoan = await tx.loan.update({
@@ -71,14 +95,14 @@ export async function POST(req) {
         data: {
           loanId,
           amount: repaymentAmount,
-          pendingAmount: updatedLoan.pendingAmount,
+          pendingAmount: newPending,
           dueDate: new Date(dueDate),
           paymentMethod: pm,
         },
         include: {
           loan: {
             include: {
-              customer: true, // ✅ also include customer for new repayment
+              customer: true,
             },
           },
         },
