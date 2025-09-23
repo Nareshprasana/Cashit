@@ -10,7 +10,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-const NavLinks = ({ items, userRole }) => {
+const NavLinks = ({ items, userRole, onLinkClick }) => {
   const pathname = usePathname();
 
   const filteredItems = items.map((section) => ({
@@ -39,6 +39,7 @@ const NavLinks = ({ items, userRole }) => {
                   <SidebarMenuButton asChild tooltip={link.name}>
                     <Link
                       href={link.url}
+                      onClick={onLinkClick} // Added onClick handler here
                       className={`flex items-center gap-2 px-2 py-2 rounded transition-none
                         ${isActive ? "!bg-black !text-white" : "!text-gray-800"}
                       `}

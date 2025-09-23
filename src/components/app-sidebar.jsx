@@ -27,12 +27,30 @@ import NavLinks from "./nav-links";
 export function AppSidebar({ ...props }) {
   const { data: session } = useSession();
   const role = session?.user?.role || ""; // fetch role from session
+  const [isOpen, setIsOpen] = React.useState(true);
+  const [isMobile, setIsMobile] = React.useState(false);
 
   const user = {
     name: session?.user?.name || "Loading...",
     email: session?.user?.email || "",
     avatar: session?.user?.image || "/avatars/profile-user.png",
   };
+
+  // Check if mobile on mount and resize
+  React.useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768); // 768px is typical md breakpoint
+    };
+
+    // Check initially
+    checkMobile();
+
+    // Add event listener for resize
+    window.addEventListener('resize', checkMobile);
+
+    // Cleanup
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Define all links
   const navlinks = [
@@ -125,8 +143,15 @@ export function AppSidebar({ ...props }) {
     ),
   }));
 
+  // Function to handle link click - close sidebar only on mobile
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setIsOpen(false);
+    }
+  };
+
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar collapsible="icon" {...props} open={isOpen} onOpenChange={setIsOpen}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -135,7 +160,7 @@ export function AppSidebar({ ...props }) {
               tooltip="KALIYAMMAN FINANCE."
               className="data-[slot=sidebar-menu-button]:!p-2"
             >
-              <a href="/dashboard">
+              <a href="/dashboard" onClick={handleLinkClick}>
                 <BiSolidLeaf className="!size-5 text-green-700" />
                 <span className="text-base font-semibold ml-2">
                   KALIYAMMAN FINANCE.
@@ -146,7 +171,7 @@ export function AppSidebar({ ...props }) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavLinks items={filteredNavLinks} />
+        <NavLinks items={filteredNavLinks} onLinkClick={handleLinkClick} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />
