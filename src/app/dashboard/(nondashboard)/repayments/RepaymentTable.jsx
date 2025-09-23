@@ -42,7 +42,6 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
@@ -75,18 +74,6 @@ const getStatusBadge = (status) => {
           <AlertCircle className="h-3 w-3" /> Overdue
         </Badge>
       );
-    case "ACTIVE":
-      return (
-        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 flex items-center gap-1 py-1">
-          <BadgeCheck className="h-3 w-3" /> Active
-        </Badge>
-      );
-    case "CLOSED":
-      return (
-        <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100 flex items-center gap-1 py-1">
-          <FileText className="h-3 w-3" /> Closed
-        </Badge>
-      );
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
@@ -108,8 +95,33 @@ const formatDate = (dateString) =>
     year: "numeric",
   });
 
+// ================= Helper function to calculate pending amount =================
+const calculatePendingAmount = (repayment, allRepayments) => {
+  const loanAmount = repayment.loan?.amount || 0;
+  
+  // Get all repayments for this specific loan
+  const loanRepayments = allRepayments.filter(
+    r => r.loanId === repayment.loanId
+  );
+  
+  // Calculate total paid (sum of all repayments for this loan)
+  const totalPaid = loanRepayments.reduce((sum, r) => sum + (r.amount || 0), 0);
+  
+  // Pending amount = Loan amount - Total paid
+  return Math.max(0, loanAmount - totalPaid);
+};
+
+// ================= Helper function to calculate total paid for a loan =================
+const calculateTotalPaid = (repayment, allRepayments) => {
+  const loanRepayments = allRepayments.filter(
+    r => r.loanId === repayment.loanId
+  );
+  
+  return loanRepayments.reduce((sum, r) => sum + (r.amount || 0), 0);
+};
+
 // ================= Editable Amount Component =================
-function EditableAmount({ repayment, onUpdate }) {
+function EditableAmount({ repayment, onUpdate, allRepayments }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(repayment.amount);
   const [loading, setLoading] = useState(false);
@@ -184,7 +196,7 @@ function EditableAmount({ repayment, onUpdate }) {
 }
 
 // ================= Edit Repayment Form =================
-function EditRepaymentForm({ repayment, onUpdate, onClose }) {
+function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
   const [amount, setAmount] = useState(repayment.amount || 0);
   const [date, setDate] = useState(repayment.dueDate?.split('T')[0] || '');
   const [status, setStatus] = useState(repayment.status || 'PENDING');
@@ -246,6 +258,25 @@ function EditRepaymentForm({ repayment, onUpdate, onClose }) {
             <SelectItem value="OVERDUE">Overdue</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Show calculation summary */}
+      <div className="bg-gray-50 p-3 rounded-lg">
+        <Label className="text-sm font-medium">Amount Summary</Label>
+        <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
+          <div>
+            <div className="text-gray-600">Loan Amount:</div>
+            <div className="font-medium">₹{(repayment.loan?.amount || 0).toLocaleString()}</div>
+          </div>
+          <div>
+            <div className="text-gray-600">Total Paid:</div>
+            <div className="font-medium text-green-600">₹{calculateTotalPaid(repayment, allRepayments).toLocaleString()}</div>
+          </div>
+          <div>
+            <div className="text-gray-600">Pending:</div>
+            <div className="font-medium text-red-600">₹{calculatePendingAmount(repayment, allRepayments).toLocaleString()}</div>
+          </div>
+        </div>
       </div>
 
       <div className="flex gap-2 justify-end pt-4">
@@ -320,14 +351,19 @@ export default function RepaymentTable() {
         let aValue = a[sortConfig.key];
         let bValue = b[sortConfig.key];
         
-        // Handle nested properties
+        // Handle nested properties and calculated fields
         if (sortConfig.key === 'aadhar') {
           aValue = a.loan?.customer?.aadhar;
           bValue = b.loan?.customer?.aadhar;
         } else if (sortConfig.key === 'pendingAmount') {
-          // Use the pendingAmount from API response
-          aValue = a.pendingAmount || 0;
-          bValue = b.pendingAmount || 0;
+          aValue = calculatePendingAmount(a, repayments);
+          bValue = calculatePendingAmount(b, repayments);
+        } else if (sortConfig.key === 'totalPaid') {
+          aValue = calculateTotalPaid(a, repayments);
+          bValue = calculateTotalPaid(b, repayments);
+        } else if (sortConfig.key === 'loanAmount') {
+          aValue = a.loan?.amount || 0;
+          bValue = b.loan?.amount || 0;
         }
 
         if (aValue < bValue) {
@@ -358,7 +394,9 @@ export default function RepaymentTable() {
       "Customer ID",
       "Customer Name",
       "Aadhar Number",
-      "Amount",
+      "Loan Amount",
+      "This Repayment",
+      "Total Paid",
       "Pending Amount",
       "Due Date",
       "Status",
@@ -370,8 +408,10 @@ export default function RepaymentTable() {
           `"${row.loan?.customer?.customerCode || ""}"`,
           `"${row.loan?.customer?.customerName || ""}"`,
           `"${row.loan?.customer?.aadhar || ""}"`,
+          row.loan?.amount || 0,
           row.amount || 0,
-          (row.pendingAmount || 0).toLocaleString(), // Use pendingAmount from API
+          calculateTotalPaid(row, repayments).toLocaleString(),
+          calculatePendingAmount(row, repayments).toLocaleString(),
           `"${formatDate(row.dueDate || "")}"`,
           `"${row.status || ""}"`,
         ].join(",")
@@ -449,17 +489,50 @@ export default function RepaymentTable() {
       ),
     },
     {
+      accessorKey: "loanAmount",
+      header: () => (
+        <div className="text-right">
+          <SortableHeader columnKey="loanAmount">Loan Amount</SortableHeader>
+        </div>
+      ),
+      cell: ({ row }) => (
+        <div className="text-right font-semibold">
+          ₹{(row.original.loan?.amount || 0).toLocaleString()}
+        </div>
+      ),
+    },
+    {
       accessorKey: "amount",
       header: () => (
         <div className="text-right">
-          <SortableHeader columnKey="amount">Paid Amount</SortableHeader>
+          <SortableHeader columnKey="amount">This Repayment</SortableHeader>
         </div>
       ),
       cell: ({ row }) => (
         <div className="text-right">
-          <EditableAmount repayment={row.original} onUpdate={fetchRepayments} />
+          <EditableAmount 
+            repayment={row.original} 
+            onUpdate={fetchRepayments}
+            allRepayments={repayments}
+          />
         </div>
       ),
+    },
+    {
+      accessorKey: "totalPaid",
+      header: () => (
+        <div className="text-right">
+          <SortableHeader columnKey="totalPaid">Total Paid</SortableHeader>
+        </div>
+      ),
+      cell: ({ row }) => {
+        const totalPaid = calculateTotalPaid(row.original, repayments);
+        return (
+          <div className="text-right font-semibold text-green-600">
+            ₹{totalPaid.toLocaleString()}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "pendingAmount",
@@ -469,9 +542,7 @@ export default function RepaymentTable() {
         </div>
       ),
       cell: ({ row }) => {
-        // Use the pendingAmount from API response instead of calculating
-        const pendingAmount = row.original.pendingAmount || 0;
-        
+        const pendingAmount = calculatePendingAmount(row.original, repayments);
         return (
           <div className="text-right font-semibold text-red-600">
             ₹{pendingAmount.toLocaleString()}
@@ -511,7 +582,7 @@ export default function RepaymentTable() {
                   <Eye className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
+              <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <FileText className="h-5 w-5" />
@@ -559,10 +630,10 @@ export default function RepaymentTable() {
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">
-                        Paid Amount
+                        Total Paid
                       </Label>
                       <p className="text-sm font-medium text-green-600">
-                        {formatCurrency(repayment.amount || 0)}
+                        {formatCurrency(calculateTotalPaid(repayment, repayments))}
                       </p>
                     </div>
                     <div className="space-y-1">
@@ -570,11 +641,19 @@ export default function RepaymentTable() {
                         Pending Amount
                       </Label>
                       <p className="text-sm font-medium text-red-600">
-                        {formatCurrency(repayment.pendingAmount || 0)}
+                        {formatCurrency(calculatePendingAmount(repayment, repayments))}
                       </p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        This Repayment
+                      </Label>
+                      <p className="text-sm font-medium">
+                        {formatCurrency(repayment.amount || 0)}
+                      </p>
+                    </div>
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">
                         Due Date
@@ -583,12 +662,12 @@ export default function RepaymentTable() {
                         {formatDate(repayment.dueDate)}
                       </p>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        Status
-                      </Label>
-                      <div>{getStatusBadge(repayment.status)}</div>
-                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Status
+                    </Label>
+                    <div>{getStatusBadge(repayment.status)}</div>
                   </div>
                 </div>
               </DialogContent>
@@ -614,6 +693,7 @@ export default function RepaymentTable() {
                   repayment={repayment}
                   onUpdate={fetchRepayments}
                   onClose={() => setEditDialogOpen(false)}
+                  allRepayments={repayments}
                 />
               </DialogContent>
             </Dialog>
@@ -816,9 +896,10 @@ export default function RepaymentTable() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="dueDate">Due Date</SelectItem>
-                      <SelectItem value="amount">Amount</SelectItem>
-                      <SelectItem value="aadhar">Aadhar Number</SelectItem>
+                      <SelectItem value="amount">This Repayment</SelectItem>
+                      <SelectItem value="totalPaid">Total Paid</SelectItem>
                       <SelectItem value="pendingAmount">Pending Amount</SelectItem>
+                      <SelectItem value="loanAmount">Loan Amount</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
