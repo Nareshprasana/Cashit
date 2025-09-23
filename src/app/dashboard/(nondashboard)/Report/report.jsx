@@ -81,8 +81,8 @@ export default function ReportPage() {
   const [areas, setAreas] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [selectedArea, setSelectedArea] = useState("all");
-  const [minValue, setMinValue] = useState("");
-  const [maxValue, setMaxValue] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -117,8 +117,8 @@ export default function ReportPage() {
       setLoading(true);
       const params = new URLSearchParams();
       if (selectedArea && selectedArea !== "all") params.append("areaId", selectedArea);
-      if (minValue) params.append("min", minValue);
-      if (maxValue) params.append("max", maxValue);
+      if (fromDate) params.append("fromDate", fromDate);
+      if (toDate) params.append("toDate", toDate);
       if (searchQuery) params.append("search", searchQuery);
 
       const res = await fetch(`/api/customers?${params.toString()}`);
@@ -142,8 +142,8 @@ export default function ReportPage() {
 
   const handleReset = () => {
     setSelectedArea("all");
-    setMinValue("");
-    setMaxValue("");
+    setFromDate("");
+    setToDate("");
     setSearchQuery("");
     fetchCustomers();
   };
@@ -416,28 +416,26 @@ export default function ReportPage() {
             </div>
 
             <div>
-              <Label className="mb-1.5 block">Min Amount</Label>
+              <Label className="mb-1.5 block">From Date</Label>
               <div className="relative">
-                <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
-                  type="number"
-                  value={minValue}
-                  onChange={(e) => setMinValue(e.target.value)}
-                  placeholder="Min"
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
                   className="pl-10"
                 />
               </div>
             </div>
 
             <div>
-              <Label className="mb-1.5 block">Max Amount</Label>
+              <Label className="mb-1.5 block">To Date</Label>
               <div className="relative">
-                <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
-                  type="number"
-                  value={maxValue}
-                  onChange={(e) => setMaxValue(e.target.value)}
-                  placeholder="Max"
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
                   className="pl-10"
                 />
               </div>
