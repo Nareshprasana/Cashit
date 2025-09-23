@@ -2,7 +2,7 @@
 
 import React from "react";
 import NewLoanForm from "./NewLoanForm"; // Adjust path if you move the form
-import LoanTable from "../loan"
+import LoanTable from "../loan/LoanTable"
 
 const NewloanPage = () => {
   const user = {
