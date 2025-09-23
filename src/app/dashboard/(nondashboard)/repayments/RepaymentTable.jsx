@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/ui/data-table";
 import {
   ArrowUpDown,
   Search,
@@ -20,6 +21,7 @@ import {
   ChevronUp,
   User,
   FileText,
+  Save,
   IndianRupee,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -93,44 +95,33 @@ const formatDate = (dateString) =>
     year: "numeric",
   });
 
-// ================= Helper function to calculate loan totals =================
-const calculateLoanTotals = (repayments) => {
-  const loanTotals = {};
+// ================= Helper function to calculate pending amount =================
+const calculatePendingAmount = (repayment, allRepayments) => {
+  const loanAmount = repayment.loan?.amount || 0;
   
-  repayments.forEach(repayment => {
-    const loanId = repayment.loanId;
-    const loanAmount = repayment.loan?.amount || 0;
-    
-    if (!loanTotals[loanId]) {
-      loanTotals[loanId] = {
-        loanAmount: loanAmount,
-        totalPaid: 0,
-        pendingAmount: loanAmount
-      };
-    }
-    
-    // Add this repayment amount to total paid
-    loanTotals[loanId].totalPaid += repayment.amount || 0;
-    loanTotals[loanId].pendingAmount = Math.max(0, loanAmount - loanTotals[loanId].totalPaid);
-  });
+  // Get all repayments for this specific loan
+  const loanRepayments = allRepayments.filter(
+    r => r.loanId === repayment.loanId
+  );
   
-  return loanTotals;
+  // Calculate total paid (sum of all repayments for this loan)
+  const totalPaid = loanRepayments.reduce((sum, r) => sum + (r.amount || 0), 0);
+  
+  // Pending amount = Loan amount - Total paid
+  return Math.max(0, loanAmount - totalPaid);
 };
 
-// ================= Helper function to get totals for a specific repayment =================
-const getTotalsForRepayment = (repayment, loanTotals) => {
-  const loanId = repayment.loanId;
-  const totals = loanTotals[loanId] || {
-    loanAmount: repayment.loan?.amount || 0,
-    totalPaid: 0,
-    pendingAmount: repayment.loan?.amount || 0
-  };
+// ================= Helper function to calculate total paid for a loan =================
+const calculateTotalPaid = (repayment, allRepayments) => {
+  const loanRepayments = allRepayments.filter(
+    r => r.loanId === repayment.loanId
+  );
   
-  return totals;
+  return loanRepayments.reduce((sum, r) => sum + (r.amount || 0), 0);
 };
 
 // ================= Editable Amount Component =================
-function EditableAmount({ repayment, onUpdate }) {
+function EditableAmount({ repayment, onUpdate, allRepayments }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(repayment.amount);
   const [loading, setLoading] = useState(false);
@@ -205,13 +196,11 @@ function EditableAmount({ repayment, onUpdate }) {
 }
 
 // ================= Edit Repayment Form =================
-function EditRepaymentForm({ repayment, onUpdate, onClose, loanTotals }) {
+function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
   const [amount, setAmount] = useState(repayment.amount || 0);
   const [date, setDate] = useState(repayment.dueDate?.split('T')[0] || '');
   const [status, setStatus] = useState(repayment.status || 'PENDING');
   const [loading, setLoading] = useState(false);
-
-  const totals = getTotalsForRepayment(repayment, loanTotals);
 
   const handleSave = async () => {
     setLoading(true);
@@ -273,19 +262,19 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, loanTotals }) {
 
       {/* Show calculation summary */}
       <div className="bg-gray-50 p-3 rounded-lg">
-        <Label className="text-sm font-medium">Loan Summary</Label>
+        <Label className="text-sm font-medium">Amount Summary</Label>
         <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
           <div>
             <div className="text-gray-600">Loan Amount:</div>
-            <div className="font-medium">₹{totals.loanAmount.toLocaleString()}</div>
+            <div className="font-medium">₹{(repayment.loan?.amount || 0).toLocaleString()}</div>
           </div>
           <div>
             <div className="text-gray-600">Total Paid:</div>
-            <div className="font-medium text-green-600">₹{totals.totalPaid.toLocaleString()}</div>
+            <div className="font-medium text-green-600">₹{calculateTotalPaid(repayment, allRepayments).toLocaleString()}</div>
           </div>
           <div>
             <div className="text-gray-600">Pending:</div>
-            <div className="font-medium text-red-600">₹{totals.pendingAmount.toLocaleString()}</div>
+            <div className="font-medium text-red-600">₹{calculatePendingAmount(repayment, allRepayments).toLocaleString()}</div>
           </div>
         </div>
       </div>
@@ -302,36 +291,6 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, loanTotals }) {
   );
 }
 
-// ================= Simple Table Component (replacing DataTable) =================
-const SimpleTable = ({ columns, data }) => {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b">
-            {columns.map((column, index) => (
-              <th key={index} className="text-left p-4 font-medium">
-                {typeof column.header === 'function' ? column.header() : column.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, rowIndex) => (
-            <tr key={rowIndex} className="border-b hover:bg-gray-50">
-              {columns.map((column, colIndex) => (
-                <td key={colIndex} className="p-4">
-                  {column.cell ? column.cell({ row: { original: row } }) : row[column.accessorKey]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
-
 // ================= Main Component =================
 export default function RepaymentTable() {
   const [repayments, setRepayments] = useState([]);
@@ -346,9 +305,6 @@ export default function RepaymentTable() {
     key: null,
     direction: "ascending",
   });
-
-  // Calculate loan totals once when repayments change
-  const loanTotals = calculateLoanTotals(repayments);
 
   const fetchRepayments = async () => {
     try {
@@ -400,20 +356,14 @@ export default function RepaymentTable() {
           aValue = a.loan?.customer?.aadhar;
           bValue = b.loan?.customer?.aadhar;
         } else if (sortConfig.key === 'pendingAmount') {
-          const aTotals = getTotalsForRepayment(a, loanTotals);
-          const bTotals = getTotalsForRepayment(b, loanTotals);
-          aValue = aTotals.pendingAmount;
-          bValue = bTotals.pendingAmount;
+          aValue = calculatePendingAmount(a, repayments);
+          bValue = calculatePendingAmount(b, repayments);
         } else if (sortConfig.key === 'totalPaid') {
-          const aTotals = getTotalsForRepayment(a, loanTotals);
-          const bTotals = getTotalsForRepayment(b, loanTotals);
-          aValue = aTotals.totalPaid;
-          bValue = bTotals.totalPaid;
+          aValue = calculateTotalPaid(a, repayments);
+          bValue = calculateTotalPaid(b, repayments);
         } else if (sortConfig.key === 'loanAmount') {
-          const aTotals = getTotalsForRepayment(a, loanTotals);
-          const bTotals = getTotalsForRepayment(b, loanTotals);
-          aValue = aTotals.loanAmount;
-          bValue = bTotals.loanAmount;
+          aValue = a.loan?.amount || 0;
+          bValue = b.loan?.amount || 0;
         }
 
         if (aValue < bValue) {
@@ -427,7 +377,7 @@ export default function RepaymentTable() {
     }
 
     setFiltered(data);
-  }, [search, status, fromDate, toDate, repayments, sortConfig, loanTotals]);
+  }, [search, status, fromDate, toDate, repayments, sortConfig]);
 
   const handleSort = (key) => {
     let direction = "ascending";
@@ -453,20 +403,19 @@ export default function RepaymentTable() {
     ];
     const csvContent = [
       headers.join(","),
-      ...filtered.map((row) => {
-        const totals = getTotalsForRepayment(row, loanTotals);
-        return [
+      ...filtered.map((row) =>
+        [
           `"${row.loan?.customer?.customerCode || ""}"`,
           `"${row.loan?.customer?.customerName || ""}"`,
           `"${row.loan?.customer?.aadhar || ""}"`,
-          totals.loanAmount,
+          row.loan?.amount || 0,
           row.amount || 0,
-          totals.totalPaid.toLocaleString(),
-          totals.pendingAmount.toLocaleString(),
+          calculateTotalPaid(row, repayments).toLocaleString(),
+          calculatePendingAmount(row, repayments).toLocaleString(),
           `"${formatDate(row.dueDate || "")}"`,
           `"${row.status || ""}"`,
-        ].join(",");
-      }),
+        ].join(",")
+      ),
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -546,14 +495,11 @@ export default function RepaymentTable() {
           <SortableHeader columnKey="loanAmount">Loan Amount</SortableHeader>
         </div>
       ),
-      cell: ({ row }) => {
-        const totals = getTotalsForRepayment(row.original, loanTotals);
-        return (
-          <div className="text-right font-semibold">
-            ₹{totals.loanAmount.toLocaleString()}
-          </div>
-        );
-      },
+      cell: ({ row }) => (
+        <div className="text-right font-semibold">
+          ₹{(row.original.loan?.amount || 0).toLocaleString()}
+        </div>
+      ),
     },
     {
       accessorKey: "amount",
@@ -567,6 +513,7 @@ export default function RepaymentTable() {
           <EditableAmount 
             repayment={row.original} 
             onUpdate={fetchRepayments}
+            allRepayments={repayments}
           />
         </div>
       ),
@@ -579,10 +526,10 @@ export default function RepaymentTable() {
         </div>
       ),
       cell: ({ row }) => {
-        const totals = getTotalsForRepayment(row.original, loanTotals);
+        const totalPaid = calculateTotalPaid(row.original, repayments);
         return (
           <div className="text-right font-semibold text-green-600">
-            ₹{totals.totalPaid.toLocaleString()}
+            ₹{totalPaid.toLocaleString()}
           </div>
         );
       },
@@ -595,10 +542,10 @@ export default function RepaymentTable() {
         </div>
       ),
       cell: ({ row }) => {
-        const totals = getTotalsForRepayment(row.original, loanTotals);
+        const pendingAmount = calculatePendingAmount(row.original, repayments);
         return (
           <div className="text-right font-semibold text-red-600">
-            ₹{totals.pendingAmount.toLocaleString()}
+            ₹{pendingAmount.toLocaleString()}
           </div>
         );
       },
@@ -626,7 +573,6 @@ export default function RepaymentTable() {
       cell: ({ row }) => {
         const repayment = row.original;
         const [editDialogOpen, setEditDialogOpen] = useState(false);
-        const totals = getTotalsForRepayment(repayment, loanTotals);
 
         return (
           <div className="flex gap-2">
@@ -679,7 +625,7 @@ export default function RepaymentTable() {
                         Loan Amount
                       </Label>
                       <p className="text-sm font-medium">
-                        {formatCurrency(totals.loanAmount)}
+                        {formatCurrency(repayment.loan?.amount || 0)}
                       </p>
                     </div>
                     <div className="space-y-1">
@@ -687,7 +633,7 @@ export default function RepaymentTable() {
                         Total Paid
                       </Label>
                       <p className="text-sm font-medium text-green-600">
-                        {formatCurrency(totals.totalPaid)}
+                        {formatCurrency(calculateTotalPaid(repayment, repayments))}
                       </p>
                     </div>
                     <div className="space-y-1">
@@ -695,7 +641,7 @@ export default function RepaymentTable() {
                         Pending Amount
                       </Label>
                       <p className="text-sm font-medium text-red-600">
-                        {formatCurrency(totals.pendingAmount)}
+                        {formatCurrency(calculatePendingAmount(repayment, repayments))}
                       </p>
                     </div>
                   </div>
@@ -747,7 +693,7 @@ export default function RepaymentTable() {
                   repayment={repayment}
                   onUpdate={fetchRepayments}
                   onClose={() => setEditDialogOpen(false)}
-                  loanTotals={loanTotals}
+                  allRepayments={repayments}
                 />
               </DialogContent>
             </Dialog>
@@ -991,7 +937,7 @@ export default function RepaymentTable() {
               </p>
             </div>
           ) : (
-            <SimpleTable columns={columns} data={filtered} />
+            <DataTable columns={columns} data={filtered} />
           )}
         </CardContent>
       </Card>

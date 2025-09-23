@@ -1,15 +1,16 @@
 "use client";
 
 import React from "react";
-import NewLoanForm from "./NewLoanForm";
+import RepaymentTable from "../repayments/RepaymentTable";
 
-const NewloanPage = () => {
-  // Remove the user object since it's not being used and causing image error
+const user = { name: "Admin", image: "/profile-user.png", isLoggedIn: true };
+
+const RepaymentsPage = () => {
   return (
     <div className="p-6">
-      <NewLoanForm />
+      <RepaymentTable />
     </div>
   );
 };
 
-export default NewloanPage;
+export default RepaymentsPage;
