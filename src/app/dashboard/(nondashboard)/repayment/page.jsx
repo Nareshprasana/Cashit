@@ -3,6 +3,7 @@ import React from "react";
 import { useParams } from "next/navigation";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import dynamic from "next/dynamic";
+import RepaymentTable from "../repayments/RepaymentTable"
 
 // ✅ Load components client-side only (avoid hydration mismatch)
 const RepaymentForm = dynamic(() => import("./RepaymentForm"), {
@@ -29,7 +30,8 @@ const RepaymentFormPage = () => {
           <RepaymentForm customerId={customerId} />
         </div>
         <div>
-          <AllCustomerTable />
+          {/* <AllCustomerTable /> */}
+          <RepaymentTable/>
         </div>
       </div>
     </SidebarProvider>
