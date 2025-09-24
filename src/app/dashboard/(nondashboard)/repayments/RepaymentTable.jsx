@@ -104,25 +104,10 @@ const calculateTotalPaid = (repayment, allRepayments) => {
     .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
 };
 
-// ================= Helper function to calculate pending amount =================
-const calculatePendingAmount = (repayment, allRepayments) => {
-  const loanAmount = Number(repayment.loan?.amount) || 0;
-  
-  if (!repayment?.loanId) return loanAmount;
-  
-  // Get all repayments for this specific loan
-  const loanRepayments = allRepayments.filter(
-    r => r.loanId === repayment.loanId
-  );
-  
-  // Calculate total paid (sum of all repayments for this loan)
-  const totalPaid = loanRepayments.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-  
-  // Pending amount = Loan amount - Total paid
-  const pending = loanAmount - totalPaid;
-  
-  // Ensure pending amount is not negative
-  return Math.max(0, pending);
+// ================= Use database pending amount instead of calculating =================
+const getPendingAmount = (repayment) => {
+  // Use the pendingAmount from the database (loan.pendingAmount)
+  return Number(repayment.loan?.pendingAmount) || 0;
 };
 
 // ================= Editable Amount Component =================
@@ -137,7 +122,7 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
       return;
     }
 
-    const pendingAmount = calculatePendingAmount(repayment, allRepayments);
+    const pendingAmount = getPendingAmount(repayment);
     const currentRepaymentAmount = Number(repayment.amount) || 0;
     
     // Check if new amount would exceed pending amount
@@ -225,7 +210,7 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
         </TooltipTrigger>
         <TooltipContent>
           <p>Click to edit amount</p>
-          <p className="text-xs text-gray-500">Pending: ₹{calculatePendingAmount(repayment, allRepayments).toLocaleString()}</p>
+          <p className="text-xs text-gray-500">Pending: ₹{getPendingAmount(repayment).toLocaleString()}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -239,7 +224,7 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
   const [status, setStatus] = useState(repayment.status || 'PENDING');
   const [loading, setLoading] = useState(false);
 
-  const pendingAmount = calculatePendingAmount(repayment, allRepayments);
+  const pendingAmount = getPendingAmount(repayment);
   const totalPaid = calculateTotalPaid(repayment, allRepayments);
   const loanAmount = repayment.loan?.amount || 0;
 
@@ -422,8 +407,8 @@ export default function RepaymentTable() {
           aValue = a.loan?.customer?.aadhar;
           bValue = b.loan?.customer?.aadhar;
         } else if (sortConfig.key === 'pendingAmount') {
-          aValue = calculatePendingAmount(a, repayments);
-          bValue = calculatePendingAmount(b, repayments);
+          aValue = getPendingAmount(a);
+          bValue = getPendingAmount(b);
         } else if (sortConfig.key === 'totalPaid') {
           aValue = calculateTotalPaid(a, repayments);
           bValue = calculateTotalPaid(b, repayments);
@@ -477,7 +462,7 @@ export default function RepaymentTable() {
           row.loan?.amount || 0,
           row.amount || 0,
           calculateTotalPaid(row, repayments),
-          calculatePendingAmount(row, repayments),
+          getPendingAmount(row),
           `"${formatDate(row.dueDate || "")}"`,
           `"${row.status || ""}"`,
         ].join(",")
@@ -610,7 +595,7 @@ export default function RepaymentTable() {
         </div>
       ),
       cell: ({ row }) => {
-        const pendingAmount = calculatePendingAmount(row.original, repayments);
+        const pendingAmount = getPendingAmount(row.original);
         return (
           <div className="text-right font-semibold text-red-600">
             <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
@@ -710,7 +695,7 @@ export default function RepaymentTable() {
                         Pending Amount
                       </Label>
                       <p className="text-sm font-medium text-red-600">
-                        {formatCurrency(calculatePendingAmount(repayment, repayments))}
+                        {formatCurrency(getPendingAmount(repayment))}
                       </p>
                     </div>
                   </div>
@@ -1010,6 +995,6 @@ export default function RepaymentTable() {
           )}
         </CardContent>
       </Card>
-    </div>
+   </div>
   );
 }
