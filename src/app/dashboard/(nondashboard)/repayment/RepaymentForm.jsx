@@ -257,7 +257,7 @@ export default function RepaymentForm({ customerId }) {
                               {customers.map((cust) => (
                                 <CommandItem key={cust.id} value={cust.customerCode} onSelect={() => handleCustomerSelect(cust)}>
                                   <Check className={cn("mr-2 h-4 w-4", formData.customerCode === cust.customerCode ? "opacity-100" : "opacity-0")} />
-                                  {cust.customerCode}
+                                  {cust.customerCode} - {cust.customerName}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
