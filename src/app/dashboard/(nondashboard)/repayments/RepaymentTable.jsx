@@ -95,9 +95,20 @@ const formatDate = (dateString) =>
     year: "numeric",
   });
 
+// ================= Helper function to calculate total paid for a loan =================
+const calculateTotalPaid = (repayment, allRepayments) => {
+  if (!repayment?.loanId) return 0;
+  
+  return allRepayments
+    .filter(r => r.loanId === repayment.loanId)
+    .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+};
+
 // ================= Helper function to calculate pending amount =================
 const calculatePendingAmount = (repayment, allRepayments) => {
-  const loanAmount = repayment.loan?.amount || 0;
+  const loanAmount = Number(repayment.loan?.amount) || 0;
+  
+  if (!repayment?.loanId) return loanAmount;
   
   // Get all repayments for this specific loan
   const loanRepayments = allRepayments.filter(
@@ -105,19 +116,27 @@ const calculatePendingAmount = (repayment, allRepayments) => {
   );
   
   // Calculate total paid (sum of all repayments for this loan)
-  const totalPaid = loanRepayments.reduce((sum, r) => sum + (r.amount || 0), 0);
+  const totalPaid = loanRepayments.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
   
   // Pending amount = Loan amount - Total paid
-  return Math.max(0, loanAmount - totalPaid);
+  const pending = loanAmount - totalPaid;
+  
+  // Ensure pending amount is not negative
+  return Math.max(0, pending);
 };
 
-// ================= Helper function to calculate total paid for a loan =================
-const calculateTotalPaid = (repayment, allRepayments) => {
-  const loanRepayments = allRepayments.filter(
-    r => r.loanId === repayment.loanId
-  );
+// ================= Helper function to calculate remaining installments =================
+const calculateRemainingInstallments = (repayment, allRepayments) => {
+  const totalInstallments = Number(repayment.loan?.installments) || 1;
   
-  return loanRepayments.reduce((sum, r) => sum + (r.amount || 0), 0);
+  if (!repayment?.loanId) return totalInstallments;
+  
+  // Count how many repayments have been made for this loan
+  const paidInstallments = allRepayments.filter(
+    r => r.loanId === repayment.loanId && r.status === "PAID"
+  ).length;
+  
+  return Math.max(0, totalInstallments - paidInstallments);
 };
 
 // ================= Editable Amount Component =================
@@ -127,6 +146,20 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
   const [loading, setLoading] = useState(false);
 
   const saveChange = async () => {
+    if (Number(value) <= 0) {
+      alert("Amount must be greater than 0");
+      return;
+    }
+
+    const pendingAmount = calculatePendingAmount(repayment, allRepayments);
+    const currentRepaymentAmount = Number(repayment.amount) || 0;
+    
+    // Check if new amount would exceed pending amount
+    if (Number(value) > pendingAmount + currentRepaymentAmount) {
+      alert(`Amount cannot exceed pending amount of ₹${pendingAmount.toLocaleString()}`);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch(`/api/repayments/${repayment.id}`, {
@@ -134,7 +167,7 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: Number(value) }),
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("Failed to update repayment");
       setEditing(false);
       if (onUpdate) onUpdate();
     } catch (err) {
@@ -149,15 +182,28 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
     setEditing(false);
   };
 
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      saveChange();
+    } else if (e.key === 'Escape') {
+      cancelEdit();
+    }
+  };
+
   return editing ? (
     <div className="flex items-center gap-2">
-      <Input
-        type="number"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        className="w-24 h-8 text-sm"
-        autoFocus
-      />
+      <div className="relative">
+        <IndianRupee className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-500" />
+        <Input
+          type="number"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyPress}
+          className="w-28 h-8 text-sm pl-7"
+          autoFocus
+          min="0"
+        />
+      </div>
       <Button
         size="sm"
         className="h-7 px-2"
@@ -184,11 +230,12 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
             onClick={() => setEditing(true)}
           >
             <IndianRupee className="h-3.5 w-3.5" />
-            {repayment.amount?.toLocaleString() || "0"}
+            {(Number(repayment.amount) || 0).toLocaleString()}
           </div>
         </TooltipTrigger>
         <TooltipContent>
           <p>Click to edit amount</p>
+          <p className="text-xs text-gray-500">Pending: ₹{calculatePendingAmount(repayment, allRepayments).toLocaleString()}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -202,7 +249,22 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
   const [status, setStatus] = useState(repayment.status || 'PENDING');
   const [loading, setLoading] = useState(false);
 
+  const pendingAmount = calculatePendingAmount(repayment, allRepayments);
+  const totalPaid = calculateTotalPaid(repayment, allRepayments);
+  const loanAmount = repayment.loan?.amount || 0;
+
   const handleSave = async () => {
+    if (Number(amount) <= 0) {
+      alert("Amount must be greater than 0");
+      return;
+    }
+
+    // Validate amount doesn't exceed pending amount when status is PAID
+    if (status === "PAID" && Number(amount) > pendingAmount + (Number(repayment.amount) || 0)) {
+      alert(`Amount cannot exceed pending amount of ₹${pendingAmount.toLocaleString()}`);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch(`/api/repayments/${repayment.id}`, {
@@ -234,6 +296,7 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
             type="number"
             value={amount}
             onChange={(e) => setAmount(Number(e.target.value))}
+            min="0"
           />
         </div>
         <div className="space-y-2">
@@ -262,19 +325,25 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
 
       {/* Show calculation summary */}
       <div className="bg-gray-50 p-3 rounded-lg">
-        <Label className="text-sm font-medium">Amount Summary</Label>
-        <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
+        <Label className="text-sm font-medium">Loan Summary</Label>
+        <div className="grid grid-cols-3 gap-3 mt-2 text-xs">
           <div>
             <div className="text-gray-600">Loan Amount:</div>
-            <div className="font-medium">₹{(repayment.loan?.amount || 0).toLocaleString()}</div>
+            <div className="font-medium">₹{loanAmount.toLocaleString()}</div>
           </div>
           <div>
             <div className="text-gray-600">Total Paid:</div>
-            <div className="font-medium text-green-600">₹{calculateTotalPaid(repayment, allRepayments).toLocaleString()}</div>
+            <div className="font-medium text-green-600">₹{totalPaid.toLocaleString()}</div>
           </div>
           <div>
             <div className="text-gray-600">Pending:</div>
-            <div className="font-medium text-red-600">₹{calculatePendingAmount(repayment, allRepayments).toLocaleString()}</div>
+            <div className="font-medium text-red-600">₹{pendingAmount.toLocaleString()}</div>
+          </div>
+        </div>
+        <div className="mt-2 pt-2 border-t border-gray-200">
+          <div className="text-gray-600 text-xs">Remaining Installments:</div>
+          <div className="font-medium text-blue-600">
+            {calculateRemainingInstallments(repayment, allRepayments)}
           </div>
         </div>
       </div>
@@ -398,6 +467,7 @@ export default function RepaymentTable() {
       "This Repayment",
       "Total Paid",
       "Pending Amount",
+      "Remaining Installments",
       "Due Date",
       "Status",
     ];
@@ -410,8 +480,9 @@ export default function RepaymentTable() {
           `"${row.loan?.customer?.aadhar || ""}"`,
           row.loan?.amount || 0,
           row.amount || 0,
-          calculateTotalPaid(row, repayments).toLocaleString(),
-          calculatePendingAmount(row, repayments).toLocaleString(),
+          calculateTotalPaid(row, repayments),
+          calculatePendingAmount(row, repayments),
+          calculateRemainingInstallments(row, repayments),
           `"${formatDate(row.dueDate || "")}"`,
           `"${row.status || ""}"`,
         ].join(",")
@@ -497,7 +568,8 @@ export default function RepaymentTable() {
       ),
       cell: ({ row }) => (
         <div className="text-right font-semibold">
-          ₹{(row.original.loan?.amount || 0).toLocaleString()}
+          <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
+          {(row.original.loan?.amount || 0).toLocaleString()}
         </div>
       ),
     },
@@ -529,7 +601,8 @@ export default function RepaymentTable() {
         const totalPaid = calculateTotalPaid(row.original, repayments);
         return (
           <div className="text-right font-semibold text-green-600">
-            ₹{totalPaid.toLocaleString()}
+            <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
+            {totalPaid.toLocaleString()}
           </div>
         );
       },
@@ -545,7 +618,24 @@ export default function RepaymentTable() {
         const pendingAmount = calculatePendingAmount(row.original, repayments);
         return (
           <div className="text-right font-semibold text-red-600">
-            ₹{pendingAmount.toLocaleString()}
+            <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
+            {pendingAmount.toLocaleString()}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "remainingInstallments",
+      header: () => (
+        <div className="text-right">
+          <SortableHeader columnKey="remainingInstallments">Remaining</SortableHeader>
+        </div>
+      ),
+      cell: ({ row }) => {
+        const remaining = calculateRemainingInstallments(row.original, repayments);
+        return (
+          <div className="text-right font-medium text-blue-600">
+            {remaining} installments
           </div>
         );
       },
@@ -663,11 +753,21 @@ export default function RepaymentTable() {
                       </p>
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">
-                      Status
-                    </Label>
-                    <div>{getStatusBadge(repayment.status)}</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        Remaining Installments
+                      </Label>
+                      <p className="text-sm font-medium text-blue-600">
+                        {calculateRemainingInstallments(repayment, repayments)}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        Status
+                      </Label>
+                      <div>{getStatusBadge(repayment.status)}</div>
+                    </div>
                   </div>
                 </div>
               </DialogContent>
