@@ -439,7 +439,7 @@ export default function RepaymentForm({ customerId }) {
                     <User className="h-6 w-6 text-blue-600" />
                   </div>
                   <div>
-                    <p className="font-semibold">{cust.customerName || "N/A"}</p>
+                    <p className="font-semibold">{customerDetails.name || "N/A"}</p>
                     <p className="text-sm text-gray-600">{customerDetails.customerCode}</p>
                   </div>
                 </div>
