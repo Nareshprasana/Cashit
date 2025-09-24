@@ -153,9 +153,13 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: Number(value) }),
       });
+      
       if (!res.ok) throw new Error("Failed to update repayment");
+      
+      const updatedRepayment = await res.json();
+      
       setEditing(false);
-      if (onUpdate) onUpdate();
+      if (onUpdate) onUpdate(updatedRepayment);
     } catch (err) {
       alert("Error updating repayment");
     } finally {
@@ -262,8 +266,12 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
           status: status
         }),
       });
+      
       if (!res.ok) throw new Error("Failed to update repayment");
-      if (onUpdate) onUpdate();
+      
+      const updatedRepayment = await res.json();
+      
+      if (onUpdate) onUpdate(updatedRepayment);
       if (onClose) onClose();
     } catch (err) {
       console.error(err);
@@ -367,6 +375,15 @@ export default function RepaymentTable() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Update a single repayment in the state
+  const updateRepaymentInState = (updatedRepayment) => {
+    setRepayments(prevRepayments => 
+      prevRepayments.map(repayment => 
+        repayment.id === updatedRepayment.id ? updatedRepayment : repayment
+      )
+    );
   };
 
   useEffect(() => {
@@ -562,7 +579,7 @@ export default function RepaymentTable() {
         <div className="text-right">
           <EditableAmount 
             repayment={row.original} 
-            onUpdate={fetchRepayments}
+            onUpdate={updateRepaymentInState}
             allRepayments={repayments}
           />
         </div>
@@ -743,7 +760,7 @@ export default function RepaymentTable() {
                 </DialogHeader>
                 <EditRepaymentForm
                   repayment={repayment}
-                  onUpdate={fetchRepayments}
+                  onUpdate={updateRepaymentInState}
                   onClose={() => setEditDialogOpen(false)}
                   allRepayments={repayments}
                 />
