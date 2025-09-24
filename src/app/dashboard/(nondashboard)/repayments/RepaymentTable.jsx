@@ -23,6 +23,8 @@ import {
   FileText,
   Save,
   IndianRupee,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +51,17 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+
+// ================= Pagination Component =================
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 
 // ================= Status Badge =================
 const getStatusBadge = (status) => {
@@ -333,6 +346,94 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
   );
 }
 
+// ================= Custom Pagination Component =================
+function CustomPagination({ 
+  currentPage, 
+  totalPages, 
+  onPageChange, 
+  itemsPerPage,
+  onItemsPerPageChange,
+  totalItems,
+  currentItemsCount 
+}) {
+  const maxVisiblePages = 5;
+
+  const getPageNumbers = () => {
+    const pages = [];
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t">
+      <div className="text-sm text-gray-600">
+        Showing {((currentPage - 1) * itemsPerPage) + 1} to {((currentPage - 1) * itemsPerPage) + currentItemsCount} of {totalItems} entries
+      </div>
+      
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="itemsPerPage" className="text-sm text-gray-600">
+            Rows per page:
+          </Label>
+          <Select
+            value={itemsPerPage.toString()}
+            onValueChange={(value) => onItemsPerPageChange(Number(value))}
+          >
+            <SelectTrigger className="w-20 h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Pagination className="w-auto">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                onClick={() => currentPage > 1 && onPageChange(currentPage - 1)}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              />
+            </PaginationItem>
+            
+            {getPageNumbers().map((page) => (
+              <PaginationItem key={page}>
+                <PaginationLink
+                  isActive={currentPage === page}
+                  onClick={() => onPageChange(page)}
+                  className="cursor-pointer"
+                >
+                  {page}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+            
+            <PaginationItem>
+              <PaginationNext
+                onClick={() => currentPage < totalPages && onPageChange(currentPage + 1)}
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      </div>
+    </div>
+  );
+}
+
 // ================= Main Component =================
 export default function RepaymentTable() {
   const [repayments, setRepayments] = useState([]);
@@ -347,6 +448,10 @@ export default function RepaymentTable() {
     key: null,
     direction: "ascending",
   });
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const fetchRepayments = async () => {
     try {
@@ -374,6 +479,11 @@ export default function RepaymentTable() {
   useEffect(() => {
     fetchRepayments();
   }, []);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, status, fromDate, toDate, sortConfig]);
 
   useEffect(() => {
     let data = [...repayments];
@@ -430,12 +540,30 @@ export default function RepaymentTable() {
     setFiltered(data);
   }, [search, status, fromDate, toDate, repayments, sortConfig]);
 
+  // Calculate pagination data
+  const totalItems = filtered.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = filtered.slice(startIndex, endIndex);
+
   const handleSort = (key) => {
     let direction = "ascending";
     if (sortConfig.key === key && sortConfig.direction === "ascending") {
       direction = "descending";
     }
     setSortConfig({ key, direction });
+  };
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    // Scroll to top when page changes
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page when items per page changes
   };
 
   const handleExport = () => {
@@ -991,7 +1119,20 @@ export default function RepaymentTable() {
               </p>
             </div>
           ) : (
-            <DataTable columns={columns} data={filtered} />
+            <>
+              <DataTable columns={columns} data={currentItems} />
+              
+              {/* Pagination */}
+              <CustomPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+                itemsPerPage={itemsPerPage}
+                onItemsPerPageChange={handleItemsPerPageChange}
+                totalItems={totalItems}
+                currentItemsCount={currentItems.length}
+              />
+            </>
           )}
         </CardContent>
       </Card>
