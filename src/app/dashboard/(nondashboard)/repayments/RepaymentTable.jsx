@@ -125,20 +125,6 @@ const calculatePendingAmount = (repayment, allRepayments) => {
   return Math.max(0, pending);
 };
 
-// ================= Helper function to calculate remaining installments =================
-const calculateRemainingInstallments = (repayment, allRepayments) => {
-  const totalInstallments = Number(repayment.loan?.installments) || 1;
-  
-  if (!repayment?.loanId) return totalInstallments;
-  
-  // Count how many repayments have been made for this loan
-  const paidInstallments = allRepayments.filter(
-    r => r.loanId === repayment.loanId && r.status === "PAID"
-  ).length;
-  
-  return Math.max(0, totalInstallments - paidInstallments);
-};
-
 // ================= Editable Amount Component =================
 function EditableAmount({ repayment, onUpdate, allRepayments }) {
   const [editing, setEditing] = useState(false);
@@ -340,12 +326,6 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
             <div className="font-medium text-red-600">₹{pendingAmount.toLocaleString()}</div>
           </div>
         </div>
-        <div className="mt-2 pt-2 border-t border-gray-200">
-          <div className="text-gray-600 text-xs">Remaining Installments:</div>
-          <div className="font-medium text-blue-600">
-            {calculateRemainingInstallments(repayment, allRepayments)}
-          </div>
-        </div>
       </div>
 
       <div className="flex gap-2 justify-end pt-4">
@@ -467,7 +447,6 @@ export default function RepaymentTable() {
       "This Repayment",
       "Total Paid",
       "Pending Amount",
-      "Remaining Installments",
       "Due Date",
       "Status",
     ];
@@ -482,7 +461,6 @@ export default function RepaymentTable() {
           row.amount || 0,
           calculateTotalPaid(row, repayments),
           calculatePendingAmount(row, repayments),
-          calculateRemainingInstallments(row, repayments),
           `"${formatDate(row.dueDate || "")}"`,
           `"${row.status || ""}"`,
         ].join(",")
@@ -625,22 +603,6 @@ export default function RepaymentTable() {
       },
     },
     {
-      accessorKey: "remainingInstallments",
-      header: () => (
-        <div className="text-right">
-          <SortableHeader columnKey="remainingInstallments">Remaining</SortableHeader>
-        </div>
-      ),
-      cell: ({ row }) => {
-        const remaining = calculateRemainingInstallments(row.original, repayments);
-        return (
-          <div className="text-right font-medium text-blue-600">
-            {remaining} installments
-          </div>
-        );
-      },
-    },
-    {
       accessorKey: "dueDate",
       header: () => (
         <SortableHeader columnKey="dueDate">Due Date</SortableHeader>
@@ -753,21 +715,11 @@ export default function RepaymentTable() {
                       </p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        Remaining Installments
-                      </Label>
-                      <p className="text-sm font-medium text-blue-600">
-                        {calculateRemainingInstallments(repayment, repayments)}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        Status
-                      </Label>
-                      <div>{getStatusBadge(repayment.status)}</div>
-                    </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Status
+                    </Label>
+                    <div>{getStatusBadge(repayment.status)}</div>
                   </div>
                 </div>
               </DialogContent>
