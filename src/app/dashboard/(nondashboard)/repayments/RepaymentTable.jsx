@@ -25,6 +25,8 @@ import {
   ChevronLeft,
   ChevronRight,
   MapPin,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +38,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -51,6 +54,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Textarea } from "@/components/ui/textarea";
 
 /* ================= Pagination Component ================= */
 import {
@@ -63,7 +67,7 @@ import {
   PaginationEllipsis,
 } from "@/components/ui/pagination";
 
-/* ================= Status Badge ================= */
+/* ================= Helper Functions ================= */
 const getStatusBadge = (status) => {
   switch (status) {
     case "PAID":
@@ -92,7 +96,6 @@ const getStatusBadge = (status) => {
   }
 };
 
-/* ================= Formatters ================= */
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -108,18 +111,310 @@ const formatDate = (dateString) =>
     year: "numeric",
   });
 
-/* ================= Helper function to calculate total paid for a loan ================= */
+/* ================= Consistent Pending Amount Logic ================= */
 const calculateTotalPaid = (repayment, allRepayments) => {
   if (!repayment?.loanId) return 0;
-  return allRepayments
-    .filter((r) => r.loanId === repayment.loanId)
-    .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+  
+  // Sum all repayments for this loan
+  const loanRepayments = allRepayments.filter((r) => r.loanId === repayment.loanId);
+  return loanRepayments.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
 };
 
-/* ================= Use database pending amount instead of calculating ================= */
-const getPendingAmount = (repayment) => {
-  return Number(repayment.loan?.pendingAmount) || 0;
+const getPendingAmount = (repayment, allRepayments = []) => {
+  if (!repayment?.loanId) return 0;
+
+  // Sort all repayments for this loan by dueDate
+  const loanRepayments = allRepayments
+    .filter((r) => r.loanId === repayment.loanId)
+    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+  const loanAmount = getLoanAmount(repayment);
+  let runningBalance = loanAmount;
+
+  // Iterate through repayments up to the current one
+  for (let r of loanRepayments) {
+    if (new Date(r.dueDate) <= new Date(repayment.dueDate)) {
+      runningBalance -= Number(r.amount) || 0;
+    }
+    // Stop if we reach the current repayment to get its pending amount
+    if (r.id === repayment.id) break;
+  }
+
+  return Math.max(0, runningBalance); // Ensure balance doesn't go negative
 };
+
+const getLoanAmount = (repayment) => {
+  return Number(repayment.loan?.loanAmount) || Number(repayment.loanAmount) || 0;
+};
+
+const getCustomerData = (repayment) => {
+  return {
+    customerCode: repayment.customer?.customerCode || repayment.customerCode || "N/A",
+    customerName: repayment.customer?.customerName || repayment.customerName || "N/A",
+    aadhar: repayment.customer?.aadhar || repayment.aadhar || "N/A",
+    areaId: repayment.customer?.areaId || "N/A"
+  };
+};
+
+/* ================= Get consistent total paid for display ================= */
+const getTotalPaidAmount = (repayment, allRepayments) => {
+  return calculateTotalPaid(repayment, allRepayments);
+};
+
+/* ================= Create Repayment Form ================= */
+function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] }) {
+  const [formData, setFormData] = useState({
+    loanId: "",
+    customerId: "",
+    amount: "",
+    dueDate: "",
+    status: "PENDING",
+    notes: ""
+  });
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  // Filter loans based on selected customer
+  const customerLoans = loans.filter(loan => 
+    formData.customerId ? loan.customerId === formData.customerId : true
+  );
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.loanId) newErrors.loanId = "Loan is required";
+    if (!formData.amount || Number(formData.amount) <= 0) newErrors.amount = "Valid amount is required";
+    if (!formData.dueDate) newErrors.dueDate = "Due date is required";
+    if (!formData.status) newErrors.status = "Status is required";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/repayments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          amount: Number(formData.amount)
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to create repayment");
+
+      const newRepayment = await res.json();
+      
+      if (onCreated) onCreated(newRepayment);
+      if (onClose) onClose();
+      
+      // Reset form
+      setFormData({
+        loanId: "",
+        customerId: "",
+        amount: "",
+        dueDate: "",
+        status: "PENDING",
+        notes: ""
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Error creating repayment");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCustomerChange = (customerId) => {
+    setFormData(prev => ({
+      ...prev,
+      customerId,
+      loanId: "" // Reset loan when customer changes
+    }));
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 gap-4">
+        {/* Customer Selection */}
+        <div className="space-y-2">
+          <Label htmlFor="customerId">Customer *</Label>
+          <Select 
+            value={formData.customerId} 
+            onValueChange={handleCustomerChange}
+          >
+            <SelectTrigger className={errors.customerId ? "border-red-500" : ""}>
+              <SelectValue placeholder="Select customer" />
+            </SelectTrigger>
+            <SelectContent>
+              {customers.map((customer) => (
+                <SelectItem key={customer.id} value={customer.id}>
+                  {customer.customerName} ({customer.customerCode})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.customerId && <p className="text-red-500 text-sm">{errors.customerId}</p>}
+        </div>
+
+        {/* Loan Selection */}
+        <div className="space-y-2">
+          <Label htmlFor="loanId">Loan *</Label>
+          <Select 
+            value={formData.loanId} 
+            onValueChange={(value) => setFormData(prev => ({ ...prev, loanId: value }))}
+            disabled={!formData.customerId}
+          >
+            <SelectTrigger className={errors.loanId ? "border-red-500" : ""}>
+              <SelectValue placeholder={
+                formData.customerId ? "Select loan" : "Select customer first"
+              } />
+            </SelectTrigger>
+            <SelectContent>
+              {customerLoans.map((loan) => (
+                <SelectItem key={loan.id} value={loan.id}>
+                  Loan #{loan.id} - ₹{loan.loanAmount?.toLocaleString()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.loanId && <p className="text-red-500 text-sm">{errors.loanId}</p>}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {/* Amount */}
+          <div className="space-y-2">
+            <Label htmlFor="amount">Amount (₹) *</Label>
+            <Input
+              id="amount"
+              type="number"
+              value={formData.amount}
+              onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+              className={errors.amount ? "border-red-500" : ""}
+              min="0"
+              step="1"
+            />
+            {errors.amount && <p className="text-red-500 text-sm">{errors.amount}</p>}
+          </div>
+
+          {/* Due Date */}
+          <div className="space-y-2">
+            <Label htmlFor="dueDate">Due Date *</Label>
+            <Input
+              id="dueDate"
+              type="date"
+              value={formData.dueDate}
+              onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+              className={errors.dueDate ? "border-red-500" : ""}
+            />
+            {errors.dueDate && <p className="text-red-500 text-sm">{errors.dueDate}</p>}
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className="space-y-2">
+          <Label htmlFor="status">Status *</Label>
+          <Select 
+            value={formData.status} 
+            onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+          >
+            <SelectTrigger className={errors.status ? "border-red-500" : ""}>
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PENDING">Pending</SelectItem>
+              <SelectItem value="PAID">Paid</SelectItem>
+              <SelectItem value="OVERDUE">Overdue</SelectItem>
+            </SelectContent>
+          </Select>
+          {errors.status && <p className="text-red-500 text-sm">{errors.status}</p>}
+        </div>
+
+        {/* Notes */}
+        <div className="space-y-2">
+          <Label htmlFor="notes">Notes</Label>
+          <Textarea
+            id="notes"
+            value={formData.notes}
+            onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+            placeholder="Additional notes about this repayment..."
+            rows={3}
+          />
+        </div>
+      </div>
+
+      <DialogFooter className="gap-2 sm:gap-0 pt-4">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? "Creating..." : "Create Repayment"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+/* ================= Delete Confirmation Dialog ================= */
+function DeleteConfirmationDialog({ repayment, onDelete, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const { customerName, customerCode } = getCustomerData(repayment);
+
+  const handleDelete = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/repayments/${repayment.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("Failed to delete repayment");
+
+      if (onDelete) onDelete(repayment.id);
+      if (onClose) onClose();
+    } catch (err) {
+      console.error(err);
+      alert("Error deleting repayment");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="flex items-center gap-2 text-red-800">
+          <AlertCircle className="h-5 w-5" />
+          <span className="font-semibold">Warning: This action cannot be undone</span>
+        </div>
+        <p className="text-red-700 text-sm mt-2">
+          You are about to delete the repayment for <strong>{customerName}</strong> ({customerCode}) 
+          with amount <strong>₹{(repayment.amount || 0).toLocaleString()}</strong> due on <strong>{formatDate(repayment.dueDate)}</strong>.
+        </p>
+      </div>
+
+      <div className="flex gap-2 justify-end pt-4">
+        <Button variant="outline" onClick={onClose} disabled={loading}>
+          Cancel
+        </Button>
+        <Button 
+          variant="destructive" 
+          onClick={handleDelete} 
+          disabled={loading}
+          className="gap-2"
+        >
+          <Trash2 className="h-4 w-4" />
+          {loading ? "Deleting..." : "Delete Repayment"}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 /* ================= Editable Amount Component ================= */
 function EditableAmount({ repayment, onUpdate, allRepayments }) {
@@ -133,14 +428,11 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
       return;
     }
 
-    const pendingAmount = getPendingAmount(repayment);
-    const currentRepaymentAmount = Number(repayment.amount) || 0;
+    const loanAmount = getLoanAmount(repayment);
 
-    // Check if new amount would exceed pending amount
-    if (Number(value) > pendingAmount + currentRepaymentAmount) {
-      alert(
-        `Amount cannot exceed pending amount of ₹${pendingAmount.toLocaleString()}`
-      );
+    // Check if new amount would exceed the loan amount
+    if (Number(value) > loanAmount) {
+      alert(`Amount cannot exceed loan amount of ₹${loanAmount.toLocaleString()}`);
       return;
     }
 
@@ -155,7 +447,6 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
       if (!res.ok) throw new Error("Failed to update repayment");
 
       const updatedRepayment = await res.json();
-
       setEditing(false);
       if (onUpdate) onUpdate(updatedRepayment);
     } catch (err) {
@@ -171,11 +462,8 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === "Enter") {
-      saveChange();
-    } else if (e.key === "Escape") {
-      cancelEdit();
-    }
+    if (e.key === "Enter") saveChange();
+    else if (e.key === "Escape") cancelEdit();
   };
 
   return editing ? (
@@ -190,22 +478,13 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
           className="w-28 h-8 text-sm pl-7"
           autoFocus
           min="0"
+          max={getLoanAmount(repayment)}
         />
       </div>
-      <Button
-        size="sm"
-        className="h-7 px-2"
-        onClick={saveChange}
-        disabled={loading}
-      >
+      <Button size="sm" className="h-7 px-2" onClick={saveChange} disabled={loading}>
         {loading ? "..." : "✓"}
       </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-7 px-2"
-        onClick={cancelEdit}
-      >
+      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={cancelEdit}>
         <X className="h-3 w-3" />
       </Button>
     </div>
@@ -224,7 +503,7 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
         <TooltipContent>
           <p>Click to edit amount</p>
           <p className="text-xs text-gray-500">
-            Pending: ₹{getPendingAmount(repayment).toLocaleString()}
+            Loan Amount: ₹{getLoanAmount(repayment).toLocaleString()}
           </p>
         </TooltipContent>
       </Tooltip>
@@ -234,49 +513,60 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
 
 /* ================= Edit Repayment Form ================= */
 function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
-  const [amount, setAmount] = useState(repayment.amount || 0);
-  const [date, setDate] = useState(
-    repayment.dueDate?.split("T")[0] || ""
-  );
-  const [status, setStatus] = useState(repayment.status || "PENDING");
+  const [formData, setFormData] = useState({
+    amount: repayment.amount || 0,
+    dueDate: repayment.dueDate?.split("T")[0] || "",
+    status: repayment.status || "PENDING",
+    notes: repayment.notes || ""
+  });
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
-  const pendingAmount = getPendingAmount(repayment);
-  const totalPaid = calculateTotalPaid(repayment, allRepayments);
-  const loanAmount = repayment.loan?.amount || 0;
+  const loanAmount = getLoanAmount(repayment);
+  const totalPaid = getTotalPaidAmount(repayment, allRepayments);
+  const pendingAmount = getPendingAmount(repayment, allRepayments);
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.amount || Number(formData.amount) <= 0) newErrors.amount = "Valid amount is required";
+    if (!formData.dueDate) newErrors.dueDate = "Due date is required";
+    if (!formData.status) newErrors.status = "Status is required";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSave = async () => {
-    if (Number(amount) <= 0) {
+    if (!validateForm()) return;
+
+    if (Number(formData.amount) <= 0) {
       alert("Amount must be greater than 0");
       return;
     }
 
-    if (
-      status === "PAID" &&
-      Number(amount) > pendingAmount + (Number(repayment.amount) || 0)
-    ) {
-      alert(
-        `Amount cannot exceed pending amount of ₹${pendingAmount.toLocaleString()}`
-      );
+    // Check if new amount would exceed the loan amount
+    if (Number(formData.amount) > loanAmount) {
+      alert(`Amount cannot exceed loan amount of ₹${loanAmount.toLocaleString()}`);
       return;
     }
 
     setLoading(true);
     try {
       const res = await fetch(`/api/repayments/${repayment.id}`, {
-        method: "PATCH",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: Number(amount),
-          dueDate: date,
-          status: status,
+          amount: Number(formData.amount),
+          dueDate: formData.dueDate,
+          status: formData.status,
+          notes: formData.notes
         }),
       });
 
       if (!res.ok) throw new Error("Failed to update repayment");
 
       const updatedRepayment = await res.json();
-
       if (onUpdate) onUpdate(updatedRepayment);
       if (onClose) onClose();
     } catch (err) {
@@ -291,28 +581,36 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Amount (₹)</Label>
+          <Label>Amount (₹) *</Label>
           <Input
             type="number"
-            value={amount}
-            onChange={(e) => setAmount(Number(e.target.value))}
+            value={formData.amount}
+            onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+            className={errors.amount ? "border-red-500" : ""}
             min="0"
+            max={loanAmount}
           />
+          {errors.amount && <p className="text-red-500 text-sm">{errors.amount}</p>}
         </div>
         <div className="space-y-2">
-          <Label>Due Date</Label>
-          <Input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
+          <Label>Due Date *</Label>
+          <Input 
+            type="date" 
+            value={formData.dueDate} 
+            onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+            className={errors.dueDate ? "border-red-500" : ""}
           />
+          {errors.dueDate && <p className="text-red-500 text-sm">{errors.dueDate}</p>}
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label>Status</Label>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger>
+        <Label>Status *</Label>
+        <Select 
+          value={formData.status} 
+          onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+        >
+          <SelectTrigger className={errors.status ? "border-red-500" : ""}>
             <SelectValue placeholder="Select status" />
           </SelectTrigger>
           <SelectContent>
@@ -321,6 +619,17 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
             <SelectItem value="OVERDUE">Overdue</SelectItem>
           </SelectContent>
         </Select>
+        {errors.status && <p className="text-red-500 text-sm">{errors.status}</p>}
+      </div>
+
+      <div className="space-y-2">
+        <Label>Notes</Label>
+        <Textarea
+          value={formData.notes}
+          onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+          placeholder="Additional notes about this repayment..."
+          rows={3}
+        />
       </div>
 
       {/* Loan summary */}
@@ -329,29 +638,24 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
         <div className="grid grid-cols-3 gap-3 mt-2 text-xs">
           <div>
             <div className="text-gray-600">Loan Amount:</div>
-            <div className="font-medium">
-              ₹{loanAmount.toLocaleString()}
-            </div>
+            <div className="font-medium">₹{loanAmount.toLocaleString()}</div>
           </div>
           <div>
             <div className="text-gray-600">Total Paid:</div>
-            <div className="font-medium text-green-600">
-              ₹{totalPaid.toLocaleString()}
-            </div>
+            <div className="font-medium text-green-600">₹{totalPaid.toLocaleString()}</div>
           </div>
           <div>
             <div className="text-gray-600">Pending:</div>
-            <div className="font-medium text-red-600">
-              ₹{pendingAmount.toLocaleString()}
-            </div>
+            <div className="font-medium text-red-600">₹{pendingAmount.toLocaleString()}</div>
           </div>
+        </div>
+        <div className="mt-2 text-xs text-gray-500">
+          Note: Pending amount is consistent across all repayments for this loan
         </div>
       </div>
 
       <div className="flex gap-2 justify-end pt-4">
-        <Button variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
         <Button onClick={handleSave} disabled={loading}>
           {loading ? "Saving..." : "Save Changes"}
         </Button>
@@ -361,8 +665,14 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
 }
 
 /* ================= ActionButtons Component ================= */
-function ActionButtons({ repayment, onUpdate, allRepayments }) {
+function ActionButtons({ repayment, onUpdate, onDelete, allRepayments }) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const { customerCode, customerName, aadhar } = getCustomerData(repayment);
+
+  const loanAmount = getLoanAmount(repayment);
+  const totalPaid = getTotalPaidAmount(repayment, allRepayments);
+  const pendingAmount = getPendingAmount(repayment, allRepayments);
 
   return (
     <div className="flex gap-2">
@@ -379,94 +689,66 @@ function ActionButtons({ repayment, onUpdate, allRepayments }) {
               <FileText className="h-5 w-5" />
               Repayment Details
             </DialogTitle>
-            <DialogDescription>
-              View detailed information about this repayment
-            </DialogDescription>
+            <DialogDescription>View detailed information about this repayment</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {/* --- basic info --- */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Customer ID
-                </Label>
-                <p className="text-sm font-medium">
-                  {repayment.customer?.customerCode || repayment.customerCode || "N/A"}
-                </p>
+                <Label className="text-xs text-muted-foreground">Customer ID</Label>
+                <p className="text-sm font-medium">{customerCode}</p>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Aadhar Number
-                </Label>
-                <p className="text-sm font-medium">
-                  {repayment.customer?.aadhar || repayment.aadhar || "N/A"}
-                </p>
+                <Label className="text-xs text-muted-foreground">Aadhar Number</Label>
+                <p className="text-sm font-medium">{aadhar}</p>
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">
-                Customer Name
-              </Label>
-              <p className="text-sm font-medium">
-                {repayment.customer?.customerName || repayment.customerName || "N/A"}
-              </p>
+              <Label className="text-xs text-muted-foreground">Customer Name</Label>
+              <p className="text-sm font-medium">{customerName}</p>
             </div>
 
-            {/* --- loan summary --- */}
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Loan Amount
-                </Label>
-                <p className="text-sm font-medium">
-                  {formatCurrency(repayment.loan?.amount || repayment.loanAmount || 0)}
-                </p>
+                <Label className="text-xs text-muted-foreground">Loan Amount</Label>
+                <p className="text-sm font-medium">{formatCurrency(loanAmount)}</p>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Total Paid
-                </Label>
+                <Label className="text-xs text-muted-foreground">Total Paid</Label>
                 <p className="text-sm font-medium text-green-600">
-                  {formatCurrency(calculateTotalPaid(repayment, allRepayments))}
+                  {formatCurrency(totalPaid)}
                 </p>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Pending Amount
-                </Label>
+                <Label className="text-xs text-muted-foreground">Pending Amount</Label>
                 <p className="text-sm font-medium text-red-600">
-                  {formatCurrency(getPendingAmount(repayment))}
+                  {formatCurrency(pendingAmount)}
                 </p>
               </div>
             </div>
 
-            {/* --- repayment details --- */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  This Repayment
-                </Label>
-                <p className="text-sm font-medium">
-                  {formatCurrency(repayment.amount || 0)}
-                </p>
+                <Label className="text-xs text-muted-foreground">This Repayment</Label>
+                <p className="text-sm font-medium">{formatCurrency(repayment.amount || 0)}</p>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Due Date
-                </Label>
-                <p className="text-sm font-medium">
-                  {formatDate(repayment.dueDate)}
-                </p>
+                <Label className="text-xs text-muted-foreground">Due Date</Label>
+                <p className="text-sm font-medium">{formatDate(repayment.dueDate)}</p>
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">
-                Status
-              </Label>
+              <Label className="text-xs text-muted-foreground">Status</Label>
               <div>{getStatusBadge(repayment.status)}</div>
             </div>
+
+            {repayment.notes && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Notes</Label>
+                <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded">{repayment.notes}</p>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -484,15 +766,36 @@ function ActionButtons({ repayment, onUpdate, allRepayments }) {
               <Edit className="h-5 w-5" />
               Edit Repayment
             </DialogTitle>
-            <DialogDescription>
-              Update repayment details
-            </DialogDescription>
+            <DialogDescription>Update repayment details</DialogDescription>
           </DialogHeader>
           <EditRepaymentForm
             repayment={repayment}
             onUpdate={onUpdate}
             onClose={() => setEditDialogOpen(false)}
             allRepayments={allRepayments}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogTrigger asChild>
+          <Button variant="destructive" size="sm" className="h-8 w-8 p-0">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete Repayment
+            </DialogTitle>
+            <DialogDescription>Permanently delete this repayment record</DialogDescription>
+          </DialogHeader>
+          <DeleteConfirmationDialog
+            repayment={repayment}
+            onDelete={onDelete}
+            onClose={() => setDeleteDialogOpen(false)}
           />
         </DialogContent>
       </Dialog>
@@ -514,10 +817,7 @@ function CustomPagination({
 
   const getPageNumbers = () => {
     const pages = [];
-    let startPage = Math.max(
-      1,
-      currentPage - Math.floor(maxVisiblePages / 2)
-    );
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
     let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
 
     if (endPage - startPage + 1 < maxVisiblePages) {
@@ -531,13 +831,8 @@ function CustomPagination({
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t">
       <div className="text-sm text-gray-600">
-        Showing{" "}
-        {totalItems === 0
-          ? 0
-          : (currentPage - 1) * itemsPerPage + 1}{" "}
-        to{" "}
-        {(currentPage - 1) * itemsPerPage + currentItemsCount} of{" "}
-        {totalItems} entries
+        Showing {totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to{" "}
+        {(currentPage - 1) * itemsPerPage + currentItemsCount} of {totalItems} entries
       </div>
 
       <div className="flex items-center gap-6">
@@ -565,14 +860,8 @@ function CustomPagination({
           <PaginationContent>
             <PaginationItem>
               <PaginationPrevious
-                onClick={() =>
-                  currentPage > 1 && onPageChange(currentPage - 1)
-                }
-                className={
-                  currentPage === 1
-                    ? "pointer-events-none opacity-50"
-                    : "cursor-pointer"
-                }
+                onClick={() => currentPage > 1 && onPageChange(currentPage - 1)}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
               />
             </PaginationItem>
 
@@ -590,14 +879,8 @@ function CustomPagination({
 
             <PaginationItem>
               <PaginationNext
-                onClick={() =>
-                  currentPage < totalPages && onPageChange(currentPage + 1)
-                }
-                className={
-                  currentPage === totalPages
-                    ? "pointer-events-none opacity-50"
-                    : "cursor-pointer"
-                }
+                onClick={() => currentPage < totalPages && onPageChange(currentPage + 1)}
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
               />
             </PaginationItem>
           </PaginationContent>
@@ -639,9 +922,7 @@ function SimpleTable({ columns, data }) {
 
 /* ================= Main Component ================= */
 export default function RepaymentTable() {
-  /* ---------- state ---------- */
   const [repayments, setRepayments] = useState([]);
-  const [customers, setCustomers] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
@@ -649,36 +930,26 @@ export default function RepaymentTable() {
   const [toDate, setToDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [sortConfig, setSortConfig] = useState({
-    key: null,
-    direction: "ascending",
-  });
-
-  // URL filters (area / customer)
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "ascending" });
   const [urlFilters, setUrlFilters] = useState({ area: "", customer: "" });
-
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [customers, setCustomers] = useState([]);
+  const [loans, setLoans] = useState([]);
 
-  // ---- derived pagination values ----
   const totalItems = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
-  const currentItems = filtered.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  // ----------------------------------
+  const currentItems = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   /* ---------- Debug data structure ---------- */
   useEffect(() => {
     if (currentItems.length > 0) {
       console.log('Sample repayment data structure:', currentItems[0]);
       console.log('All repayments count:', repayments.length);
-      console.log('All customers count:', customers.length);
       console.log('Filtered repayments count:', filtered.length);
     }
-  }, [currentItems, repayments, customers, filtered]);
+  }, [currentItems, repayments, filtered]);
 
   /* ---------- URL query handling ---------- */
   useEffect(() => {
@@ -687,58 +958,36 @@ export default function RepaymentTable() {
     const customer = params.get("customer") || "";
     setUrlFilters({ area, customer });
     if (customer && !search) setSearch(customer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ---------- fetch data from both APIs ---------- */
+  /* ---------- fetch data ---------- */
   const fetchData = async () => {
     try {
       setLoading(true);
       
-      // Fetch repayments and customers simultaneously
-      const [repaymentsRes, customersRes] = await Promise.all([
+      // Fetch repayments, customers, and loans in parallel
+      const [repaymentsRes, customersRes, loansRes] = await Promise.all([
         fetch("/api/repayments"),
-        fetch("/api/customers")
+        fetch("/api/customers"),
+        fetch("/api/loans")
       ]);
-      
+
       const repaymentsData = await repaymentsRes.json();
       const customersData = await customersRes.json();
+      const loansData = await loansRes.json();
       
       console.log("=== API RESPONSE DEBUG ===");
       console.log("Repayments API response:", repaymentsData);
-      console.log("Customers API response:", customersData);
-      
       if (repaymentsData.length > 0) {
         console.log("First repayment structure:", repaymentsData[0]);
         console.log("Repayment keys:", Object.keys(repaymentsData[0]));
       }
-      
-      if (customersData.length > 0) {
-        console.log("First customer structure:", customersData[0]);
-        console.log("Customer keys:", Object.keys(customersData[0]));
-      }
       console.log("=== END DEBUG ===");
       
       setRepayments(repaymentsData);
+      setFiltered(repaymentsData);
       setCustomers(customersData);
-      
-      // Merge customer data with repayments
-      const mergedData = repaymentsData.map(repayment => {
-        // Find the customer for this repayment
-        const customer = customersData.find(c => 
-          c.id === repayment.customerId || 
-          c.customerCode === repayment.customerCode ||
-          c.loanId === repayment.loanId
-        );
-        
-        return {
-          ...repayment,
-          customer: customer || null
-        };
-      });
-      
-      setFiltered(mergedData);
-      
+      setLoans(loansData);
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -747,18 +996,18 @@ export default function RepaymentTable() {
   };
 
   const updateRepaymentInState = (updatedRepayment) => {
-    setRepayments((prev) =>
-      prev.map((r) =>
-        r.id === updatedRepayment.id ? updatedRepayment : r
-      )
-    );
-    
-    // Also update the filtered data
-    setFiltered((prev) =>
-      prev.map((r) =>
-        r.id === updatedRepayment.id ? updatedRepayment : r
-      )
-    );
+    setRepayments((prev) => prev.map((r) => r.id === updatedRepayment.id ? updatedRepayment : r));
+    setFiltered((prev) => prev.map((r) => r.id === updatedRepayment.id ? updatedRepayment : r));
+  };
+
+  const deleteRepaymentFromState = (repaymentId) => {
+    setRepayments((prev) => prev.filter((r) => r.id !== repaymentId));
+    setFiltered((prev) => prev.filter((r) => r.id !== repaymentId));
+  };
+
+  const addRepaymentToState = (newRepayment) => {
+    setRepayments((prev) => [newRepayment, ...prev]);
+    setFiltered((prev) => [newRepayment, ...prev]);
   };
 
   useEffect(() => {
@@ -768,55 +1017,31 @@ export default function RepaymentTable() {
   /* ---------- reset page on filter change ---------- */
   useEffect(() => {
     setCurrentPage((prev) => (prev > totalPages ? 1 : prev));
-  }, [
-    search,
-    status,
-    fromDate,
-    toDate,
-    sortConfig,
-    urlFilters,
-    totalPages,
-  ]);
+  }, [search, status, fromDate, toDate, sortConfig, urlFilters, totalPages]);
 
   /* ---------- filtering & sorting ---------- */
   useEffect(() => {
-    let data = [...repayments].map(repayment => {
-      const customer = customers.find(c => 
-        c.id === repayment.customerId || 
-        c.customerCode === repayment.customerCode ||
-        c.loanId === repayment.loanId
-      );
-      
-      return {
-        ...repayment,
-        customer: customer || null
-      };
-    });
+    let data = [...repayments];
 
     // URL filters
     if (urlFilters.area) {
-      data = data.filter(
-        (r) => r.customer?.areaId === urlFilters.area
-      );
+      data = data.filter((r) => r.customer?.areaId === urlFilters.area);
     }
     if (urlFilters.customer) {
-      data = data.filter(
-        (r) => r.customer?.customerCode === urlFilters.customer
-      );
+      data = data.filter((r) => r.customer?.customerCode === urlFilters.customer);
     }
 
     // Text search
     if (search) {
       const lc = search.toLowerCase();
-      data = data.filter(
-        (r) =>
-          r.customer?.customerCode?.toLowerCase().includes(lc) ||
-          r.customer?.aadhar?.toLowerCase().includes(lc) ||
-          r.customer?.customerName?.toLowerCase().includes(lc) ||
-          r.customerCode?.toLowerCase().includes(lc) ||
-          r.aadhar?.toLowerCase().includes(lc) ||
-          r.customerName?.toLowerCase().includes(lc)
-      );
+      data = data.filter((r) => {
+        const customerData = getCustomerData(r);
+        return (
+          customerData.customerCode.toLowerCase().includes(lc) ||
+          customerData.aadhar.toLowerCase().includes(lc) ||
+          customerData.customerName.toLowerCase().includes(lc)
+        );
+      });
     }
 
     // Status
@@ -825,39 +1050,35 @@ export default function RepaymentTable() {
     }
 
     // Date range
-    if (fromDate)
-      data = data.filter(
-        (r) => new Date(r.dueDate) >= new Date(fromDate)
-      );
-    if (toDate)
-      data = data.filter(
-        (r) => new Date(r.dueDate) <= new Date(toDate)
-      );
+    if (fromDate) data = data.filter((r) => new Date(r.dueDate) >= new Date(fromDate));
+    if (toDate) data = data.filter((r) => new Date(r.dueDate) <= new Date(toDate));
 
-    // Sorting (including computed columns)
+    // Sorting
     if (sortConfig.key) {
       data.sort((a, b) => {
-        let aVal = a[sortConfig.key];
-        let bVal = b[sortConfig.key];
+        let aVal, bVal;
 
         if (sortConfig.key === "aadhar") {
-          aVal = a.customer?.aadhar || a.aadhar;
-          bVal = b.customer?.aadhar || b.aadhar;
+          aVal = getCustomerData(a).aadhar;
+          bVal = getCustomerData(b).aadhar;
         } else if (sortConfig.key === "pendingAmount") {
-          aVal = getPendingAmount(a);
-          bVal = getPendingAmount(b);
+          aVal = getPendingAmount(a, repayments);
+          bVal = getPendingAmount(b, repayments);
         } else if (sortConfig.key === "totalPaid") {
-          aVal = calculateTotalPaid(a, repayments);
-          bVal = calculateTotalPaid(b, repayments);
+          aVal = getTotalPaidAmount(a, repayments);
+          bVal = getTotalPaidAmount(b, repayments);
         } else if (sortConfig.key === "loanAmount") {
-          aVal = a.loan?.amount || a.loanAmount || 0;
-          bVal = b.loan?.amount || b.loanAmount || 0;
+          aVal = getLoanAmount(a);
+          bVal = getLoanAmount(b);
         } else if (sortConfig.key === "customerCode") {
-          aVal = a.customer?.customerCode || a.customerCode;
-          bVal = b.customer?.customerCode || b.customerCode;
+          aVal = getCustomerData(a).customerCode;
+          bVal = getCustomerData(b).customerCode;
         } else if (sortConfig.key === "customerName") {
-          aVal = a.customer?.customerName || a.customerName;
-          bVal = b.customer?.customerName || b.customerName;
+          aVal = getCustomerData(a).customerName;
+          bVal = getCustomerData(b).customerName;
+        } else {
+          aVal = a[sortConfig.key];
+          bVal = b[sortConfig.key];
         }
 
         if (aVal < bVal) return sortConfig.direction === "ascending" ? -1 : 1;
@@ -867,22 +1088,12 @@ export default function RepaymentTable() {
     }
 
     setFiltered(data);
-  }, [
-    search,
-    status,
-    fromDate,
-    toDate,
-    repayments,
-    customers,
-    sortConfig,
-    urlFilters,
-  ]);
+  }, [search, status, fromDate, toDate, repayments, sortConfig, urlFilters]);
 
   /* ---------- UI helpers ---------- */
   const handleSort = (key) => {
     let direction = "ascending";
-    if (sortConfig.key === key && sortConfig.direction === "ascending")
-      direction = "descending";
+    if (sortConfig.key === key && sortConfig.direction === "ascending") direction = "descending";
     setSortConfig({ key, direction });
   };
 
@@ -906,54 +1117,45 @@ export default function RepaymentTable() {
     if (filtered.length === 0) return;
 
     const headers = [
-      "Customer ID",
-      "Customer Name",
-      "Aadhar Number",
-      "Loan Amount",
-      "This Repayment",
-      "Total Paid",
-      "Pending Amount",
-      "Due Date",
-      "Status",
+      "Customer ID", "Customer Name", "Aadhar Number", "Loan Amount", 
+      "This Repayment", "Total Paid", "Pending Amount", "Due Date", "Status", "Notes"
     ];
 
     const csvContent = [
       headers.join(","),
-      ...filtered.map((row) =>
-        [
-          `"${row.customer?.customerCode || row.customerCode || ""}"`,
-          `"${row.customer?.customerName || row.customerName || ""}"`,
-          `"${row.customer?.aadhar || row.aadhar || ""}"`,
-          row.loan?.amount || row.loanAmount || 0,
+      ...filtered.map((row) => {
+        const customerData = getCustomerData(row);
+        const loanAmount = getLoanAmount(row);
+        const totalPaid = getTotalPaidAmount(row, repayments);
+        const pendingAmount = getPendingAmount(row, repayments);
+        
+        return [
+          `"${customerData.customerCode}"`,
+          `"${customerData.customerName}"`,
+          `"${customerData.aadhar}"`,
+          loanAmount,
           row.amount || 0,
-          calculateTotalPaid(row, repayments),
-          getPendingAmount(row),
+          totalPaid,
+          pendingAmount,
           `"${formatDate(row.dueDate || "")}"`,
           `"${row.status || ""}"`,
-        ].join(",")
-      ),
+          `"${row.notes || ""}"`,
+        ].join(",");
+      }),
     ].join("\n");
 
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `repayments_${new Date().toISOString().split("T")[0]}.csv`
-    );
+    link.setAttribute("download", `repayments_${new Date().toISOString().split("T")[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   const SortableHeader = ({ columnKey, children }) => (
-    <div
-      className="flex items-center cursor-pointer hover:text-blue-600 transition-colors"
-      onClick={() => handleSort(columnKey)}
-    >
+    <div className="flex items-center cursor-pointer hover:text-blue-600 transition-colors" onClick={() => handleSort(columnKey)}>
       {children}
       {sortConfig.key === columnKey ? (
         sortConfig.direction === "ascending" ? (
@@ -967,84 +1169,49 @@ export default function RepaymentTable() {
     </div>
   );
 
-  /* ---------- Updated column definitions using customer data ---------- */
+  /* ---------- Column definitions ---------- */
   const columns = [
     {
       accessorKey: "customerCode",
-      header: () => (
-        <SortableHeader columnKey="customerCode">
-          Customer ID
-        </SortableHeader>
-      ),
+      header: () => <SortableHeader columnKey="customerCode">Customer ID</SortableHeader>,
       cell: ({ row }) => {
-        const repayment = row.original;
-        const customerCode = 
-          repayment.customer?.customerCode ||
-          repayment.customerCode ||
-          "N/A";
-        
+        const { customerCode, customerName } = getCustomerData(row.original);
         return (
           <div className="flex items-center gap-2">
             <div className="p-1.5 bg-blue-100 rounded-full">
               <User className="h-3.5 w-3.5 text-blue-700" />
             </div>
-            <span className="font-medium text-sm">
-              {customerCode}
-            </span>
+            <div>
+              <span className="font-medium text-sm block">{customerCode}</span>
+              <span className="text-xs text-gray-500 block">{customerName}</span>
+            </div>
           </div>
         );
       },
     },
     {
       accessorKey: "customerName",
-      header: () => (
-        <SortableHeader columnKey="customerName">
-          Customer Name
-        </SortableHeader>
-      ),
+      header: () => <SortableHeader columnKey="customerName">Customer Name</SortableHeader>,
       cell: ({ row }) => {
-        const repayment = row.original;
-        const customerName = 
-          repayment.customer?.customerName ||
-          repayment.customerName ||
-          "N/A";
-        
+        const { customerName } = getCustomerData(row.original);
         return <span className="text-sm">{customerName}</span>;
       },
     },
     {
       accessorKey: "aadhar",
-      header: () => (
-        <SortableHeader columnKey="aadhar">Aadhar Number</SortableHeader>
-      ),
+      header: () => <SortableHeader columnKey="aadhar">Aadhar Number</SortableHeader>,
       cell: ({ row }) => {
-        const repayment = row.original;
-        const aadhar = 
-          repayment.customer?.aadhar ||
-          repayment.aadhar ||
-          "N/A";
-        
-        return (
-          <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
-            {aadhar}
-          </span>
-        );
+        const { aadhar } = getCustomerData(row.original);
+        return <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{aadhar}</span>;
       },
     },
     {
       accessorKey: "loanAmount",
       header: () => (
-        <div className="text-right">
-          <SortableHeader columnKey="loanAmount">Loan Amount</SortableHeader>
-        </div>
+        <div className="text-right"><SortableHeader columnKey="loanAmount">Loan Amount</SortableHeader></div>
       ),
       cell: ({ row }) => {
-        const repayment = row.original;
-        const loanAmount = 
-          repayment.loan?.amount ||
-          repayment.loanAmount ||
-          0;
-        
+        const loanAmount = getLoanAmount(row.original);
         return (
           <div className="text-right font-semibold">
             <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
@@ -1056,29 +1223,21 @@ export default function RepaymentTable() {
     {
       accessorKey: "amount",
       header: () => (
-        <div className="text-right">
-          <SortableHeader columnKey="amount">This Repayment</SortableHeader>
-        </div>
+        <div className="text-right"><SortableHeader columnKey="amount">This Repayment</SortableHeader></div>
       ),
       cell: ({ row }) => (
         <div className="text-right">
-          <EditableAmount
-            repayment={row.original}
-            onUpdate={updateRepaymentInState}
-            allRepayments={repayments}
-          />
+          <EditableAmount repayment={row.original} onUpdate={updateRepaymentInState} allRepayments={repayments} />
         </div>
       ),
     },
     {
       accessorKey: "totalPaid",
       header: () => (
-        <div className="text-right">
-          <SortableHeader columnKey="totalPaid">Total Paid</SortableHeader>
-        </div>
+        <div className="text-right"><SortableHeader columnKey="totalPaid">Total Paid</SortableHeader></div>
       ),
       cell: ({ row }) => {
-        const totalPaid = calculateTotalPaid(row.original, repayments);
+        const totalPaid = getTotalPaidAmount(row.original, repayments);
         return (
           <div className="text-right font-semibold text-green-600">
             <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
@@ -1090,14 +1249,10 @@ export default function RepaymentTable() {
     {
       accessorKey: "pendingAmount",
       header: () => (
-        <div className="text-right">
-          <SortableHeader columnKey="pendingAmount">
-            Pending Amount
-          </SortableHeader>
-        </div>
+        <div className="text-right"><SortableHeader columnKey="pendingAmount">Running Balance</SortableHeader></div>
       ),
       cell: ({ row }) => {
-        const pending = getPendingAmount(row.original);
+        const pending = getPendingAmount(row.original, repayments);
         return (
           <div className="text-right font-semibold text-red-600">
             <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
@@ -1108,9 +1263,7 @@ export default function RepaymentTable() {
     },
     {
       accessorKey: "dueDate",
-      header: () => (
-        <SortableHeader columnKey="dueDate">Due Date</SortableHeader>
-      ),
+      header: () => <SortableHeader columnKey="dueDate">Due Date</SortableHeader>,
       cell: ({ row }) => (
         <div className="flex items-center gap-1 text-sm">
           <Calendar className="h-3.5 w-3.5 text-gray-500" />
@@ -1127,10 +1280,11 @@ export default function RepaymentTable() {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
-        <ActionButtons
-          repayment={row.original}
-          onUpdate={updateRepaymentInState}
-          allRepayments={repayments}
+        <ActionButtons 
+          repayment={row.original} 
+          onUpdate={updateRepaymentInState} 
+          onDelete={deleteRepaymentFromState}
+          allRepayments={repayments} 
         />
       ),
     },
@@ -1142,24 +1296,41 @@ export default function RepaymentTable() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
-            Repayment Management
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Track and manage all loan repayments in one place
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Repayment Management</h1>
+          <p className="text-gray-600 mt-1">Track and manage all loan repayments in one place</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="px-3 py-1.5 gap-1.5">
             <CreditCard className="h-4 w-4" />
-            {filtered.length} repayment
-            {filtered.length !== 1 ? "s" : ""}
+            {filtered.length} repayment{filtered.length !== 1 ? "s" : ""}
           </Badge>
-          <Button
-            onClick={handleExport}
-            className="h-10 gap-2"
-            disabled={filtered.length === 0}
-          >
+          
+          {/* Create Repayment Dialog */}
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="h-10 gap-2 bg-green-600 hover:bg-green-700">
+                <Plus className="h-4 w-4" />
+                New Repayment
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Plus className="h-5 w-5" />
+                  Create New Repayment
+                </DialogTitle>
+                <DialogDescription>Add a new repayment record for a customer</DialogDescription>
+              </DialogHeader>
+              <CreateRepaymentForm
+                onCreated={addRepaymentToState}
+                onClose={() => setCreateDialogOpen(false)}
+                customers={customers}
+                loans={loans}
+              />
+            </DialogContent>
+          </Dialog>
+
+          <Button onClick={handleExport} className="h-10 gap-2" disabled={filtered.length === 0}>
             <Download className="h-4 w-4" />
             Export
           </Button>
@@ -1172,38 +1343,22 @@ export default function RepaymentTable() {
           <CardContent className="p-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <Badge variant="default" className="bg-blue-100 text-blue-800">
-                  Active Filters
-                </Badge>
+                <Badge variant="default" className="bg-blue-100 text-blue-800">Active Filters</Badge>
                 <div className="flex flex-wrap gap-2">
                   {urlFilters.area && (
-                    <Badge
-                      variant="secondary"
-                      className="flex items-center gap-1"
-                    >
-                      <MapPin className="h-3 w-3" />
-                      Area: {urlFilters.area}
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" /> Area: {urlFilters.area}
                     </Badge>
                   )}
                   {urlFilters.customer && (
-                    <Badge
-                      variant="secondary"
-                      className="flex items-center gap-1"
-                    >
-                      <User className="h-3 w-3" />
-                      Customer: {urlFilters.customer}
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <User className="h-3 w-3" /> Customer: {urlFilters.customer}
                     </Badge>
                   )}
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearUrlFilters}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <X className="h-3 w-3 mr-1" />
-                Clear URL Filters
+              <Button variant="ghost" size="sm" onClick={clearUrlFilters} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                <X className="h-3 w-3 mr-1" /> Clear URL Filters
               </Button>
             </div>
           </CardContent>
@@ -1212,75 +1367,26 @@ export default function RepaymentTable() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-blue-50 border-blue-100">
-          <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm font-medium text-blue-700">
-                  Total Repayments
-                </p>
-                <h3 className="text-2xl font-bold mt-1">
-                  {repayments.length}
-                </h3>
+        {[
+          { bg: "blue", text: "Total Repayments", count: repayments.length, icon: CreditCard },
+          { bg: "green", text: "Paid", count: repayments.filter((r) => r.status === "PAID").length, icon: BadgeCheck },
+          { bg: "amber", text: "Pending", count: repayments.filter((r) => r.status === "PENDING").length, icon: Clock },
+          { bg: "red", text: "Overdue", count: repayments.filter((r) => r.status === "OVERDUE").length, icon: AlertCircle },
+        ].map((card, index) => (
+          <Card key={index} className={`bg-${card.bg}-50 border-${card.bg}-100`}>
+            <CardContent className="p-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className={`text-sm font-medium text-${card.bg}-700`}>{card.text}</p>
+                  <h3 className="text-2xl font-bold mt-1">{card.count}</h3>
+                </div>
+                <div className={`p-2 bg-${card.bg}-100 rounded-full`}>
+                  <card.icon className={`h-5 w-5 text-${card.bg}-700`} />
+                </div>
               </div>
-              <div className="p-2 bg-blue-100 rounded-full">
-                <CreditCard className="h-5 w-5 text-blue-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-green-50 border-green-100">
-          <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm font-medium text-green-700">Paid</p>
-                <h3 className="text-2xl font-bold mt-1">
-                  {repayments.filter((r) => r.status === "PAID").length}
-                </h3>
-              </div>
-              <div className="p-2 bg-green-100 rounded-full">
-                <BadgeCheck className="h-5 w-5 text-green-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-amber-50 border-amber-100">
-          <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm font-medium text-amber-700">
-                  Pending
-                </p>
-                <h3 className="text-2xl font-bold mt-1">
-                  {repayments.filter((r) => r.status === "PENDING").length}
-                </h3>
-              </div>
-              <div className="p-2 bg-amber-100 rounded-full">
-                <Clock className="h-5 w-5 text-amber-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-red-50 border-red-100">
-          <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm font-medium text-red-700">
-                  Overdue
-                </p>
-                <h3 className="text-2xl font-bold mt-1">
-                  {repayments.filter((r) => r.status === "OVERDUE").length}
-                </h3>
-              </div>
-              <div className="p-2 bg-red-100 rounded-full">
-                <AlertCircle className="h-5 w-5 text-red-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Filters card */}
@@ -1288,35 +1394,15 @@ export default function RepaymentTable() {
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Filter className="h-5 w-5 text-blue-600" />
-              Filters & Search
+              <Filter className="h-5 w-5 text-blue-600" /> Filters & Search
             </CardTitle>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-1"
-              >
-                {showFilters ? (
-                  <X className="h-4 w-4" />
-                ) : (
-                  <Filter className="h-4 w-4" />
-                )}
+              <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-1">
+                {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
                 {showFilters ? "Hide Filters" : "Show Filters"}
               </Button>
-
               {(search || status !== "ALL" || fromDate || toDate) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSearch("");
-                    setStatus("ALL");
-                    setFromDate("");
-                    setToDate("");
-                  }}
-                >
+                <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setStatus("ALL"); setFromDate(""); setToDate(""); }}>
                   Clear All
                 </Button>
               )}
@@ -1326,27 +1412,17 @@ export default function RepaymentTable() {
 
         <CardContent>
           <div className="flex flex-col gap-4">
-            {/* Search bar */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Search by customer code, name, or Aadhar number..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
+              <Input placeholder="Search by customer code, name, or Aadhar number..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
             </div>
 
-            {/* Extra filter fields */}
             {showFilters && (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t">
-                {/* Status */}
                 <div className="space-y-2">
                   <Label className="text-sm">Status</Label>
                   <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Status" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="All Status" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">All Status</SelectItem>
                       <SelectItem value="PAID">Paid</SelectItem>
@@ -1356,43 +1432,18 @@ export default function RepaymentTable() {
                   </Select>
                 </div>
 
-                {/* From Date */}
-                <div className="space-y-2">
-                  <Label className="text-sm">From Date</Label>
-                  <Input
-                    type="date"
-                    value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
-                  />
-                </div>
-
-                {/* To Date */}
-                <div className="space-y-2">
-                  <Label className="text-sm">To Date</Label>
-                  <Input
-                    type="date"
-                    value={toDate}
-                    onChange={(e) => setToDate(e.target.value)}
-                  />
-                </div>
-
-                {/* Sort By */}
+                <div className="space-y-2"><Label className="text-sm">From Date</Label><Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></div>
+                <div className="space-y-2"><Label className="text-sm">To Date</Label><Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} /></div>
+                
                 <div className="space-y-2">
                   <Label className="text-sm">Sort By</Label>
-                  <Select
-                    value={sortConfig.key || "dueDate"}
-                    onValueChange={(value) => handleSort(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sort by" />
-                    </SelectTrigger>
+                  <Select value={sortConfig.key || "dueDate"} onValueChange={(value) => handleSort(value)}>
+                    <SelectTrigger><SelectValue placeholder="Sort by" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="dueDate">Due Date</SelectItem>
                       <SelectItem value="amount">This Repayment</SelectItem>
                       <SelectItem value="totalPaid">Total Paid</SelectItem>
-                      <SelectItem value="pendingAmount">
-                        Pending Amount
-                      </SelectItem>
+                      <SelectItem value="pendingAmount">Running Balance</SelectItem>
                       <SelectItem value="loanAmount">Loan Amount</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1407,37 +1458,34 @@ export default function RepaymentTable() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            /* Loading skeleton */
             <div className="p-6 space-y-4">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="flex items-center space-x-4">
                   <Skeleton className="h-12 w-12 rounded-full" />
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-[250px]" />
-                    <Skeleton className="h-4 w-[200px]" />
-                  </div>
+                  <div className="space-y-2"><Skeleton className="h-4 w-[250px]" /><Skeleton className="h-4 w-[200px]" /></div>
                 </div>
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            /* Empty state */
             <div className="p-12 text-center">
               <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-1">
-                No repayments found
-              </h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-1">No repayments found</h3>
               <p className="text-gray-500">
-                {repayments.length === 0
-                  ? "No repayment records available."
-                  : "Try adjusting your search or filters to find what you're looking for."}
+                {repayments.length === 0 ? "No repayment records available." : "Try adjusting your search or filters to find what you're looking for."}
               </p>
+              {repayments.length === 0 && (
+                <Button 
+                  onClick={() => setCreateDialogOpen(true)} 
+                  className="mt-4 gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Your First Repayment
+                </Button>
+              )}
             </div>
           ) : (
             <>
-              {/* Using SimpleTable instead of DataTable */}
               <SimpleTable columns={columns} data={currentItems} />
-
-              {/* Pagination component */}
               <CustomPagination
                 currentPage={currentPage}
                 totalPages={totalPages}

@@ -1,16 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-/* -------------------------------------------------
-   GET /api/repayments?customerId=xxx
-   Returns an array where each item contains:
-   - id, loanId, amount, pendingAmount
-   - repaymentDate  (actual payment date – may be null)
-   - dueDate        (when the payment was **due**)
-   - paymentMethod  (e.g. CASH, BANK_TRANSFER)
-   - **date**       ← repaymentDate (or null)
-   - **note**       ← paymentMethod  (used as a simple note)
-   ------------------------------------------------- */
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
@@ -22,61 +12,115 @@ export async function GET(req) {
       include: {
         loan: {
           include: {
-            customer: true,
+            customer: {
+              include: {
+                area: true
+              }
+            },
             repayments: {
-              select: { amount: true },
+              select: { 
+                id: true,
+                amount: true,
+                dueDate: true,
+                repaymentDate: true,
+                paymentMethod: true
+              },
             },
           },
         },
       },
     });
 
-    /* -------------------------------------------------
-       Calculate pending amount (loan amount – total paid) – keep
-       the original fields *and* add the UI‑friendly aliases.
-    ------------------------------------------------- */
-    const repaymentsWithPending = repayments.map((repayment) => {
-      const totalPaid = repayment.loan.repayments.reduce(
-        (sum, r) => sum + Number(r.amount),
-        0
-      );
-      const pendingAmount = Math.max(
-        0,
-        Number(repayment.loan.amount) - totalPaid
-      );
+    // Group repayments by loan to calculate consistent pending amounts
+    const loansMap = new Map();
+    
+    // First pass: calculate total paid per loan and find loan details
+    repayments.forEach(repayment => {
+      const loanId = repayment.loanId;
+      if (!loansMap.has(loanId)) {
+        loansMap.set(loanId, {
+          loan: repayment.loan,
+          totalPaid: 0,
+          repayments: []
+        });
+      }
+      const loanData = loansMap.get(loanId);
+      loanData.totalPaid += Number(repayment.amount);
+      loanData.repayments.push(repayment);
+    });
+
+    // Second pass: transform data with consistent pending amounts
+    const transformedRepayments = repayments.map((repayment) => {
+      const loan = repayment.loan;
+      const customer = loan.customer;
+      const loanData = loansMap.get(repayment.loanId);
+      
+      // Calculate consistent pending amount for all repayments of this loan
+      const totalPaid = loanData.totalPaid;
+      const loanAmount = Number(loan.loanAmount);
+      const pendingAmount = Math.max(0, loanAmount - totalPaid);
+
+      // Calculate status based on payment and dates
+      let status = "PENDING";
+      const today = new Date();
+      const dueDate = new Date(repayment.dueDate);
+      
+      if (repayment.repaymentDate) {
+        status = "PAID";
+      } else if (dueDate < today) {
+        status = "OVERDUE";
+      }
 
       return {
-        // ---- ORIGINAL DB columns (kept for backward‑compat) ----
-        id: repayment.id,
+        // Core repayment fields
+        id: repayment.id.toString(),
         loanId: repayment.loanId,
         amount: repayment.amount,
-        pendingAmount,
-        repaymentDate: repayment.repaymentDate,
-        dueDate: repayment.dueDate,
+        dueDate: repayment.dueDate.toISOString(),
+        repaymentDate: repayment.repaymentDate?.toISOString() || null,
         paymentMethod: repayment.paymentMethod,
-        createdAt: repayment.createdAt,
+        createdAt: repayment.createdAt.toISOString(),
+        status: status,
 
-        // ---- VIRTUAL FIELDS that the UI expects ----
-        // “date” is the **actual** repayment date (null until paid)
-        date: repayment.repaymentDate,
-        // “note” we reuse the paymentMethod – you can replace it with a real note later
-        note: repayment.paymentMethod,
+        // Customer data
+        customer: {
+          id: customer.id,
+          customerCode: customer.customerCode,
+          customerName: customer.customerName,
+          aadhar: customer.aadhar,
+          areaId: customer.areaId,
+          area: customer.area
+        },
+
+        // Loan data
+        loan: {
+          id: loan.id,
+          amount: loan.amount,
+          loanAmount: loan.loanAmount,
+          pendingAmount: pendingAmount, // Consistent for all repayments of this loan
+          interestAmount: loan.interestAmount,
+          status: loan.status
+        },
+
+        // Backward compatibility
+        customerCode: customer.customerCode,
+        customerName: customer.customerName,
+        aadhar: customer.aadhar,
+        loanAmount: loan.loanAmount,
+        pendingAmount: pendingAmount // Consistent for all repayments of this loan
       };
     });
 
-    return NextResponse.json(repaymentsWithPending);
+    return NextResponse.json(transformedRepayments);
   } catch (error) {
     console.error("Repayment GET error:", error);
     return NextResponse.json(
-      { message: "Failed to fetch repayments" },
+      { message: "Failed to fetch repayments", error: error.message },
       { status: 500 }
     );
   }
 }
 
-/* -------------------------------------------------
-   POST /api/repayments   (unchanged – only a tiny rename)
-------------------------------------------------- */
 export async function POST(req) {
   try {
     const body = await req.json();
@@ -96,7 +140,15 @@ export async function POST(req) {
       );
     }
 
-    const pm = String(paymentMethod).toUpperCase().replace(/\s+/g, "_");
+    // Validate payment method
+    const validPaymentMethods = ["CASH", "UPI", "BANK_TRANSFER", "OTHER"];
+    const pm = paymentMethod.toUpperCase();
+    if (!validPaymentMethods.includes(pm)) {
+      return NextResponse.json(
+        { message: "Invalid payment method" },
+        { status: 400 }
+      );
+    }
 
     const loan = await prisma.loan.findUnique({
       where: { id: loanId },
@@ -117,18 +169,20 @@ export async function POST(req) {
       0
     );
 
-    // Simple calculation: Loan amount - total repayments (no interest)
+    // Calculate new pending amount
     const newPending = Math.max(
       0,
-      Number(loan.amount) - (totalPaid + repaymentAmount)
+      Number(loan.loanAmount) - (totalPaid + repaymentAmount)
     );
 
     const result = await prisma.$transaction(async (tx) => {
+      // Update loan pending amount
       const updatedLoan = await tx.loan.update({
         where: { id: loanId },
         data: { pendingAmount: newPending },
       });
 
+      // Create repayment
       const repayment = await tx.repayment.create({
         data: {
           loanId,
@@ -140,7 +194,19 @@ export async function POST(req) {
         include: {
           loan: {
             include: {
-              customer: true,
+              customer: {
+                include: {
+                  area: true
+                }
+              },
+              repayments: {
+                select: { 
+                  id: true,
+                  amount: true,
+                  dueDate: true,
+                  repaymentDate: true
+                },
+              },
             },
           },
         },
@@ -149,7 +215,61 @@ export async function POST(req) {
       return { repayment, updatedLoan };
     });
 
-    return NextResponse.json(result, { status: 201 });
+    // Transform the response to match GET structure
+    const repayment = result.repayment;
+    const loanData = repayment.loan;
+    const customer = loanData.customer;
+    
+    // Calculate the actual total paid for this loan (including the new repayment)
+    const actualTotalPaid = loanData.repayments.reduce(
+      (sum, r) => sum + Number(r.amount),
+      0
+    );
+    const actualPendingAmount = Math.max(0, Number(loanData.loanAmount) - actualTotalPaid);
+    
+    let status = "PENDING";
+    const today = new Date();
+    const dueDateObj = new Date(repayment.dueDate);
+    
+    if (repayment.repaymentDate) {
+      status = "PAID";
+    } else if (dueDateObj < today) {
+      status = "OVERDUE";
+    }
+
+    const response = {
+      id: repayment.id.toString(),
+      loanId: repayment.loanId,
+      amount: repayment.amount,
+      dueDate: repayment.dueDate.toISOString(),
+      repaymentDate: repayment.repaymentDate?.toISOString() || null,
+      paymentMethod: repayment.paymentMethod,
+      createdAt: repayment.createdAt.toISOString(),
+      status: status,
+      customer: {
+        id: customer.id,
+        customerCode: customer.customerCode,
+        customerName: customer.customerName,
+        aadhar: customer.aadhar,
+        areaId: customer.areaId,
+        area: customer.area
+      },
+      loan: {
+        id: loanData.id,
+        amount: loanData.amount,
+        loanAmount: loanData.loanAmount,
+        pendingAmount: actualPendingAmount, // Use calculated pending amount
+        interestAmount: loanData.interestAmount,
+        status: loanData.status
+      },
+      customerCode: customer.customerCode,
+      customerName: customer.customerName,
+      aadhar: customer.aadhar,
+      loanAmount: loanData.loanAmount,
+      pendingAmount: actualPendingAmount // Use calculated pending amount
+    };
+
+    return NextResponse.json(response, { status: 201 });
   } catch (error) {
     console.error("Repayment POST error:", error);
     return NextResponse.json(
