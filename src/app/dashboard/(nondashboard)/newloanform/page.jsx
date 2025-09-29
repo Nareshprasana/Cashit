@@ -1,47 +1,49 @@
+/* -----------------------------------------------------------------
+   src/app/dashboard/(nondashboard)/newloanform/page.jsx
+----------------------------------------------------------------- */
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import NewLoanForm from "./NewLoanForm";
-import LoanTable from "../loan/LoanTable"; // Adjust path as needed
+import LoanTable from "../loan/LoanTable";   // adjust if needed
 
-const NewloanPage = () => {
+export default function NewloanPage() {
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch loans data
+  /* ---- selected customer (store the whole object) ---- */
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+
+  /* ---- fetch all loans (unchanged) ---- */
   useEffect(() => {
     const fetchLoans = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/loans");
-        if (response.ok) {
-          const data = await response.json();
-          setLoans(data);
-        } else {
-          console.error("Failed to fetch loans");
-        }
-      } catch (error) {
-        console.error("Error fetching loans:", error);
+        const res = await fetch("/api/loans");
+        if (res.ok) setLoans(await res.json());
+        else console.error("Failed to fetch loans");
+      } catch (e) {
+        console.error("Error fetching loans:", e);
       } finally {
         setLoading(false);
       }
     };
-
     fetchLoans();
   }, []);
 
-  const user = {
-    name: "Admin",
-    image: "/profile-user.png",
-    isLoggedIn: true,
-  };
-
   return (
     <div className="p-6 space-y-8">
-      <NewLoanForm />
-      <LoanTable loans={loans} loading={loading} />
+      {/* New‑loan form tells us which customer was chosen */}
+      <NewLoanForm onCustomerSelect={setSelectedCustomer} />
+
+      {/* Pass **customerCode** (or the fallback `code`) to the table */}
+      <LoanTable
+        loans={loans}
+        loading={loading}
+        selectedCustomerCode={
+          selectedCustomer?.customerCode || selectedCustomer?.code
+        }
+      />
     </div>
   );
-};
-
-export default NewloanPage;
+}

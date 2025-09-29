@@ -71,14 +71,14 @@ export function AppSidebar({ ...props }) {
           name: "Customer",
           url: "/dashboard/customer",
           icon: FiUsers,
-          roles: ["ADMIN"], // only ADMIN
-        },
-        {
-          name: "Loan",
-          url: "/dashboard/loan",
-          icon: FaHandHoldingDollar,
           roles: ["ADMIN"],
         },
+        // {
+        //   name: "Loan",
+        //   url: "/dashboard/loan",
+        //   icon: FaHandHoldingDollar,
+        //   roles: ["ADMIN"],
+        // },
         {
           name: "Add Loan",
           url: "/dashboard/newloanform",
@@ -90,12 +90,12 @@ export function AppSidebar({ ...props }) {
     {
       title: "REPAYMENT & DUE",
       links: [
-        {
-          name: "Repayment",
-          url: "/dashboard/repayments",
-          icon: FaCoins,
-          roles: ["ADMIN", "AGENT"],
-        },
+        // {
+        //   name: "Repayment",
+        //   url: "/dashboard/repayments",
+        //   icon: FaCoins,
+        //   roles: ["ADMIN", "AGENT"],
+        // },
         {
           name: "Add Repayment",
           url: "/dashboard/repayment",
@@ -151,7 +151,7 @@ export function AppSidebar({ ...props }) {
   };
 
   return (
-    <Sidebar collapsible="icon" {...props} open={isOpen} onOpenChange={setIsOpen}>
+    <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>

@@ -22,7 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export default function RepaymentForm({ customerId }) {
+export default function RepaymentForm({ customerId, onRepaymentSaved }) {
   const [areas, setAreas] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,6 +40,71 @@ export default function RepaymentForm({ customerId }) {
     dueDate: "",
     loanId: "",
   });
+
+  // Update URL parameters when area or customer changes
+  useEffect(() => {
+    const updateURLParams = () => {
+      const params = new URLSearchParams();
+      
+      if (formData.area) {
+        params.set('area', formData.area);
+      }
+      if (formData.customerCode) {
+        params.set('customer', formData.customerCode);
+      }
+      
+      // Remove parameters if they're empty
+      if (!formData.area) params.delete('area');
+      if (!formData.customerCode) params.delete('customer');
+      
+      const newUrl = params.toString() 
+        ? `${window.location.pathname}?${params.toString()}`
+        : window.location.pathname;
+      
+      window.history.replaceState(null, '', newUrl);
+    };
+
+    updateURLParams();
+  }, [formData.area, formData.customerCode]);
+
+  // Read URL parameters on component mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const areaFromUrl = params.get('area');
+    const customerFromUrl = params.get('customer');
+
+    if (areaFromUrl) {
+      setFormData(prev => ({ ...prev, area: areaFromUrl }));
+      // Fetch customers for this area
+      fetch(`/api/customers/by-area/${areaFromUrl}`)
+        .then((res) => res.json())
+        .then((data) => setCustomers(Array.isArray(data) ? data : []))
+        .catch(() => {
+          toast.error("Failed to load customers");
+          setCustomers([]);
+        });
+    }
+
+    if (customerFromUrl && areaFromUrl) {
+      // Wait a bit for customers to load, then select the customer
+      setTimeout(() => {
+        setFormData(prev => ({ ...prev, customerCode: customerFromUrl }));
+        fetchCustomerDetails(customerFromUrl).then((data) => {
+          if (data) {
+            const loan = data?.loans?.[0] || {};
+            setCustomerDetails({ ...data, ...loan });
+            setFormData(prev => ({
+              ...prev,
+              loanAmount: loan.loanAmount || "",
+              pendingAmount: loan.pendingAmount || "",
+              dueDate: loan.dueDate || "",
+              loanId: loan.id || "",
+            }));
+          }
+        });
+      }, 500);
+    }
+  }, []);
 
   const fetchCustomerDetails = async (codeOrId) => {
     try {
@@ -68,6 +133,7 @@ export default function RepaymentForm({ customerId }) {
       setFormData((prev) => ({ ...prev, customerCode: "" }));
       return;
     }
+    
     fetch(`/api/customers/by-area/${formData.area}`)
       .then((res) => res.json())
       .then((data) => setCustomers(Array.isArray(data) ? data : []))
@@ -112,25 +178,39 @@ export default function RepaymentForm({ customerId }) {
     }
   };
 
+  const handleAreaSelect = (areaId) => {
+    setFormData((prev) => ({ ...prev, area: areaId, customerCode: "" }));
+    setOpenArea(false);
+    setCustomerDetails(null);
+  };
+
   const handleCustomerSelect = async (cust) => {
     setFormData((prev) => ({ ...prev, customerCode: cust.customerCode }));
     setOpenCustomer(false);
+    setCustomerDetails(null);
+
+    // Update URL with customer parameter
+    const params = new URLSearchParams(window.location.search);
+    params.set('customer', cust.customerCode);
+    if (formData.area) {
+      params.set('area', formData.area);
+    }
+    
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, '', newUrl);
 
     // fetch customer details + auto populate loan info
     const data = await fetchCustomerDetails(cust.customerCode);
     if (data) {
       const loan = data?.loans?.[0] || {};
       setCustomerDetails({ ...data, ...loan });
-      setFormData({
-        area: data.areaId || "",
-        customerCode: data.customerCode || "",
-        amount: "",
-        paymentMethod: "",
+      setFormData(prev => ({
+        ...prev,
         loanAmount: loan.loanAmount || "",
         pendingAmount: loan.pendingAmount || "",
         dueDate: loan.dueDate || "",
         loanId: loan.id || "",
-      });
+      }));
     }
   };
 
@@ -147,6 +227,10 @@ export default function RepaymentForm({ customerId }) {
     });
     setCustomers([]);
     setCustomerDetails(null);
+    
+    // Clear URL parameters
+    const newUrl = window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
   };
 
   const handleSubmit = async (e) => {
@@ -168,6 +252,12 @@ export default function RepaymentForm({ customerId }) {
       if (!res.ok) throw new Error("Failed to save repayment");
       await res.json();
       toast.success("Repayment added successfully!");
+      
+      // Call the refresh callback if provided
+      if (onRepaymentSaved) {
+        onRepaymentSaved();
+      }
+      
       handleClear();
     } catch {
       toast.error("Error saving repayment");
@@ -222,7 +312,11 @@ export default function RepaymentForm({ customerId }) {
                           <CommandEmpty>No area found.</CommandEmpty>
                           <CommandGroup>
                             {areas.map((area) => (
-                              <CommandItem key={area.id} value={area.areaName || area.name} onSelect={() => { setFormData((prev) => ({ ...prev, area: area.id })); setOpenArea(false); }}>
+                              <CommandItem 
+                                key={area.id} 
+                                value={area.areaName || area.name} 
+                                onSelect={() => handleAreaSelect(area.id)}
+                              >
                                 <Check className={cn("mr-2 h-4 w-4", formData.area === area.id ? "opacity-100" : "opacity-0")} />
                                 {area.areaName || area.name}
                               </CommandItem>
@@ -311,6 +405,14 @@ export default function RepaymentForm({ customerId }) {
                             dueDate: loan.dueDate || "",
                             loanId: loan.id || "",
                           });
+                          
+                          // Update URL with the scanned customer
+                          const params = new URLSearchParams();
+                          params.set('customer', customerData.customerCode);
+                          params.set('area', customerData.areaId);
+                          const newUrl = `${window.location.pathname}?${params.toString()}`;
+                          window.history.replaceState(null, '', newUrl);
+                          
                           toast.success(`Details for customer ${customerData.customerCode} loaded successfully.`);
                         } else {
                           toast.error("Customer not found or unable to load details.");
@@ -411,7 +513,7 @@ export default function RepaymentForm({ customerId }) {
                   onClick={handleClear}
                   className="h-10"
                 >
-                  Clear
+                  Clear All
                 </Button>
                 <Button 
                   type="submit" 
@@ -439,7 +541,7 @@ export default function RepaymentForm({ customerId }) {
                     <User className="h-6 w-6 text-blue-600" />
                   </div>
                   <div>
-                    <p className="font-semibold">{customerDetails.name || "N/A"}</p>
+                    <p className="font-semibold">{customerDetails.customerName || "N/A"}</p>
                     <p className="text-sm text-gray-600">{customerDetails.customerCode}</p>
                   </div>
                 </div>

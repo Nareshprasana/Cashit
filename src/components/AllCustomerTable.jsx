@@ -19,17 +19,21 @@ import {
   X,
   Edit,
   Loader2,
-  Plus,
-  Trash2,
   Upload,
   Eye,
   Pencil,
+  CheckCircle,
+  AlertCircle,
+  Trash2,
+  Plus,
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
+
 import {
   Dialog,
   DialogContent,
@@ -59,11 +63,13 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { Label } from "@/components/ui/label";
+
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+
 import {
   Command,
   CommandEmpty,
@@ -72,7 +78,9 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+
 import { Badge } from "@/components/ui/badge";
+
 import {
   Card,
   CardContent,
@@ -80,10 +88,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { Textarea } from "@/components/ui/textarea";
 
-// Pagination imports
 import {
   Pagination,
   PaginationContent,
@@ -94,23 +103,20 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-// Custom progress bar component since @/components/ui/progress is not available
-const ProgressBar = ({ value, className = "" }) => {
-  return (
-    <div className={`w-full bg-gray-200 rounded-full h-2 ${className}`}>
-      <div
-        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
-      ></div>
-    </div>
-  );
-};
+const ProgressBar = ({ value, className = "" }) => (
+  <div className={`w-full bg-gray-200 rounded-full h-2 ${className}`}>
+    <div
+      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+      style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+    />
+  </div>
+);
 
 export default function AllCustomerTable() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [customerLoans, setCustomerLoans] = useState({});
 
-  // Filters
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [areaFilter, setAreaFilter] = useState("");
@@ -118,62 +124,106 @@ export default function AllCustomerTable() {
   const [endEndDate, setEndEndDate] = useState("");
   const [availableAreas, setAvailableAreas] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
-
-  // Popover open state for Area filter
   const [areaOpen, setAreaOpen] = useState(false);
 
-  // Pagination (TABLE ONLY)
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedLoan, setSelectedLoan] = useState(null);
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [repayments, setRepayments] = useState([]);
+  
   const [deletingId, setDeletingId] = useState(null);
-
-  // Dialog-in-Dialog actions state
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-
-  // Document management state
   const [documentToUpdate, setDocumentToUpdate] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadingDocument, setUploadingDocument] = useState(false);
 
+  // New states for loan CRUD operations
+  const [createLoanOpen, setCreateLoanOpen] = useState(false);
+  const [editLoanOpen, setEditLoanOpen] = useState(false);
+  const [deleteLoanOpen, setDeleteLoanOpen] = useState(false);
+  const [loanToDelete, setLoanToDelete] = useState(null);
+  const [creatingLoan, setCreatingLoan] = useState(false);
+  const [updatingLoan, setUpdatingLoan] = useState(false);
+  const [deletingLoan, setDeletingLoan] = useState(false);
+
+  // New loan form state
+  const [loanFormData, setLoanFormData] = useState({
+    amount: "",
+    rate: "",
+    tenure: "",
+    loanDate: new Date().toISOString().split('T')[0],
+    area: "",
+  });
+
   const router = useRouter();
 
-  // Helper: calculate end date
   const calculateEndDate = (loanDate, tenure) => {
     if (!loanDate || tenure == null) return null;
-    const date = new Date(loanDate);
-    date.setMonth(date.getMonth() + Number(tenure));
-    return date;
+    const d = new Date(loanDate);
+    d.setMonth(d.getMonth() + Number(tenure));
+    return d;
   };
 
+  // Enhanced fetch function with better error handling
   useEffect(() => {
     async function fetchCustomers() {
       try {
-        const res = await fetch("/api/customers");
-        if (!res.ok) throw new Error("Failed to fetch customer data");
-        let customers = await res.json();
+        setLoading(true);
+        const [customersRes, loansRes] = await Promise.all([
+          fetch("/api/customers"),
+          fetch("/api/loans")
+        ]);
 
-        customers = customers.map((cust) => ({
-          ...cust,
-          endDate: cust.endDate
-            ? new Date(cust.endDate)
-            : cust.loanDate && cust.tenure
-            ? calculateEndDate(cust.loanDate, cust.tenure)
+        if (!customersRes.ok) throw new Error("Failed to fetch customer data");
+
+        let customers = await customersRes.json();
+        const loans = loansRes.ok ? await loansRes.json() : [];
+
+        console.log('Fetched loans:', loans); // Debug log
+
+        // Process customers with calculated end dates
+        customers = customers.map((c) => ({
+          ...c,
+          endDate: c.endDate
+            ? new Date(c.endDate)
+            : c.loanDate && c.tenure
+            ? calculateEndDate(c.loanDate, c.tenure)
             : null,
         }));
 
         setData(customers);
-        const areas = [
-          ...new Set(customers.map((c) => c.area).filter(Boolean)),
-        ];
-        setAvailableAreas(areas);
-      } catch (err) {
-        console.error("Error loading data:", err.message);
+        setAvailableAreas([...new Set(customers.map((c) => c.area).filter(Boolean))]);
+
+        // Organize loans by customer ID - FIXED VERSION
+        const loansByCustomer = {};
+        loans.forEach(loan => {
+          // Use customerId directly from loan object
+          const customerId = loan.customerId;
+          if (customerId) {
+            if (!loansByCustomer[customerId]) {
+              loansByCustomer[customerId] = [];
+            }
+            loansByCustomer[customerId].push({
+              ...loan,
+              // Ensure all required fields are present
+              documentUrl: loan.documentUrl || null,
+              status: loan.status || 'ACTIVE',
+              amount: loan.amount || loan.loanAmount || 0,
+            });
+          }
+        });
+        
+        console.log('Loans by customer:', loansByCustomer); // Debug log
+        setCustomerLoans(loansByCustomer);
+
+      } catch (e) {
+        console.error("Fetch error:", e);
+        alert("Failed to load customer data. Please refresh the page.");
       } finally {
         setLoading(false);
       }
@@ -181,184 +231,399 @@ export default function AllCustomerTable() {
     fetchCustomers();
   }, []);
 
+  // Enhanced customer selection handler
   useEffect(() => {
-    if (selectedCustomer?.customerCode) {
-      QRCode.toDataURL(selectedCustomer.customerCode)
-        .then((url) => setQrCodeUrl(url))
-        .catch((err) => console.error("QR Code Error:", err));
-
-      fetch(`/api/repayments?customerId=${selectedCustomer.id}`)
-        .then((res) => res.json())
-        .then((data) => setRepayments(Array.isArray(data) ? data : []))
-        .catch((err) => {
-          console.error("Error loading repayments:", err);
-          setRepayments([]);
-        });
-    } else {
+    if (!selectedCustomer?.customerCode) {
       setQrCodeUrl("");
       setRepayments([]);
+      setSelectedLoan(null);
+      return;
     }
-  }, [selectedCustomer]);
 
-  // Delete handler
-  async function handleDelete(id) {
-    try {
-      console.log(
-        "🔄 DELETE - Starting deletion with ID:",
-        id,
-        "Type:",
-        typeof id
-      );
+    // Generate QR code
+    QRCode.toDataURL(selectedCustomer.customerCode)
+      .then(setQrCodeUrl)
+      .catch(console.error);
 
-      // Validate the ID - it should be a UUID string, not a number
-      if (!id || typeof id !== "string") {
-        console.error("❌ Invalid ID provided:", id);
-        alert("Invalid customer ID. Please try again.");
-        return;
-      }
-
-      // Check if it looks like a UUID (optional validation)
-      const uuidRegex =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(id)) {
-        console.warn("⚠️ ID doesn't match UUID format:", id);
-        // Still proceed, as it might be a valid string ID
-      }
-
-      setDeletingId(id);
-
-      const apiUrl = `/api/customers?id=${encodeURIComponent(id)}`;
-      console.log("🌐 Calling API:", apiUrl);
-
-      const res = await fetch(apiUrl, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
+    // Fetch repayments
+    fetch(`/api/repayments?customerId=${selectedCustomer.id}`)
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to fetch repayments");
+        return r.json();
+      })
+      .then((d) => setRepayments(Array.isArray(d) ? d : []))
+      .catch((error) => {
+        console.error("Repayment fetch error:", error);
+        setRepayments([]);
       });
 
-      console.log("📨 Response status:", res.status, res.statusText);
+    // Set first loan as selected
+    const customerLoansList = customerLoans[selectedCustomer.id] || [];
+    setSelectedLoan(customerLoansList[0] || null);
+  }, [selectedCustomer, customerLoans]);
+
+  // Enhanced delete handler
+  const handleDelete = async (id) => {
+    if (!id || typeof id !== "string") {
+      alert("Invalid customer ID");
+      return;
+    }
+
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/customers?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
 
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error("❌ Error response:", errorText);
-
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch (e) {
-          throw new Error(`Server error: ${res.status} ${res.statusText}`);
-        }
-
-        throw new Error(
-          errorData.error || errorData.message || "Failed to delete customer"
-        );
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Delete failed");
       }
 
-      const result = await res.json();
-      console.log("✅ Success:", result);
-
-      if (result.success) {
+      const { success, message } = await res.json();
+      if (success) {
         setData((prev) => prev.filter((c) => c.id !== id));
         if (selectedCustomer?.id === id) {
           setDialogOpen(false);
           setSelectedCustomer(null);
         }
-        alert("Customer deleted successfully!");
-      } else {
-        throw new Error(result.error || "Failed to delete customer");
+        alert(message || "Customer deleted successfully!");
       }
     } catch (e) {
-      console.error("🔥 Delete error:", e);
+      console.error("Delete error:", e);
       alert(`Delete failed: ${e.message}`);
     } finally {
       setDeletingId(null);
     }
-  }
+  };
 
-  // QR Code download handler
+  // Download QR code
   const handleDownloadQRCode = () => {
-    if (!qrCodeUrl || !selectedCustomer) return;
-
-    // Create a temporary anchor element
+    if (!qrCodeUrl) {
+      alert("QR code not available");
+      return;
+    }
     const a = document.createElement("a");
     a.href = qrCodeUrl;
-    a.download = `QRCode_${
-      selectedCustomer.customerCode || selectedCustomer.name
-    }.png`;
-    a.style.display = "none";
+    a.download = `QRCode_${selectedCustomer?.customerCode || "customer"}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   };
 
-  // Document update handler
-  const handleDocumentUpdate = (documentField) => {
-    setDocumentToUpdate(documentField);
+  // Download statement
+  const handleDownloadStatement = () => {
+    if (!selectedCustomer) return;
+    
+    const headers = ["Date", "Amount", "Note", "Status"];
+    const rows = repayments.map((r) => [
+      r.date ? new Date(r.date).toISOString().split("T")[0] : "",
+      Number(r.amount ?? 0),
+      r.note ?? "",
+      r.status ?? "completed"
+    ]);
+    
+    const csv = [headers, ...rows]
+      .map((row) =>
+        row
+          .map((v) => {
+            const s = String(v ?? "");
+            return s.includes(",") || s.includes('"') || s.includes("\n")
+              ? `"${s.replace(/"/g, '""')}"`
+              : s;
+          })
+          .join(",")
+      )
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Statement_${selectedCustomer.name?.replace(/[^a-z0-9]/gi, "_") ?? "customer"}_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Document update handlers
+  const handleDocumentUpdate = (field) => {
+    setDocumentToUpdate(field);
     setSelectedFile(null);
   };
 
-  // Document submission handler
   const handleDocumentSubmit = async (e) => {
     e.preventDefault();
     if (!selectedFile || !documentToUpdate || !selectedCustomer) return;
-    
+
     setUploadingDocument(true);
-    
+    const fd = new FormData();
+    fd.append("file", selectedFile);
+    fd.append("id", selectedCustomer.id);
+    fd.append("documentField", documentToUpdate);
+
     try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("id", selectedCustomer.id);
-      formData.append("documentField", documentToUpdate);
-      
-      const res = await fetch("/api/customers", {
-        method: "PUT",
-        body: formData,
+      const res = await fetch("/api/customers", { 
+        method: "PUT", 
+        body: fd 
       });
       
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to upload document");
+        throw new Error(errorData.error || "Upload failed");
       }
       
       const { customer } = await res.json();
       
-      // Update the customer data with the new document URL
-      setData(prev => prev.map(c => 
-        c.id === customer.id ? { ...c, ...customer } : c
-      ));
-      
-      // Update the selected customer
-      setSelectedCustomer(prev => ({ ...prev, ...customer }));
-      
-      // Close the dialog
-      setDocumentToUpdate(null);
-      setSelectedFile(null);
+      // Update both data and selected customer
+      setData((prev) => prev.map((c) => (c.id === customer.id ? { ...c, ...customer } : c)));
+      setSelectedCustomer((prev) => prev?.id === customer.id ? { ...prev, ...customer } : prev);
       
       alert("Document updated successfully!");
-    } catch (error) {
-      console.error("Error uploading document:", error);
-      alert(`Failed to upload document: ${error.message}`);
+      setDocumentToUpdate(null);
+      setSelectedFile(null);
+    } catch (e) {
+      console.error("Document upload error:", e);
+      alert(e.message);
     } finally {
       setUploadingDocument(false);
     }
   };
 
-  // Columns (no actions column)
+  // Enhanced loan document handler
+  const handleLoanDocumentUpdate = async (e) => {
+    e.preventDefault();
+    if (!selectedFile || !selectedLoan) return;
+
+    setUploadingDocument(true);
+    const fd = new FormData();
+    fd.append("file", selectedFile);
+    fd.append("loanId", selectedLoan.id);
+    fd.append("documentField", "documentUrl");
+
+    try {
+      const res = await fetch("/api/loans", { 
+        method: "PUT", 
+        body: fd 
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Loan document upload failed");
+      }
+      
+      const { loan } = await res.json();
+
+      // Update customer loans state
+      setCustomerLoans(prev => ({
+        ...prev,
+        [selectedCustomer.id]: (prev[selectedCustomer.id] || []).map(l => 
+          l.id === loan.id ? { ...l, documentUrl: loan.documentUrl } : l
+        )
+      }));
+
+      // Update selected loan
+      if (selectedLoan?.id === loan.id) {
+        setSelectedLoan(prev => ({ ...prev, documentUrl: loan.documentUrl }));
+      }
+
+      alert("Loan document updated successfully!");
+      setDocumentToUpdate(null);
+      setSelectedFile(null);
+    } catch (e) {
+      console.error("Loan document upload error:", e);
+      alert(`Upload failed: ${e.message}`);
+    } finally {
+      setUploadingDocument(false);
+    }
+  };
+
+  // Loan CRUD Operations
+  const handleCreateLoan = async (e) => {
+    e.preventDefault();
+    if (!selectedCustomer) return;
+
+    setCreatingLoan(true);
+    try {
+      const res = await fetch("/api/loans", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customerId: selectedCustomer.id,
+          amount: Number(loanFormData.amount),
+          rate: Number(loanFormData.rate),
+          tenure: Number(loanFormData.tenure),
+          loanDate: loanFormData.loanDate,
+          area: loanFormData.area || selectedCustomer.area,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to create loan");
+      }
+
+      const { loan } = await res.json();
+
+      // Update customer loans state
+      setCustomerLoans(prev => ({
+        ...prev,
+        [selectedCustomer.id]: [...(prev[selectedCustomer.id] || []), loan]
+      }));
+
+      // Reset form and close dialog
+      setLoanFormData({
+        amount: "",
+        rate: "",
+        tenure: "",
+        loanDate: new Date().toISOString().split('T')[0],
+        area: "",
+      });
+      setCreateLoanOpen(false);
+      alert("Loan created successfully!");
+    } catch (e) {
+      console.error("Loan creation error:", e);
+      alert(`Failed to create loan: ${e.message}`);
+    } finally {
+      setCreatingLoan(false);
+    }
+  };
+
+  const handleUpdateLoan = async (e) => {
+    e.preventDefault();
+    if (!selectedLoan) return;
+
+    setUpdatingLoan(true);
+    try {
+      const res = await fetch("/api/loans", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: selectedLoan.id,
+          amount: Number(loanFormData.amount),
+          rate: Number(loanFormData.rate),
+          tenure: Number(loanFormData.tenure),
+          loanDate: loanFormData.loanDate,
+          area: loanFormData.area,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to update loan");
+      }
+
+      const { loan } = await res.json();
+
+      // Update customer loans state
+      setCustomerLoans(prev => ({
+        ...prev,
+        [selectedCustomer.id]: (prev[selectedCustomer.id] || []).map(l => 
+          l.id === loan.id ? loan : l
+        )
+      }));
+
+      // Update selected loan
+      setSelectedLoan(loan);
+      setEditLoanOpen(false);
+      alert("Loan updated successfully!");
+    } catch (e) {
+      console.error("Loan update error:", e);
+      alert(`Failed to update loan: ${e.message}`);
+    } finally {
+      setUpdatingLoan(false);
+    }
+  };
+
+  const handleDeleteLoan = async () => {
+    if (!loanToDelete) return;
+
+    setDeletingLoan(true);
+    try {
+      const res = await fetch(`/api/loans?id=${loanToDelete.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to delete loan");
+      }
+
+      // Update customer loans state
+      setCustomerLoans(prev => ({
+        ...prev,
+        [selectedCustomer.id]: (prev[selectedCustomer.id] || []).filter(l => l.id !== loanToDelete.id)
+      }));
+
+      // Reset selected loan if it was deleted
+      if (selectedLoan?.id === loanToDelete.id) {
+        const remainingLoans = customerLoans[selectedCustomer.id]?.filter(l => l.id !== loanToDelete.id) || [];
+        setSelectedLoan(remainingLoans[0] || null);
+      }
+
+      setDeleteLoanOpen(false);
+      setLoanToDelete(null);
+      alert("Loan deleted successfully!");
+    } catch (e) {
+      console.error("Loan deletion error:", e);
+      alert(`Failed to delete loan: ${e.message}`);
+    } finally {
+      setDeletingLoan(false);
+    }
+  };
+
+  // Helper function to check if loan is active
+  const isLoanActive = (loan) => {
+    return loan.status === 'ACTIVE' || 
+           (loan.endDate && new Date(loan.endDate) > new Date());
+  };
+
+  // Initialize loan form for editing
+  const initializeEditLoan = (loan) => {
+    setSelectedLoan(loan);
+    setLoanFormData({
+      amount: loan.amount?.toString() || "",
+      rate: loan.rate?.toString() || "",
+      tenure: loan.tenure?.toString() || "",
+      loanDate: loan.loanDate ? new Date(loan.loanDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      area: loan.area || selectedCustomer?.area || "",
+    });
+    setEditLoanOpen(true);
+  };
+
+  // Initialize create loan form
+  const initializeCreateLoan = () => {
+    setLoanFormData({
+      amount: "",
+      rate: "",
+      tenure: "",
+      loanDate: new Date().toISOString().split('T')[0],
+      area: selectedCustomer?.area || "",
+    });
+    setCreateLoanOpen(true);
+  };
+
+  // Columns definition
   const columns = [
     {
       accessorKey: "photoUrl",
       header: "Photo",
       cell: ({ row }) => {
-        const photo = row.original.photoUrl;
-        return photo ? (
-          <img
-            src={photo}
-            alt="Customer"
-            className="h-10 w-10 rounded-full object-cover border"
+        const url = row.original.photoUrl;
+        return url ? (
+          <img 
+            src={url} 
+            alt="Customer" 
+            className="h-10 w-10 rounded-full object-cover border shadow-sm" 
           />
         ) : (
-          <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center border">
             <User className="h-5 w-5 text-gray-400" />
           </div>
         );
@@ -368,30 +633,25 @@ export default function AllCustomerTable() {
       accessorKey: "customerCode",
       header: "Customer ID",
       cell: ({ row }) => (
-        <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded">
-          {row.original.customerCode}
+        <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded border">
+          {row.original.customerCode || "N/A"}
         </span>
       ),
     },
     {
       accessorKey: "name",
       header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="font-semibold"
-        >
-          Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Name <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
       cell: ({ row }) => (
         <span
+          className="cursor-pointer text-blue-600 hover:underline font-medium transition-colors"
           onClick={() => {
             setSelectedCustomer(row.original);
             setDialogOpen(true);
           }}
-          className="cursor-pointer font-medium text-blue-600 hover:text-blue-800 hover:underline"
         >
           {row.original.name}
         </span>
@@ -400,17 +660,15 @@ export default function AllCustomerTable() {
     {
       accessorKey: "aadhar",
       header: "Aadhar",
-      cell: ({ row }) => (
-        <span className="text-sm">{row.original.aadhar || "N/A"}</span>
-      ),
+      cell: ({ row }) => <span className="font-mono text-sm">{row.original.aadhar || "N/A"}</span>,
     },
     {
       accessorKey: "area",
       header: "Area",
       cell: ({ row }) => (
-        <div className="flex items-center">
-          <MapPin className="h-3.5 w-3.5 mr-1 text-gray-500" />
-          <span className="text-sm">{row.original.area || "N/A"}</span>
+        <div className="flex items-center gap-1">
+          <MapPin className="h-3.5 w-3.5 text-gray-500" />
+          {row.original.area || "N/A"}
         </div>
       ),
     },
@@ -418,12 +676,12 @@ export default function AllCustomerTable() {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => {
-        const customer = row.original;
-        const totalPaid = customer.totalPaid || 0;
-        const loanAmount = customer.loanAmount || 0;
-        const isActive = totalPaid < loanAmount;
-        return isActive ? (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+        const paid = row.original.totalPaid ?? 0;
+        const loan = row.original.loanAmount ?? 0;
+        const active = paid < loan;
+        return active ? (
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
+            <CheckCircle className="h-3 w-3 mr-1" />
             Active
           </Badge>
         ) : (
@@ -435,14 +693,10 @@ export default function AllCustomerTable() {
     },
     {
       accessorKey: "loanAmount",
-      header: () => (
-        <div className="text-right">
-          <span>Loan Amount</span>
-        </div>
-      ),
+      header: () => <div className="text-right">Loan Amount</div>,
       cell: ({ row }) => (
         <div className="text-right font-medium">
-          ₹{Number(row.original.loanAmount || 0).toLocaleString()}
+          ₹{Number(row.original.loanAmount ?? 0).toLocaleString('en-IN')}
         </div>
       ),
     },
@@ -450,17 +704,15 @@ export default function AllCustomerTable() {
       accessorKey: "endDate",
       header: "End Date",
       cell: ({ row }) => {
-        const endDate = row.original.endDate;
-        return endDate ? (
-          <div className="flex items-center">
-            <Calendar className="h-3.5 w-3.5 mr-1 text-gray-500" />
-            <span className="text-sm">
-              {new Date(endDate).toLocaleDateString("en-IN", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })}
-            </span>
+        const d = row.original.endDate;
+        return d ? (
+          <div className="flex items-center gap-1">
+            <Calendar className="h-3.5 w-3.5 text-gray-500" />
+            {new Date(d).toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })}
           </div>
         ) : (
           "N/A"
@@ -471,148 +723,120 @@ export default function AllCustomerTable() {
       accessorKey: "overdueDays",
       header: "Overdue",
       cell: ({ row }) => {
-        const endDate = row.original.endDate
-          ? new Date(row.original.endDate)
-          : null;
-        if (!endDate) return "N/A";
-        const today = new Date();
-        const diff = Math.floor(
-          (today.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24)
-        );
+        const end = row.original.endDate ? new Date(row.original.endDate) : null;
+        if (!end) return "N/A";
+        const diff = Math.floor((Date.now() - end) / (1000 * 60 * 60 * 24));
         return diff > 0 ? (
-          <Badge variant="destructive" className="text-xs">
+          <Badge variant="destructive" className="flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
             {diff} days
           </Badge>
         ) : (
-          <span className="text-xs text-green-600">On time</span>
+          <span className="text-green-600 text-xs font-medium">On time</span>
+        );
+      },
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const customer = row.original;
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => {
+                setSelectedCustomer(customer);
+                setDialogOpen(true);
+              }}>
+                <Eye className="h-4 w-4 mr-2" />
+                View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push(`/customers/edit?id=${customer.id}`)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Customer
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                className="text-red-600"
+                onClick={() => {
+                  setSelectedCustomer(customer);
+                  setDeleteOpen(true);
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Customer
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         );
       },
     },
   ];
 
-  // Filters
-  const filteredData = data.filter((cust) => {
-    const matchesGlobal =
-      !globalFilter ||
-      cust.name?.toLowerCase().includes(globalFilter.toLowerCase()) ||
-      cust.customerCode?.toLowerCase().includes(globalFilter.toLowerCase());
+  // Filtering and pagination
+  const filteredData = useMemo(() => {
+    return data.filter((c) => {
+      const globalMatch = !globalFilter ||
+        c.name?.toLowerCase().includes(globalFilter.toLowerCase()) ||
+        c.customerCode?.toLowerCase().includes(globalFilter.toLowerCase()) ||
+        c.aadhar?.includes(globalFilter);
 
-    const totalPaid = cust.totalPaid || 0;
-    const loanAmount = cust.loanAmount || 0;
-    const isActive = totalPaid < loanAmount;
-    const matchesStatus =
-      !statusFilter ||
-      (statusFilter === "active" && isActive) ||
-      (statusFilter === "closed" && !isActive);
+      const totalPaid = c.totalPaid ?? 0;
+      const loanAmt = c.loanAmount ?? 0;
+      const active = totalPaid < loanAmt;
+      const statusMatch = !statusFilter ||
+        (statusFilter === "active" && active) ||
+        (statusFilter === "closed" && !active);
 
-    const matchesArea = !areaFilter || cust.area === areaFilter;
+      const areaMatch = !areaFilter || c.area === areaFilter;
 
-    const endDateObj = cust.endDate ? new Date(cust.endDate) : null;
-    const matchesStartDate =
-      !startEndDate || (endDateObj && endDateObj >= new Date(startEndDate));
-    const matchesEndDate =
-      !endEndDate || (endDateObj && endDateObj <= new Date(endEndDate));
+      const end = c.endDate ? new Date(c.endDate) : null;
+      const startDateMatch = !startEndDate || (end && end >= new Date(startEndDate));
+      const endDateMatch = !endEndDate || (end && end <= new Date(endEndDate));
 
-    return (
-      matchesGlobal &&
-      matchesStatus &&
-      matchesArea &&
-      matchesStartDate &&
-      matchesEndDate
-    );
-  });
+      return globalMatch && statusMatch && areaMatch && startDateMatch && endDateMatch;
+    });
+  }, [data, globalFilter, statusFilter, areaFilter, startEndDate, endEndDate]);
 
-  // TABLE pagination only
-  const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
     return filteredData.slice(start, start + rowsPerPage);
   }, [filteredData, currentPage, rowsPerPage]);
 
-  const numberOfRepayments = useMemo(() => repayments.length, [repayments]);
+  const numberOfRepayments = repayments.length;
 
-  // Calculate number of documents based on existing customer document fields
   const numberOfDocuments = useMemo(() => {
     if (!selectedCustomer) return 0;
-    let count = 0;
-    if (selectedCustomer.photoUrl) count++;
-    if (selectedCustomer.aadharDocumentUrl) count++;
-    if (selectedCustomer.incomeProofUrl) count++;
-    if (selectedCustomer.residenceProofUrl) count++;
-    return count;
-  }, [selectedCustomer]);
+    
+    const customerDocs = ["aadharDocumentUrl", "incomeProofUrl", "residenceProofUrl", "qrUrl", "photoUrl"];
+    const customerDocCount = customerDocs.filter((f) => selectedCustomer[f]).length;
+    
+    const customerLoansList = customerLoans[selectedCustomer.id] || [];
+    const loanDocCount = customerLoansList.filter(loan => loan.documentUrl).length;
+    
+    return customerDocCount + loanDocCount;
+  }, [selectedCustomer, customerLoans]);
 
-  const handleDownloadStatement = () => {
-    if (!selectedCustomer) return;
-    const headers = ["Date", "Amount", "Note"];
-    const rows = repayments.map((r) => [
-      r.date ? new Date(r.date).toISOString().split("T")[0] : "",
-      typeof r.amount === "number" ? r.amount : Number(r.amount || 0),
-      r.note || "",
-    ]);
-    const csv =
-      [headers, ...rows]
-        .map((row) =>
-          row
-            .map((field) => {
-              const s = String(field ?? "");
-              if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-                return `"${s.replace(/"/g, '""')}"`;
-              }
-              return s;
-            })
-            .join(",")
-        )
-        .join("\n") + "\n";
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const nameSafe =
-      selectedCustomer.name?.replace(/[^a-z0-9-_]/gi, "_") ||
-      selectedCustomer.customerCode ||
-      "customer";
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Statement_${nameSafe}.csv`;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-2" />
-          <p className="text-gray-600">Loading customers...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // helper to render number window
+  // Pagination helper
   const renderPageWindow = () => {
+    const max = 5;
+    const start = Math.max(1, Math.min(currentPage - Math.floor(max / 2), totalPages - max + 1));
+    const end = Math.min(totalPages, start + max - 1);
     const items = [];
-    const maxButtons = 5;
-    const start = Math.max(
-      1,
-      Math.min(
-        currentPage - Math.floor(maxButtons / 2),
-        Math.max(1, totalPages - maxButtons + 1)
-      )
-    );
-    const end = Math.min(totalPages, start + maxButtons - 1);
 
     if (start > 1) {
       items.push(
         <PaginationItem key={1}>
-          <PaginationLink
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              setCurrentPage(1);
-            }}
+          <PaginationLink 
+            href="#" 
+            onClick={(e) => { e.preventDefault(); setCurrentPage(1); }} 
             isActive={currentPage === 1}
           >
             1
@@ -620,23 +844,16 @@ export default function AllCustomerTable() {
         </PaginationItem>
       );
       if (start > 2) {
-        items.push(
-          <PaginationItem key="start-ellipsis">
-            <PaginationEllipsis />
-          </PaginationItem>
-        );
+        items.push(<PaginationItem key="start-ellipsis"><PaginationEllipsis /></PaginationItem>);
       }
     }
 
-    for (let p = start; p <= end; p += 1) {
+    for (let p = start; p <= end; p++) {
       items.push(
         <PaginationItem key={p}>
-          <PaginationLink
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              setCurrentPage(p);
-            }}
+          <PaginationLink 
+            href="#" 
+            onClick={(e) => { e.preventDefault(); setCurrentPage(p); }} 
             isActive={currentPage === p}
           >
             {p}
@@ -647,20 +864,13 @@ export default function AllCustomerTable() {
 
     if (end < totalPages) {
       if (end < totalPages - 1) {
-        items.push(
-          <PaginationItem key="end-ellipsis">
-            <PaginationEllipsis />
-          </PaginationItem>
-        );
+        items.push(<PaginationItem key="end-ellipsis"><PaginationEllipsis /></PaginationItem>);
       }
       items.push(
         <PaginationItem key={totalPages}>
-          <PaginationLink
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              setCurrentPage(totalPages);
-            }}
+          <PaginationLink 
+            href="#" 
+            onClick={(e) => { e.preventDefault(); setCurrentPage(totalPages); }} 
             isActive={currentPage === totalPages}
           >
             {totalPages}
@@ -672,66 +882,68 @@ export default function AllCustomerTable() {
     return items;
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600 mr-2" />
+        <span className="text-gray-600">Loading customers…</span>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Customer Management
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Manage all customer accounts and loan details
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">Customer Management</h1>
+          <p className="text-gray-600 mt-1">View, filter, and edit customer details.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="px-3 py-1">
-            <User className="h-4 w-4 mr-1" />
-            {data.length} customer{data.length !== 1 ? "s" : ""}
+          <Badge variant="outline" className="flex items-center gap-1">
+            <User className="h-4 w-4" />
+            {data.length} customer{data.length !== 1 && "s"}
           </Badge>
-          <Badge variant="outline" className="px-3 py-1">
-            <CreditCard className="h-4 w-4 mr-1" />
+          <Badge variant="outline" className="flex items-center gap-1">
+            <CreditCard className="h-4 w-4" />
             {filteredData.length} filtered
           </Badge>
+          <Button onClick={() => router.push("/customers/create")} className="ml-4">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Customer
+          </Button>
         </div>
       </div>
 
-      {/* Filters Card */}
+      {/* Filters */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
             <div className="flex items-center gap-2">
               <Filter className="h-5 w-5 text-blue-600" />
               <CardTitle className="text-lg">Filters</CardTitle>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowFilters(!showFilters)} 
                 className="flex items-center gap-1"
               >
-                {showFilters ? (
-                  <X className="h-4 w-4" />
-                ) : (
-                  <Filter className="h-4 w-4" />
-                )}
-                {showFilters ? "Hide Filters" : "Show Filters"}
+                {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
+                {showFilters ? "Hide" : "Show"} Filters
               </Button>
-              {(globalFilter ||
-                statusFilter ||
-                areaFilter ||
-                startEndDate ||
-                endEndDate) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setGlobalFilter("");
-                    setStatusFilter("");
-                    setAreaFilter("");
-                    setStartEndDate("");
-                    setEndEndDate("");
+              {(globalFilter || statusFilter || areaFilter || startEndDate || endEndDate) && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => { 
+                    setGlobalFilter(""); 
+                    setStatusFilter(""); 
+                    setAreaFilter(""); 
+                    setStartEndDate(""); 
+                    setEndEndDate(""); 
                   }}
                 >
                   Clear All
@@ -740,75 +952,52 @@ export default function AllCustomerTable() {
             </div>
           </div>
         </CardHeader>
-
         <CardContent>
-          <div className="flex flex-col gap-4">
-            {/* Main search */}
+          <div className="space-y-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Search by name or customer ID..."
-                value={globalFilter}
-                onChange={(e) => setGlobalFilter(e.target.value)}
-                className="pl-10"
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input 
+                placeholder="Search by name, ID, or Aadhar…" 
+                value={globalFilter} 
+                onChange={(e) => setGlobalFilter(e.target.value)} 
+                className="pl-10" 
               />
             </div>
-
-            {/* Advanced filters */}
             {showFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t">
+              <div className="grid gap-4 pt-4 border-t md:grid-cols-3">
                 <div className="space-y-2">
                   <Label className="text-sm">Status</Label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full border rounded-md px-3 py-2 text-sm"
+                  <select 
+                    value={statusFilter} 
+                    onChange={(e) => setStatusFilter(e.target.value)} 
+                    className="w-full rounded border p-2 text-sm"
                   >
-                    <option value="">All Status</option>
+                    <option value="">All</option>
                     <option value="active">Active</option>
                     <option value="closed">Closed</option>
                   </select>
                 </div>
-
                 <div className="space-y-2">
                   <Label className="text-sm">Area</Label>
                   <Popover open={areaOpen} onOpenChange={setAreaOpen}>
                     <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={areaOpen}
-                        className="w-full justify-between text-sm font-normal"
-                      >
+                      <Button variant="outline" role="combobox" aria-expanded={areaOpen} className="w-full justify-between text-sm">
                         {areaFilter || "All Areas"}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-full p-0">
                       <Command>
-                        <CommandInput placeholder="Search area..." />
+                        <CommandInput placeholder="Search area…" />
                         <CommandList>
                           <CommandEmpty>No area found.</CommandEmpty>
                           <CommandGroup>
-                            <CommandItem
-                              value="__all__"
-                              onSelect={() => {
-                                setAreaFilter("");
-                                setAreaOpen(false);
-                              }}
-                            >
+                            <CommandItem onSelect={() => { setAreaFilter(""); setAreaOpen(false); }}>
                               All Areas
                             </CommandItem>
-                            {availableAreas.map((area) => (
-                              <CommandItem
-                                key={area}
-                                value={area}
-                                onSelect={() => {
-                                  setAreaFilter(area);
-                                  setAreaOpen(false);
-                                }}
-                              >
-                                {area}
+                            {availableAreas.map((a) => (
+                              <CommandItem key={a} onSelect={() => { setAreaFilter(a); setAreaOpen(false); }}>
+                                {a}
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -817,21 +1006,18 @@ export default function AllCustomerTable() {
                     </PopoverContent>
                   </Popover>
                 </div>
-
                 <div className="space-y-2">
                   <Label className="text-sm">End Date Range</Label>
                   <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      type="date"
-                      value={startEndDate}
-                      onChange={(e) => setStartEndDate(e.target.value)}
-                      className="text-sm"
+                    <Input 
+                      type="date" 
+                      value={startEndDate} 
+                      onChange={(e) => setStartEndDate(e.target.value)} 
                     />
-                    <Input
-                      type="date"
-                      value={endEndDate}
-                      onChange={(e) => setEndEndDate(e.target.value)}
-                      className="text-sm"
+                    <Input 
+                      type="date" 
+                      value={endEndDate} 
+                      onChange={(e) => setEndEndDate(e.target.value)} 
                     />
                   </div>
                 </div>
@@ -841,405 +1027,392 @@ export default function AllCustomerTable() {
         </CardContent>
       </Card>
 
-      {/* Results Summary */}
-      <div className="flex justify-between items-center">
+      {/* Results */}
+      <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <p className="text-sm text-gray-600">
-          Showing <span className="font-medium">{filteredData.length}</span> of{" "}
-          <span className="font-medium">{data.length}</span> customers
+          Showing <span className="font-medium">{paginatedData.length}</span> of <span className="font-medium">{filteredData.length}</span> customers (Total: {data.length})
         </p>
         <div className="flex items-center gap-2">
           <Label className="text-sm">Rows per page:</Label>
-          <select
-            className="border rounded px-2 py-1 text-sm"
-            value={rowsPerPage}
-            onChange={(e) => {
-              setRowsPerPage(Number(e.target.value));
-              setCurrentPage(1);
-            }}
+          <select 
+            className="rounded border p-1 text-sm" 
+            value={rowsPerPage} 
+            onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
           >
-            {[5, 10, 20, 50].map((num) => (
-              <option key={num} value={num}>
-                {num}
-              </option>
-            ))}
+            {[5, 10, 20, 50].map((n) => (<option key={n} value={n}>{n}</option>))}
           </select>
         </div>
       </div>
 
-      {/* Table with paginated data */}
+      {/* Table */}
       <Card>
         <CardContent className="p-0">
           <DataTable columns={columns} data={paginatedData} />
         </CardContent>
       </Card>
 
-      {/* Table Pagination Controls */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-600">
-          Page {currentPage} of {totalPages}
-        </p>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-600">Page {currentPage} of {totalPages}</p>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  href="#" 
+                  onClick={(e) => { e.preventDefault(); setCurrentPage((p) => Math.max(1, p - 1)); }} 
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : ""} 
+                />
+              </PaginationItem>
+              {renderPageWindow()}
+              <PaginationItem>
+                <PaginationNext 
+                  href="#" 
+                  onClick={(e) => { e.preventDefault(); setCurrentPage((p) => Math.min(totalPages, p + 1)); }} 
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""} 
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setCurrentPage((p) => Math.max(1, p - 1));
-                }}
-                aria-disabled={currentPage === 1}
-                className={
-                  currentPage === 1 ? "pointer-events-none opacity-50" : ""
-                }
-              />
-            </PaginationItem>
-
-            {renderPageWindow()}
-
-            <PaginationItem>
-              <PaginationNext
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setCurrentPage((p) => Math.min(totalPages, p + 1));
-                }}
-                aria-disabled={currentPage === totalPages || totalPages === 0}
-                className={
-                  currentPage === totalPages || totalPages === 0
-                    ? "pointer-events-none opacity-50"
-                    : ""
-                }
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      </div>
-
-      {/* Customer Dialog with actions inside */}
+      {/* Customer Detail Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex justify-between items-start gap-3">
               <div>
                 <DialogTitle className="text-2xl">Customer Details</DialogTitle>
-                <DialogDescription>
-                  Complete information for {selectedCustomer?.name}
-                </DialogDescription>
+                <DialogDescription>Full profile for {selectedCustomer?.name}</DialogDescription>
               </div>
-
-              <div className="shrink-0">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-red-600 focus:text-red-600"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setDeleteOpen(true);
-                      }}
-                    >
-                      Delete Customer
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Customer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={initializeCreateLoan}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create New Loan
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => {
+                      router.push(`/loans?customerId=${selectedCustomer.id}`);
+                    }}
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Manage Loans
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    className="text-red-600" 
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Customer
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </DialogHeader>
 
-          {selectedCustomer ? (
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              {/* Left Column - Profile & QR */}
-              <div className="lg:col-span-1 space-y-6">
+          {!selectedCustomer ? (
+            <p className="text-center py-8 text-gray-500">No customer selected.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+              {/* Left Sidebar */}
+              <div className="space-y-6 lg:col-span-1">
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex flex-col items-center gap-4">
                       {selectedCustomer.photoUrl ? (
-                        <img
-                          src={selectedCustomer.photoUrl}
-                          alt="Customer"
-                          className="h-24 w-24 rounded-full object-cover border-4 border-gray-100"
+                        <img 
+                          src={selectedCustomer.photoUrl} 
+                          alt="customer" 
+                          className="h-24 w-24 rounded-full object-cover border-4 border-gray-100 shadow-sm" 
                         />
                       ) : (
-                        <div className="h-24 w-24 rounded-full bg-gray-100 border-4 border-gray-100 flex items-center justify-center">
+                        <div className="h-24 w-24 rounded-full bg-gray-100 flex items-center justify-center border-4 border-gray-100">
                           <User className="h-10 w-10 text-gray-400" />
                         </div>
                       )}
                       <div className="text-center">
-                        <div className="font-bold text-lg">
-                          {selectedCustomer.name}
-                        </div>
-                        <div className="text-sm text-gray-600 mt-1">
-                          {selectedCustomer.customerCode || "N/A"}
-                        </div>
+                        <div className="font-bold text-lg">{selectedCustomer.name}</div>
+                        <div className="text-sm text-gray-600 mt-1">{selectedCustomer.customerCode || "N/A"}</div>
                       </div>
                       {qrCodeUrl ? (
-                        <div className="p-2 bg-white border rounded-lg">
-                          <img
-                            src={qrCodeUrl}
-                            alt="QR Code"
-                            className="h-32 w-32"
-                          />
+                        <div className="p-2 bg-white border rounded-lg shadow-sm">
+                          <img src={qrCodeUrl} alt="QR" className="h-32 w-32" />
                         </div>
                       ) : (
-                        <div className="h-32 w-32 border rounded-lg flex items-center justify-center text-xs text-gray-500">
-                          QR Loading...
+                        <div className="h-32 w-32 border rounded-lg flex items-center justify-center text-xs text-gray-500 bg-gray-50">
+                          QR loading…
                         </div>
                       )}
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">
-                      Quick Actions
-                    </CardTitle>
+                    <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={() => {
-                        if (!selectedCustomer?.customerCode) return;
-                        navigator.clipboard.writeText(
-                          selectedCustomer.customerCode
-                        );
-                      }}
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start" 
+                      onClick={() => navigator.clipboard.writeText(selectedCustomer.customerCode ?? "")}
                     >
-                      <FileText className="h-4 w-4 mr-2" />
-                      Copy Customer ID
+                      <FileText className="h-4 w-4 mr-2" /> Copy Customer ID
                     </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start" 
                       onClick={() => setEditOpen(true)}
                     >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit Profile
+                      <Edit className="h-4 w-4 mr-2" /> Edit Profile
                     </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={handleDownloadQRCode}
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start" 
+                      onClick={initializeCreateLoan}
+                    >
+                      <Plus className="h-4 w-4 mr-2" /> Create Loan
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start" 
+                      onClick={handleDownloadQRCode} 
                       disabled={!qrCodeUrl}
                     >
-                      <Download className="h-4 w-4 mr-2" />
-                      Download QR Code
+                      <Download className="h-4 w-4 mr-2" /> Download QR Code
                     </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start" 
                       onClick={handleDownloadStatement}
                     >
-                      <Download className="h-4 w-4 mr-2" />
-                      Download Statement
+                      <Download className="h-4 w-4 mr-2" /> Download Statement
                     </Button>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Right Column - Details & Repayments */}
+              {/* Right Content */}
               <div className="lg:col-span-3 space-y-6">
-                <Tabs defaultValue="details" className="w-full">
+                <Tabs defaultValue="details">
                   <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="details">Customer Details</TabsTrigger>
-                    <TabsTrigger value="repayments">
-                      Repayments ({numberOfRepayments})
-                    </TabsTrigger>
-                    <TabsTrigger value="documents">
-                      Documents ({numberOfDocuments})
-                    </TabsTrigger>
+                    <TabsTrigger value="details">Details</TabsTrigger>
+                    <TabsTrigger value="repayments">Repayments ({numberOfRepayments})</TabsTrigger>
+                    <TabsTrigger value="documents">Documents ({numberOfDocuments})</TabsTrigger>
                   </TabsList>
 
+                  {/* Details Tab */}
                   <TabsContent value="details" className="space-y-4">
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">
-                          Personal Information
-                        </CardTitle>
+                        <CardTitle className="text-lg">Personal Information</CardTitle>
                       </CardHeader>
-                      <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <Label className="text-sm text-gray-500">
-                            Mobile Number
-                          </Label>
-                          <div className="flex items-center font-medium">
-                            <Phone className="h-4 w-4 mr-2 text-gray-500" />
-                            {selectedCustomer.mobile || "N/A"}
+                      <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {[
+                          { label: "Mobile", value: selectedCustomer.mobile, icon: Phone },
+                          { label: "Aadhar", value: selectedCustomer.aadhar },
+                          { label: "Area", value: selectedCustomer.area, icon: MapPin },
+                          { label: "Address", value: selectedCustomer.address, span: true },
+                          { label: "DOB", value: selectedCustomer.dob ? new Date(selectedCustomer.dob).toLocaleDateString() : "N/A" },
+                          { label: "Gender", value: selectedCustomer.gender },
+                          { label: "Spouse Name", value: selectedCustomer.spouseName },
+                          { label: "Parent Name", value: selectedCustomer.parentName },
+                          { label: "Guarantor", value: selectedCustomer.guarantorName },
+                          { label: "Guarantor Aadhar", value: selectedCustomer.guarantorAadhar },
+                        ].map((item, index) => (
+                          <div key={index} className={`space-y-1 ${item.span ? 'md:col-span-2' : ''}`}>
+                            <Label className="text-sm text-gray-500">{item.label}</Label>
+                            <div className={`font-medium ${item.icon ? 'flex items-center' : ''}`}>
+                              {item.icon && <item.icon className="h-4 w-4 mr-2 text-gray-500" />}
+                              {item.value ?? "N/A"}
+                            </div>
                           </div>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-sm text-gray-500">
-                            Aadhar Number
-                          </Label>
-                          <div className="font-medium">
-                            {selectedCustomer.aadhar || "N/A"}
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-sm text-gray-500">Area</Label>
-                          <div className="flex items-center font-medium">
-                            <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-                            {selectedCustomer.area || "N/A"}
-                          </div>
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <Label className="text-sm text-gray-500">
-                            Address
-                          </Label>
-                          <div className="font-medium">
-                            {selectedCustomer.address || "N/A"}
-                          </div>
-                        </div>
+                        ))}
                       </CardContent>
                     </Card>
 
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">
-                          Loan Information
-                        </CardTitle>
+                        <CardTitle className="text-lg">Loan Information</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <Label className="text-sm text-gray-500">
-                              Loan Amount
-                            </Label>
-                            <div className="flex items-center font-medium text-lg">
-                              <DollarSign className="h-4 w-4 mr-1 text-gray-500" />
-                              ₹
-                              {Number(
-                                selectedCustomer.loanAmount || 0
-                              ).toLocaleString()}
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                          {[
+                            { label: "Loan Amount", value: `₹${Number(selectedCustomer.loanAmount || 0).toLocaleString('en-IN')}`, icon: DollarSign },
+                            { label: "Total Paid", value: `₹${Number(selectedCustomer.totalPaid || 0).toLocaleString('en-IN')}`, className: "text-green-600", icon: DollarSign },
+                            { label: "Pending Amount", value: `₹${Number((selectedCustomer.loanAmount || 0) - (selectedCustomer.totalPaid || 0)).toLocaleString('en-IN')}`, className: "text-red-600", icon: DollarSign },
+                            { label: "Loan Date", value: selectedCustomer.loanDate ? new Date(selectedCustomer.loanDate).toLocaleDateString() : "N/A" },
+                            { label: "Tenure (months)", value: selectedCustomer.tenure },
+                            { label: "End Date", value: selectedCustomer.endDate ? new Date(selectedCustomer.endDate).toLocaleDateString() : "N/A", icon: Calendar },
+                          ].map((item, index) => (
+                            <div key={index} className="space-y-1">
+                              <Label className="text-sm text-gray-500">{item.label}</Label>
+                              <div className={`flex items-center font-medium text-lg ${item.className || ''}`}>
+                                {item.icon && <item.icon className="h-4 w-4 mr-1 text-gray-500" />}
+                                {item.value ?? "N/A"}
+                              </div>
                             </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-sm text-gray-500">
-                              Total Paid
-                            </Label>
-                            <div className="flex items-center font-medium text-lg text-green-600">
-                              <DollarSign className="h-4 w-4 mr-1" />₹
-                              {Number(
-                                selectedCustomer.totalPaid || 0
-                              ).toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-sm text-gray-500">
-                              Pending Amount
-                            </Label>
-                            <div className="flex items-center font-medium text-lg text-red-600">
-                              <DollarSign className="h-4 w-4 mr-1" />₹
-                              {Number(
-                                (selectedCustomer.loanAmount || 0) -
-                                  (selectedCustomer.totalPaid || 0)
-                              ).toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-sm text-gray-500">
-                              End Date
-                            </Label>
-                            <div className="flex items-center font-medium">
-                              <Calendar className="h-4 w-4 mr-2 text-gray-500" />
-                              {selectedCustomer.endDate
-                                ? new Date(
-                                    selectedCustomer.endDate
-                                  ).toLocaleDateString("en-IN", {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                  })
-                                : "N/A"}
-                            </div>
-                          </div>
+                          ))}
                         </div>
-
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>Repayment Progress</span>
-                            <span>
-                              {Math.round(
-                                ((selectedCustomer.totalPaid || 0) /
-                                  (selectedCustomer.loanAmount || 1)) *
-                                  100
-                              )}
-                              %
-                            </span>
+                            <span>{Math.round(((selectedCustomer.totalPaid || 0) / (selectedCustomer.loanAmount || 1)) * 100)}%</span>
                           </div>
-                          <ProgressBar
-                            value={
-                              ((selectedCustomer.totalPaid || 0) /
-                                (selectedCustomer.loanAmount || 1)) *
-                              100
-                            }
-                            className="h-2"
-                          />
+                          <ProgressBar value={((selectedCustomer.totalPaid || 0) / (selectedCustomer.loanAmount || 1)) * 100} className="h-2" />
                         </div>
                       </CardContent>
                     </Card>
+
+                    {/* Loan Details from Loan Model */}
+                    {customerLoans[selectedCustomer.id]?.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">Loan Details (from Loan Model)</CardTitle>
+                          <CardDescription>
+                            {customerLoans[selectedCustomer.id].length} loan(s) found
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="ml-2"
+                              onClick={initializeCreateLoan}
+                            >
+                              <Plus className="h-4 w-4 mr-1" /> Add Loan
+                            </Button>
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {customerLoans[selectedCustomer.id].map((loan, index) => (
+                              <div key={loan.id} className="border rounded-lg p-4 bg-gray-50">
+                                <div className="flex justify-between items-start mb-3">
+                                  <h4 className="font-medium">Loan #{index + 1}</h4>
+                                  <div className="flex items-center gap-2">
+                                    <Badge className={
+                                      loan.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                                      loan.status === 'CLOSED' ? 'bg-gray-100 text-gray-800' :
+                                      loan.status === 'OVERDUE' ? 'bg-red-100 text-red-800' :
+                                      'bg-yellow-100 text-yellow-800'
+                                    }>
+                                      {loan.status}
+                                    </Badge>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                          <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => initializeEditLoan(loan)}>
+                                          <Edit className="h-4 w-4 mr-2" />
+                                          Edit Loan
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }}>
+                                          <Upload className="h-4 w-4 mr-2" />
+                                          Upload Document
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem 
+                                          className="text-red-600"
+                                          onClick={() => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Delete Loan
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                  {[
+                                    { label: "Amount", value: `₹${Number(loan.amount || 0).toLocaleString('en-IN')}` },
+                                    { label: "Rate", value: `${loan.rate}%` },
+                                    { label: "Tenure", value: `${loan.tenure} months` },
+                                    { label: "Loan Date", value: loan.loanDate ? new Date(loan.loanDate).toLocaleDateString() : "N/A" },
+                                    ...(loan.pendingAmount !== undefined ? [{ label: "Pending", value: `₹${Number(loan.pendingAmount || 0).toLocaleString('en-IN')}`, className: "text-red-600" }] : []),
+                                    ...(loan.interestAmount !== undefined ? [{ label: "Interest", value: `₹${Number(loan.interestAmount || 0).toLocaleString('en-IN')}` }] : []),
+                                    ...(loan.documentUrl ? [{ label: "Document", value: "Uploaded", className: "text-green-600" }] : [{ label: "Document", value: "Not Uploaded", className: "text-gray-600" }]),
+                                  ].map((item, idx) => (
+                                    <div key={idx}>
+                                      <Label className="text-xs text-gray-500">{item.label}</Label>
+                                      <div className={`font-medium ${item.className || ''}`}>{item.value}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                                {loan.documentUrl && (
+                                  <div className="mt-3 pt-3 border-t">
+                                    <Label className="text-xs text-gray-500">Loan Agreement</Label>
+                                    <div className="flex gap-2 mt-1">
+                                      <Button variant="outline" size="sm" asChild>
+                                        <a href={loan.documentUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                                          <Eye className="h-3 w-3" /> View
+                                        </a>
+                                      </Button>
+                                      <Button variant="outline" size="sm" asChild>
+                                        <a href={loan.documentUrl} download className="flex items-center gap-1">
+                                          <Download className="h-3 w-3" /> Download
+                                        </a>
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
                   </TabsContent>
 
+                  {/* Repayments Tab */}
                   <TabsContent value="repayments">
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">
-                          Repayment History
-                        </CardTitle>
-                        <CardDescription>
-                          All transactions for {selectedCustomer.name}
-                        </CardDescription>
+                        <CardTitle className="text-lg">Repayment History</CardTitle>
+                        <CardDescription>All transactions for {selectedCustomer.name}</CardDescription>
                       </CardHeader>
                       <CardContent>
                         {repayments.length === 0 ? (
-                          <div className="text-center py-8 text-gray-500">
+                          <div className="py-8 text-center text-gray-500">
                             <BarChart3 className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-                            <p>No repayment history found.</p>
+                            No repayment history found.
                           </div>
                         ) : (
-                          <div className="border rounded-lg overflow-hidden">
+                          <div className="overflow-x-auto rounded-md border">
                             <table className="w-full text-sm">
                               <thead className="bg-gray-50">
                                 <tr>
-                                  <th className="text-left p-3 font-medium">
-                                    Date
-                                  </th>
-                                  <th className="text-left p-3 font-medium">
-                                    Amount
-                                  </th>
-                                  <th className="text-left p-3 font-medium">
-                                    Note
-                                  </th>
+                                  <th className="p-3 text-left font-medium">Date</th>
+                                  <th className="p-3 text-left font-medium">Amount</th>
+                                  <th className="p-3 text-left font-medium">Note</th>
+                                  <th className="p-3 text-left font-medium">Status</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y">
                                 {repayments.map((r) => (
                                   <tr key={r.id} className="hover:bg-gray-50">
                                     <td className="p-3">
-                                      {r.date
-                                        ? new Date(r.date).toLocaleDateString(
-                                            "en-IN",
-                                            {
-                                              day: "2-digit",
-                                              month: "short",
-                                              year: "numeric",
-                                            }
-                                          )
-                                        : "—"}
+                                      {r.dueDate ? new Date(r.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
                                     </td>
-                                    <td className="p-3 font-medium">
-                                      ₹{Number(r.amount || 0).toLocaleString()}
-                                    </td>
-                                    <td className="p-3 text-gray-600">
-                                      {r.note || "—"}
+                                    <td className="p-3 font-medium">₹{Number(r.amount || 0).toLocaleString('en-IN')}</td>
+                                    <td className="p-3 text-gray-600">{r.note ?? "—"}</td>
+                                    <td className="p-3">
+                                      <Badge variant={r.status === 'PENDING' ? 'destructive' : 'outline'} className="text-xs">
+                                        {r.status || 'COMPLETED'}
+                                      </Badge>
                                     </td>
                                   </tr>
                                 ))}
@@ -1251,431 +1424,291 @@ export default function AllCustomerTable() {
                     </Card>
                   </TabsContent>
 
+                  {/* Documents Tab */}
                   <TabsContent value="documents">
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">
-                          Customer Documents
-                        </CardTitle>
-                        <CardDescription>
-                          Document links for {selectedCustomer.name}
-                        </CardDescription>
+                        <CardTitle className="text-lg">Customer Documents</CardTitle>
+                        <CardDescription>Document links for {selectedCustomer.name}</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="border rounded-lg overflow-hidden">
+                        <div className="flex justify-between items-center mb-4">
+                          <div>
+                            <Button 
+                              variant="outline" 
+                              onClick={initializeCreateLoan}
+                              className="flex items-center gap-1"
+                            >
+                              <Plus className="h-4 w-4" /> Create New Loan
+                            </Button>
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {numberOfDocuments} document(s) total
+                          </div>
+                        </div>
+                        <div className="overflow-x-auto rounded-md border">
                           <table className="w-full text-sm">
                             <thead className="bg-gray-50">
                               <tr>
-                                <th className="text-left p-3 font-medium">
-                                  Document Type
-                                </th>
-                                <th className="text-left p-3 font-medium">
-                                  Status
-                                </th>
-                                <th className="text-left p-3 font-medium">
-                                  File Type
-                                </th>
-                                <th className="text-left p-3 font-medium">
-                                  Actions
-                                </th>
+                                <th className="p-3 text-left font-medium">Document Type</th>
+                                <th className="p-3 text-left font-medium">Status</th>
+                                <th className="p-3 text-left font-medium">File Type</th>
+                                <th className="p-3 text-left font-medium">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y">
                               {/* Profile Photo */}
                               <tr className="hover:bg-gray-50">
-                                <td className="p-3 font-medium">
-                                  Profile Photo
-                                </td>
+                                <td className="p-3 font-medium">Profile Photo</td>
                                 <td className="p-3">
                                   {selectedCustomer.photoUrl ? (
                                     <Badge className="bg-green-100 text-green-800">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
                                       Uploaded
                                     </Badge>
                                   ) : (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-gray-600"
-                                    >
+                                    <Badge variant="outline" className="text-gray-600">
                                       Not Uploaded
                                     </Badge>
                                   )}
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.photoUrl ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs"
-                                    >
-                                      {selectedCustomer.photoUrl
-                                        .toLowerCase()
-                                        .endsWith(".pdf")
-                                        ? "PDF"
-                                        : "Image"}
-                                    </Badge>
+                                    <Badge variant="outline" className="text-xs">Image</Badge>
                                   ) : (
-                                    <span className="text-sm text-gray-500">
-                                      -
-                                    </span>
+                                    <span className="text-sm text-gray-500">-</span>
                                   )}
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.photoUrl ? (
-                                    <div className="flex gap-2 flex-wrap">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={selectedCustomer.photoUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Eye className="h-4 w-4" />
-                                          {selectedCustomer.photoUrl
-                                            .toLowerCase()
-                                            .endsWith(".pdf")
-                                            ? "View PDF"
-                                            : "View"}
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button variant="outline" size="sm" asChild>
+                                        <a href={selectedCustomer.photoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                                          <Eye className="h-4 w-4" /> View
                                         </a>
                                       </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={selectedCustomer.photoUrl}
-                                          download
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Download className="h-4 w-4" />
-                                          Download
+                                      <Button variant="outline" size="sm" asChild>
+                                        <a href={selectedCustomer.photoUrl} download className="flex items-center gap-1">
+                                          <Download className="h-4 w-4" /> Download
                                         </a>
                                       </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleDocumentUpdate("photoUrl")}
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        onClick={() => handleDocumentUpdate("photoUrl")} 
                                         className="flex items-center gap-1"
                                       >
-                                        <Pencil className="h-4 w-4" />
-                                        Modify
+                                        <Pencil className="h-4 w-4" /> Modify
                                       </Button>
                                     </div>
                                   ) : (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleDocumentUpdate("photoUrl")}
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => handleDocumentUpdate("photoUrl")} 
                                       className="flex items-center gap-1"
                                     >
-                                      <Upload className="h-4 w-4" />
-                                      Upload
+                                      <Upload className="h-4 w-4" /> Upload
                                     </Button>
                                   )}
                                 </td>
                               </tr>
 
-                              {/* Aadhar Document */}
-                              <tr className="hover:bg-gray-50">
-                                <td className="p-3 font-medium">
-                                  Aadhar Document
-                                </td>
-                                <td className="p-3">
-                                  {selectedCustomer.aadharDocumentUrl ? (
-                                    <Badge className="bg-green-100 text-green-800">
-                                      Uploaded
-                                    </Badge>
-                                  ) : (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-gray-600"
-                                    >
-                                      Not Uploaded
-                                    </Badge>
-                                  )}
-                                </td>
-                                <td className="p-3">
-                                  {selectedCustomer.aadharDocumentUrl ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs"
-                                    >
-                                      {selectedCustomer.aadharDocumentUrl
-                                        .toLowerCase()
-                                        .endsWith(".pdf")
-                                        ? "PDF"
-                                        : "Document"}
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-sm text-gray-500">
-                                      -
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-3">
-                                  {selectedCustomer.aadharDocumentUrl ? (
-                                    <div className="flex gap-2 flex-wrap">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={
-                                            selectedCustomer.aadharDocumentUrl
-                                          }
-                                          target="_blank"
-                                          rel="noopener noreferrer"
+                              {/* Customer Documents */}
+                              {[
+                                { title: "Aadhar Document", field: "aadharDocumentUrl" },
+                                { title: "Income Proof", field: "incomeProofUrl" },
+                                { title: "Residence Proof", field: "residenceProofUrl" },
+                              ].map((doc, index) => (
+                                <tr key={index} className="hover:bg-gray-50">
+                                  <td className="p-3 font-medium">{doc.title}</td>
+                                  <td className="p-3">
+                                    {selectedCustomer[doc.field] ? (
+                                      <Badge className="bg-green-100 text-green-800">
+                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                        Uploaded
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="text-gray-600">
+                                        Not Uploaded
+                                      </Badge>
+                                    )}
+                                  </td>
+                                  <td className="p-3">
+                                    {selectedCustomer[doc.field] ? (
+                                      <Badge variant="outline" className="text-xs">
+                                        {selectedCustomer[doc.field].toLowerCase().endsWith(".pdf") ? "PDF" : "Document"}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-sm text-gray-500">-</span>
+                                    )}
+                                  </td>
+                                  <td className="p-3">
+                                    {selectedCustomer[doc.field] ? (
+                                      <div className="flex flex-wrap gap-2">
+                                        <Button variant="outline" size="sm" asChild>
+                                          <a href={selectedCustomer[doc.field]} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                                            <Eye className="h-4 w-4" />
+                                            {selectedCustomer[doc.field].toLowerCase().endsWith(".pdf") ? "View PDF" : "View"}
+                                          </a>
+                                        </Button>
+                                        <Button variant="outline" size="sm" asChild>
+                                          <a href={selectedCustomer[doc.field]} download className="flex items-center gap-1">
+                                            <Download className="h-4 w-4" /> Download
+                                          </a>
+                                        </Button>
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm" 
+                                          onClick={() => handleDocumentUpdate(doc.field)} 
                                           className="flex items-center gap-1"
                                         >
-                                          <Eye className="h-4 w-4" />
-                                          {selectedCustomer.aadharDocumentUrl
-                                            .toLowerCase()
-                                            .endsWith(".pdf")
-                                            ? "View PDF"
-                                            : "View"}
-                                        </a>
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={
-                                            selectedCustomer.aadharDocumentUrl
-                                          }
-                                          download
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Download className="h-4 w-4" />
-                                          Download
-                                        </a>
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleDocumentUpdate("aadharDocumentUrl")}
+                                          <Pencil className="h-4 w-4" /> Modify
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        onClick={() => handleDocumentUpdate(doc.field)} 
                                         className="flex items-center gap-1"
                                       >
-                                        <Pencil className="h-4 w-4" />
-                                        Modify
+                                        <Upload className="h-4 w-4" /> Upload
                                       </Button>
-                                    </div>
-                                  ) : (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleDocumentUpdate("aadharDocumentUrl")}
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                              
+                              {/* Loan Agreements */}
+                              {customerLoans[selectedCustomer.id]?.length > 0 ? (
+                                customerLoans[selectedCustomer.id].map((loan, index) => {
+                                  const isActiveLoan = isLoanActive(loan);
+                                  return (
+                                    <tr key={loan.id} className="hover:bg-gray-50">
+                                      <td className="p-3 font-medium">
+                                        <div className="flex items-center gap-2">
+                                          Loan Agreement {customerLoans[selectedCustomer.id].length > 1 ? `#${index + 1}` : ''}
+                                          {isActiveLoan && (
+                                            <Badge className="bg-green-100 text-green-800 text-xs">
+                                              Active
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="p-3">
+                                        {loan.documentUrl ? (
+                                          <Badge className="bg-green-100 text-green-800">
+                                            <CheckCircle className="h-3 w-3 mr-1" />
+                                            Uploaded
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-gray-600">
+                                            Not Uploaded
+                                          </Badge>
+                                        )}
+                                      </td>
+                                      <td className="p-3">
+                                        {loan.documentUrl ? (
+                                          <Badge variant="outline" className="text-xs">
+                                            {loan.documentUrl.toLowerCase().endsWith(".pdf") ? "PDF" : "Document"}
+                                          </Badge>
+                                        ) : (
+                                          <span className="text-sm text-gray-500">-</span>
+                                        )}
+                                      </td>
+                                      <td className="p-3">
+                                        {loan.documentUrl ? (
+                                          <div className="flex flex-wrap gap-2">
+                                            <Button variant="outline" size="sm" asChild>
+                                              <a href={loan.documentUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                                                <Eye className="h-4 w-4" />
+                                                {loan.documentUrl.toLowerCase().endsWith(".pdf") ? "View PDF" : "View"}
+                                              </a>
+                                            </Button>
+                                            <Button variant="outline" size="sm" asChild>
+                                              <a href={loan.documentUrl} download className="flex items-center gap-1">
+                                                <Download className="h-4 w-4" /> Download
+                                              </a>
+                                            </Button>
+                                            <Button 
+                                              variant="outline" 
+                                              size="sm" 
+                                              onClick={() => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }} 
+                                              className="flex items-center gap-1"
+                                            >
+                                              <Pencil className="h-4 w-4" /> Modify
+                                            </Button>
+                                            <Button 
+                                              variant="outline" 
+                                              size="sm" 
+                                              onClick={() => initializeEditLoan(loan)}
+                                              className="flex items-center gap-1"
+                                            >
+                                              <Edit className="h-4 w-4" /> Edit
+                                            </Button>
+                                            <Button 
+                                              variant="outline" 
+                                              size="sm" 
+                                              onClick={() => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
+                                              className="flex items-center gap-1 text-red-600 hover:text-red-700"
+                                            >
+                                              <Trash2 className="h-4 w-4" /> Delete
+                                            </Button>
+                                          </div>
+                                        ) : (
+                                          <div className="flex flex-wrap gap-2">
+                                            <Button 
+                                              variant="outline" 
+                                              size="sm" 
+                                              onClick={() => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }} 
+                                              className="flex items-center gap-1"
+                                            >
+                                              <Upload className="h-4 w-4" /> Upload
+                                            </Button>
+                                            <Button 
+                                              variant="outline" 
+                                              size="sm" 
+                                              onClick={() => initializeEditLoan(loan)}
+                                              className="flex items-center gap-1"
+                                            >
+                                              <Edit className="h-4 w-4" /> Edit
+                                            </Button>
+                                            <Button 
+                                              variant="outline" 
+                                              size="sm" 
+                                              onClick={() => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
+                                              className="flex items-center gap-1 text-red-600 hover:text-red-700"
+                                            >
+                                              <Trash2 className="h-4 w-4" /> Delete
+                                            </Button>
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              ) : (
+                                <tr className="hover:bg-gray-50">
+                                  <td className="p-3 font-medium">Loan Agreement</td>
+                                  <td className="p-3">
+                                    <Badge variant="outline" className="text-gray-600">No Loans Found</Badge>
+                                  </td>
+                                  <td className="p-3">
+                                    <span className="text-sm text-gray-500">-</span>
+                                  </td>
+                                  <td className="p-3">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={initializeCreateLoan}
                                       className="flex items-center gap-1"
                                     >
-                                      <Upload className="h-4 w-4" />
-                                      Upload
+                                      <Plus className="h-4 w-4" /> Create Loan
                                     </Button>
-                                  )}
-                                </td>
-                              </tr>
-
-                              {/* Income Proof */}
-                              <tr className="hover:bg-gray-50">
-                                <td className="p-3 font-medium">
-                                  Income Proof
-                                </td>
-                                <td className="p-3">
-                                  {selectedCustomer.incomeProofUrl ? (
-                                    <Badge className="bg-green-100 text-green-800">
-                                      Uploaded
-                                    </Badge>
-                                  ) : (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-gray-600"
-                                    >
-                                      Not Uploaded
-                                    </Badge>
-                                  )}
-                                </td>
-                                <td className="p-3">
-                                  {selectedCustomer.incomeProofUrl ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs"
-                                    >
-                                      {selectedCustomer.incomeProofUrl
-                                        .toLowerCase()
-                                        .endsWith(".pdf")
-                                        ? "PDF"
-                                        : "Document"}
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-sm text-gray-500">
-                                      -
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-3">
-                                  {selectedCustomer.incomeProofUrl ? (
-                                    <div className="flex gap-2 flex-wrap">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={selectedCustomer.incomeProofUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Eye className="h-4 w-4" />
-                                          {selectedCustomer.incomeProofUrl
-                                            .toLowerCase()
-                                            .endsWith(".pdf")
-                                            ? "View PDF"
-                                            : "View"}
-                                        </a>
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={selectedCustomer.incomeProofUrl}
-                                          download
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Download className="h-4 w-4" />
-                                          Download
-                                        </a>
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleDocumentUpdate("incomeProofUrl")}
-                                        className="flex items-center gap-1"
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                        Modify
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleDocumentUpdate("incomeProofUrl")}
-                                      className="flex items-center gap-1"
-                                    >
-                                      <Upload className="h-4 w-4" />
-                                      Upload
-                                    </Button>
-                                  )}
-                                </td>
-                              </tr>
-
-                              {/* Residence Proof */}
-                              <tr className="hover:bg-gray-50">
-                                <td className="p-3 font-medium">
-                                  Residence Proof
-                                </td>
-                                <td className="p-3">
-                                  {selectedCustomer.residenceProofUrl ? (
-                                    <Badge className="bg-green-100 text-green-800">
-                                      Uploaded
-                                    </Badge>
-                                  ) : (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-gray-600"
-                                    >
-                                      Not Uploaded
-                                    </Badge>
-                                  )}
-                                </td>
-                                <td className="p-3">
-                                  {selectedCustomer.residenceProofUrl ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs"
-                                    >
-                                      {selectedCustomer.residenceProofUrl
-                                        .toLowerCase()
-                                        .endsWith(".pdf")
-                                        ? "PDF"
-                                        : "Document"}
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-sm text-gray-500">
-                                      -
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-3">
-                                  {selectedCustomer.residenceProofUrl ? (
-                                    <div className="flex gap-2 flex-wrap">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={
-                                            selectedCustomer.residenceProofUrl
-                                          }
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Eye className="h-4 w-4" />
-                                          {selectedCustomer.residenceProofUrl
-                                            .toLowerCase()
-                                            .endsWith(".pdf")
-                                            ? "View PDF"
-                                            : "View"}
-                                        </a>
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={
-                                            selectedCustomer.residenceProofUrl
-                                          }
-                                          download
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Download className="h-4 w-4" />
-                                          Download
-                                        </a>
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleDocumentUpdate("residenceProofUrl")}
-                                        className="flex items-center gap-1"
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                        Modify
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleDocumentUpdate("residenceProofUrl")}
-                                      className="flex items-center gap-1"
-                                    >
-                                      <Upload className="h-4 w-4" />
-                                      Upload
-                                    </Button>
-                                  )}
-                                </td>
-                              </tr>
+                                  </td>
+                                </tr>
+                              )}
 
                               {/* QR Code */}
                               <tr className="hover:bg-gray-50">
@@ -1683,142 +1716,107 @@ export default function AllCustomerTable() {
                                 <td className="p-3">
                                   {selectedCustomer.qrUrl ? (
                                     <Badge className="bg-green-100 text-green-800">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
                                       Uploaded
                                     </Badge>
                                   ) : (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-gray-600"
-                                    >
+                                    <Badge variant="outline" className="text-gray-600">
                                       Not Uploaded
                                     </Badge>
                                   )}
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.qrUrl ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs"
-                                    >
-                                      Image
-                                    </Badge>
+                                    <Badge variant="outline" className="text-xs">Image</Badge>
                                   ) : (
-                                    <span className="text-sm text-gray-500">
-                                      -
-                                    </span>
+                                    <span className="text-sm text-gray-500">-</span>
                                   )}
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.qrUrl ? (
-                                    <div className="flex gap-2 flex-wrap">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={selectedCustomer.qrUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Eye className="h-4 w-4" />
-                                          View
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button variant="outline" size="sm" asChild>
+                                        <a href={selectedCustomer.qrUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                                          <Eye className="h-4 w-4" /> View
                                         </a>
                                       </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={selectedCustomer.qrUrl}
-                                          download
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Download className="h-4 w-4" />
-                                          Download
+                                      <Button variant="outline" size="sm" asChild>
+                                        <a href={selectedCustomer.qrUrl} download className="flex items-center gap-1">
+                                          <Download className="h-4 w-4" /> Download
                                         </a>
                                       </Button>
                                     </div>
                                   ) : (
-                                    <span className="text-sm text-gray-500">
-                                      N/A
-                                    </span>
+                                    <span className="text-sm text-gray-500">N/A</span>
                                   )}
                                 </td>
                               </tr>
-
-                              {numberOfDocuments === 0 && (
-                                <tr>
-                                  <td
-                                    colSpan={4}
-                                    className="p-4 text-center text-gray-500"
-                                  >
-                                    No documents available for this customer.
-                                  </td>
-                                </tr>
-                              )}
                             </tbody>
                           </table>
                         </div>
                       </CardContent>
                     </Card>
 
-                    {/* Document Upload/Modify Dialog */}
+                    {/* Document Upload Modal */}
                     <Dialog open={!!documentToUpdate} onOpenChange={() => setDocumentToUpdate(null)}>
                       <DialogContent className="sm:max-w-md">
                         <DialogHeader>
                           <DialogTitle>
-                            {selectedCustomer?.[documentToUpdate] ? "Modify Document" : "Upload Document"}
+                            {documentToUpdate === "loanAgreement" 
+                              ? selectedLoan?.documentUrl ? "Modify Loan Agreement" : "Upload Loan Agreement"
+                              : documentToUpdate === "photoUrl"
+                              ? selectedCustomer?.photoUrl ? "Modify Profile Photo" : "Upload Profile Photo"
+                              : selectedCustomer?.[documentToUpdate] ? "Modify Document" : "Upload Document"
+                            }
                           </DialogTitle>
                           <DialogDescription>
-                            {documentToUpdate === "photoUrl" 
-                              ? "Upload or modify profile photo" 
-                              : `Upload or modify ${documentToUpdate?.replace("Url", "")} document`}
+                            {documentToUpdate === "photoUrl" ? "Upload a new profile picture" :
+                             documentToUpdate === "loanAgreement" ? "Upload loan agreement document" :
+                             `Upload a new ${documentToUpdate?.replace("Url", "")}`}
                           </DialogDescription>
                         </DialogHeader>
-                        
-                        <form onSubmit={handleDocumentSubmit} className="space-y-4">
+                        <form onSubmit={documentToUpdate === "loanAgreement" ? handleLoanDocumentUpdate : handleDocumentSubmit} className="space-y-4">
                           <div className="space-y-2">
-                            <Label htmlFor="document-file">Select File</Label>
-                            <Input
-                              id="document-file"
-                              type="file"
-                              accept={documentToUpdate === "photoUrl" ? "image/*" : "image/*,.pdf"}
-                              onChange={(e) => setSelectedFile(e.target.files[0])}
-                              required
+                            <Label htmlFor="doc-file">File</Label>
+                            <Input 
+                              id="doc-file" 
+                              type="file" 
+                              accept={documentToUpdate === "photoUrl" ? "image/*" : "image/*,.pdf"} 
+                              onChange={(e) => setSelectedFile(e.target.files[0])} 
+                              required 
                             />
                             <p className="text-xs text-gray-500">
-                              {documentToUpdate === "photoUrl" 
-                                ? "Supported formats: JPG, PNG, GIF" 
-                                : "Supported formats: JPG, PNG, GIF, PDF"}
+                              {documentToUpdate === "photoUrl" ? "JPG / PNG / GIF" : "JPG / PNG / GIF / PDF"}
                             </p>
                           </div>
-                          
-                          {selectedCustomer?.[documentToUpdate] && (
+
+                          {(documentToUpdate === "loanAgreement" ? selectedLoan?.documentUrl : 
+                            documentToUpdate === "photoUrl" ? selectedCustomer?.photoUrl : 
+                            selectedCustomer?.[documentToUpdate]) && (
                             <div className="space-y-2">
                               <Label>Current Document</Label>
-                              <div className="p-2 border rounded-md">
+                              <div className="p-2 border rounded-md bg-gray-50">
                                 {documentToUpdate === "photoUrl" || 
-                                selectedCustomer[documentToUpdate]?.toLowerCase().endsWith(".jpg") ||
-                                selectedCustomer[documentToUpdate]?.toLowerCase().endsWith(".jpeg") ||
-                                selectedCustomer[documentToUpdate]?.toLowerCase().endsWith(".png") ||
-                                selectedCustomer[documentToUpdate]?.toLowerCase().endsWith(".gif") ? (
+                                (documentToUpdate === "loanAgreement" && selectedLoan?.documentUrl?.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)) ||
+                                (documentToUpdate !== "loanAgreement" && selectedCustomer[documentToUpdate]?.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)) ? (
                                   <img
-                                    src={selectedCustomer[documentToUpdate]}
-                                    alt="Current document"
-                                    className="h-32 object-contain mx-auto"
+                                    src={documentToUpdate === "loanAgreement" ? selectedLoan.documentUrl : 
+                                         documentToUpdate === "photoUrl" ? selectedCustomer.photoUrl : 
+                                         selectedCustomer[documentToUpdate]}
+                                    alt="current"
+                                    className="h-32 object-contain mx-auto rounded"
                                   />
                                 ) : (
                                   <div className="text-center py-8">
                                     <FileText className="h-12 w-12 mx-auto text-gray-400 mb-2" />
                                     <p className="text-sm text-gray-500">PDF Document</p>
                                     <a
-                                      href={selectedCustomer[documentToUpdate]}
+                                      href={documentToUpdate === "loanAgreement" ? selectedLoan.documentUrl : 
+                                            documentToUpdate === "photoUrl" ? selectedCustomer.photoUrl : 
+                                            selectedCustomer[documentToUpdate]}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-blue-600 text-sm hover:underline"
+                                      className="text-blue-600 hover:underline text-sm"
                                     >
                                       View current document
                                     </a>
@@ -1827,18 +1825,19 @@ export default function AllCustomerTable() {
                               </div>
                             </div>
                           )}
-                          
+
                           <div className="flex justify-end gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setDocumentToUpdate(null)}
-                            >
+                            <Button type="button" variant="outline" onClick={() => setDocumentToUpdate(null)}>
                               Cancel
                             </Button>
-                            <Button type="submit" disabled={uploadingDocument}>
+                            <Button type="submit" disabled={uploadingDocument || !selectedFile}>
                               {uploadingDocument && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                              {selectedCustomer?.[documentToUpdate] ? "Update Document" : "Upload Document"}
+                              {documentToUpdate === "loanAgreement" 
+                                ? selectedLoan?.documentUrl ? "Update" : "Upload"
+                                : documentToUpdate === "photoUrl"
+                                ? selectedCustomer?.photoUrl ? "Update" : "Upload"
+                                : selectedCustomer?.[documentToUpdate] ? "Update" : "Upload"
+                              }
                             </Button>
                           </div>
                         </form>
@@ -1848,213 +1847,349 @@ export default function AllCustomerTable() {
                 </Tabs>
               </div>
             </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              No customer selected.
-            </div>
           )}
-
-          {/* Inline Edit Dialog inside details dialog */}
-          <Dialog open={editOpen} onOpenChange={setEditOpen}>
-            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Edit Customer</DialogTitle>
-                <DialogDescription>
-                  Update customer details and save changes.
-                </DialogDescription>
-              </DialogHeader>
-
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (!selectedCustomer) return;
-                  const fd = new FormData(e.currentTarget);
-                  fd.set("id", String(selectedCustomer.id));
-
-                  // Handle photo upload if a new file is selected
-                  const photoInput = e.target.querySelector(
-                    'input[name="photo"]'
-                  );
-                  if (photoInput?.files[0]) {
-                    fd.set("photo", photoInput.files[0]);
-                  }
-
-                  try {
-                    const res = await fetch("/api/customers", {
-                      method: "PUT",
-                      body: fd,
-                    });
-                    if (!res.ok) throw new Error("Failed to update");
-                    const { customer } = await res.json();
-                    setData((prev) =>
-                      prev.map((c) =>
-                        c.id === customer.id ? { ...c, ...customer } : c
-                      )
-                    );
-                    setSelectedCustomer((prev) =>
-                      prev && prev.id === customer.id
-                        ? { ...prev, ...customer }
-                        : prev
-                    );
-                    setEditOpen(false);
-                    alert("Customer updated successfully!");
-                  } catch (err) {
-                    console.error("Update error:", err);
-                    alert("Failed to update customer");
-                  }
-                }}
-                className="space-y-4"
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Name *</Label>
-                    <Input
-                      name="customerName"
-                      defaultValue={selectedCustomer?.name || ""}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Mobile</Label>
-                    <Input
-                      name="mobile"
-                      defaultValue={selectedCustomer?.mobile || ""}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Customer Code</Label>
-                    <Input
-                      name="customerCode"
-                      defaultValue={selectedCustomer?.customerCode || ""}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Aadhar Number</Label>
-                    <Input
-                      name="aadhar"
-                      defaultValue={selectedCustomer?.aadhar || ""}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Area</Label>
-                    <Input
-                      name="area"
-                      defaultValue={selectedCustomer?.area || ""}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Loan Amount</Label>
-                    <Input
-                      name="loanAmount"
-                      type="number"
-                      defaultValue={selectedCustomer?.loanAmount || ""}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Loan Date</Label>
-                    <Input
-                      name="loanDate"
-                      type="date"
-                      defaultValue={
-                        selectedCustomer?.loanDate
-                          ? new Date(selectedCustomer.loanDate)
-                              .toISOString()
-                              .split("T")[0]
-                          : ""
-                      }
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Tenure (months)</Label>
-                    <Input
-                      name="tenure"
-                      type="number"
-                      defaultValue={selectedCustomer?.tenure || ""}
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Address</Label>
-                    <Textarea
-                      name="address"
-                      defaultValue={selectedCustomer?.address || ""}
-                      rows={3}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Profile Photo</Label>
-                    <Input name="photo" type="file" accept="image/*" />
-                    {selectedCustomer?.photoUrl && (
-                      <div className="mt-2">
-                        <img
-                          src={selectedCustomer.photoUrl}
-                          alt="Current profile"
-                          className="h-16 w-16 rounded-full object-cover"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setEditOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit">Save Changes</Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          {/* Delete confirmation inside details dialog */}
-          <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete the
-                  customer account and remove all associated data from our
-                  servers.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-red-600 hover:bg-red-700"
-                  onClick={async () => {
-                    if (!selectedCustomer) return;
-                    await handleDelete(selectedCustomer.id);
-                    setDeleteOpen(false);
-                  }}
-                >
-                  {deletingId === selectedCustomer?.id ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Deleting...
-                    </>
-                  ) : (
-                    "Delete Customer"
-                  )}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </DialogContent>
       </Dialog>
+
+      {/* Create Loan Dialog */}
+      <Dialog open={createLoanOpen} onOpenChange={setCreateLoanOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Loan</DialogTitle>
+            <DialogDescription>
+              Create a new loan agreement for {selectedCustomer?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateLoan} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="amount">Loan Amount *</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={loanFormData.amount}
+                  onChange={(e) => setLoanFormData(prev => ({ ...prev, amount: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rate">Interest Rate (%) *</Label>
+                <Input
+                  id="rate"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={loanFormData.rate}
+                  onChange={(e) => setLoanFormData(prev => ({ ...prev, rate: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tenure">Tenure (months) *</Label>
+                <Input
+                  id="tenure"
+                  type="number"
+                  placeholder="12"
+                  value={loanFormData.tenure}
+                  onChange={(e) => setLoanFormData(prev => ({ ...prev, tenure: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="loanDate">Loan Date *</Label>
+                <Input
+                  id="loanDate"
+                  type="date"
+                  value={loanFormData.loanDate}
+                  onChange={(e) => setLoanFormData(prev => ({ ...prev, loanDate: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="area">Area</Label>
+                <Input
+                  id="area"
+                  type="text"
+                  placeholder="Enter area"
+                  value={loanFormData.area}
+                  onChange={(e) => setLoanFormData(prev => ({ ...prev, area: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setCreateLoanOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={creatingLoan}>
+                {creatingLoan && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Create Loan
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Loan Dialog */}
+      <Dialog open={editLoanOpen} onOpenChange={setEditLoanOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Loan</DialogTitle>
+            <DialogDescription>
+              Update loan details for {selectedCustomer?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateLoan} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-amount">Loan Amount *</Label>
+                <Input
+                  id="edit-amount"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={loanFormData.amount}
+                  onChange={(e) => setLoanFormData(prev => ({ ...prev, amount: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-rate">Interest Rate (%) *</Label>
+                <Input
+                  id="edit-rate"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={loanFormData.rate}
+                  onChange={(e) => setLoanFormData(prev => ({ ...prev, rate: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-tenure">Tenure (months) *</Label>
+                <Input
+                  id="edit-tenure"
+                  type="number"
+                  placeholder="12"
+                  value={loanFormData.tenure}
+                  onChange={(e) => setLoanFormData(prev => ({ ...prev, tenure: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-loanDate">Loan Date *</Label>
+                <Input
+                  id="edit-loanDate"
+                  type="date"
+                  value={loanFormData.loanDate}
+                  onChange={(e) => setLoanFormData(prev => ({ ...prev, loanDate: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="edit-area">Area</Label>
+                <Input
+                  id="edit-area"
+                  type="text"
+                  placeholder="Enter area"
+                  value={loanFormData.area}
+                  onChange={(e) => setLoanFormData(prev => ({ ...prev, area: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setEditLoanOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updatingLoan}>
+                {updatingLoan && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Update Loan
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Loan Confirmation */}
+      <AlertDialog open={deleteLoanOpen} onOpenChange={setDeleteLoanOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this loan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the loan agreement
+              {loanToDelete?.documentUrl && " and its associated document"}.
+              {loanToDelete?.status === 'ACTIVE' && " This loan is currently active."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-red-600 hover:bg-red-700" 
+              onClick={handleDeleteLoan}
+            >
+              {deletingLoan ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                "Delete Loan"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Customer Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Customer</DialogTitle>
+            <DialogDescription>Update any field of the selected customer.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            if (!selectedCustomer) return;
+            const form = e.currentTarget;
+            const fd = new FormData(form);
+            fd.set("id", selectedCustomer.id);
+            const photoFile = form.querySelector('input[name="photo"]')?.files[0];
+            if (photoFile) fd.set("photo", photoFile);
+            try {
+              const res = await fetch("/api/customers", { method: "PUT", body: fd });
+              if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.error || "Update failed");
+              }
+              const { customer } = await res.json();
+              setData((prev) => prev.map((c) => c.id === customer.id ? { ...c, ...customer } : c));
+              setSelectedCustomer((prev) => prev && prev.id === customer.id ? { ...prev, ...customer } : prev);
+              setEditOpen(false);
+              alert("Customer updated successfully!");
+            } catch (err) {
+              console.error("Update error:", err);
+              alert(err.message);
+            }
+          }} className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {[
+                { label: "Full Name *", name: "customerName", type: "text", required: true },
+                { label: "Mobile", name: "mobile", type: "text" },
+                { label: "Customer Code", name: "customerCode", type: "text" },
+                { label: "Aadhar Number", name: "aadhar", type: "text" },
+                { label: "Area", name: "area", type: "text" },
+                { label: "Address", name: "address", type: "textarea", rows: 2 },
+                { label: "Date of Birth", name: "dob", type: "date" },
+                { label: "Gender", name: "gender", type: "select", options: ["", "Male", "Female", "Other"] },
+                { label: "Spouse Name", name: "spouseName", type: "text" },
+                { label: "Parent Name", name: "parentName", type: "text" },
+                { label: "Guarantor Name", name: "guarantorName", type: "text" },
+                { label: "Guarantor Aadhar", name: "guarantorAadhar", type: "text" },
+              ].map((field, index) => (
+                <div key={index} className={`space-y-2 ${field.type === 'textarea' ? 'md:col-span-2' : ''}`}>
+                  <Label>{field.label}</Label>
+                  {field.type === 'textarea' ? (
+                    <Textarea 
+                      name={field.name} 
+                      defaultValue={selectedCustomer?.[field.name]} 
+                      rows={field.rows} 
+                    />
+                  ) : field.type === 'select' ? (
+                    <select 
+                      name={field.name} 
+                      defaultValue={selectedCustomer?.[field.name] ?? ""} 
+                      className="w-full rounded border p-2"
+                    >
+                      {field.options.map((option, idx) => (
+                        <option key={idx} value={option}>{option || "Select …"}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input 
+                      name={field.name} 
+                      type={field.type} 
+                      defaultValue={field.type === 'date' && selectedCustomer?.[field.name] ? new Date(selectedCustomer[field.name]).toISOString().split("T")[0] : selectedCustomer?.[field.name]} 
+                      required={field.required} 
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="border-t pt-4">
+              <h3 className="text-lg font-medium mb-3">Loan Details</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Loan Amount</Label>
+                  <Input name="loanAmount" type="number" step="0.01" defaultValue={selectedCustomer?.loanAmount ?? ""} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Loan Date</Label>
+                  <Input name="loanDate" type="date" defaultValue={selectedCustomer?.loanDate ? new Date(selectedCustomer.loanDate).toISOString().split("T")[0] : ""} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tenure (months)</Label>
+                  <Input name="tenure" type="number" defaultValue={selectedCustomer?.tenure ?? ""} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total Paid (read-only)</Label>
+                  <Input value={Number(selectedCustomer?.totalPaid ?? 0).toLocaleString('en-IN')} readOnly />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Profile Photo (optional)</Label>
+                  <Input name="photo" type="file" accept="image/*" />
+                  {selectedCustomer?.photoUrl && (
+                    <div className="mt-2">
+                      <img src={selectedCustomer.photoUrl} alt="current" className="h-16 w-16 rounded-full object-cover border" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Customer Confirmation */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this customer?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. All associated repayments, loans, and documents will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-red-600 hover:bg-red-700" 
+              onClick={async () => {
+                if (!selectedCustomer) return;
+                await handleDelete(selectedCustomer.id);
+                setDeleteOpen(false);
+              }}
+            >
+              {deletingId === selectedCustomer?.id ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                "Delete Customer"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-
 export { AllCustomerTable };

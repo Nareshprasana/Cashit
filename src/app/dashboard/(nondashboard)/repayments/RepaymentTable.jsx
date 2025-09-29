@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
 import {
   ArrowUpDown,
   Search,
@@ -25,6 +24,7 @@ import {
   IndianRupee,
   ChevronLeft,
   ChevronRight,
+  MapPin,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +52,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// ================= Pagination Component =================
+/* ================= Pagination Component ================= */
 import {
   Pagination,
   PaginationContent,
@@ -63,7 +63,7 @@ import {
   PaginationEllipsis,
 } from "@/components/ui/pagination";
 
-// ================= Status Badge =================
+/* ================= Status Badge ================= */
 const getStatusBadge = (status) => {
   switch (status) {
     case "PAID":
@@ -92,7 +92,7 @@ const getStatusBadge = (status) => {
   }
 };
 
-// ================= Formatters =================
+/* ================= Formatters ================= */
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -108,22 +108,20 @@ const formatDate = (dateString) =>
     year: "numeric",
   });
 
-// ================= Helper function to calculate total paid for a loan =================
+/* ================= Helper function to calculate total paid for a loan ================= */
 const calculateTotalPaid = (repayment, allRepayments) => {
   if (!repayment?.loanId) return 0;
-  
   return allRepayments
-    .filter(r => r.loanId === repayment.loanId)
+    .filter((r) => r.loanId === repayment.loanId)
     .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
 };
 
-// ================= Use database pending amount instead of calculating =================
+/* ================= Use database pending amount instead of calculating ================= */
 const getPendingAmount = (repayment) => {
-  // Use the pendingAmount from the database (loan.pendingAmount)
   return Number(repayment.loan?.pendingAmount) || 0;
 };
 
-// ================= Editable Amount Component =================
+/* ================= Editable Amount Component ================= */
 function EditableAmount({ repayment, onUpdate, allRepayments }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(repayment.amount);
@@ -137,10 +135,12 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
 
     const pendingAmount = getPendingAmount(repayment);
     const currentRepaymentAmount = Number(repayment.amount) || 0;
-    
+
     // Check if new amount would exceed pending amount
     if (Number(value) > pendingAmount + currentRepaymentAmount) {
-      alert(`Amount cannot exceed pending amount of ₹${pendingAmount.toLocaleString()}`);
+      alert(
+        `Amount cannot exceed pending amount of ₹${pendingAmount.toLocaleString()}`
+      );
       return;
     }
 
@@ -151,11 +151,11 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: Number(value) }),
       });
-      
+
       if (!res.ok) throw new Error("Failed to update repayment");
-      
+
       const updatedRepayment = await res.json();
-      
+
       setEditing(false);
       if (onUpdate) onUpdate(updatedRepayment);
     } catch (err) {
@@ -171,9 +171,9 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       saveChange();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       cancelEdit();
     }
   };
@@ -181,7 +181,7 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
   return editing ? (
     <div className="flex items-center gap-2">
       <div className="relative">
-        <IndianRupee className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-500" />
+        <IndianRupee className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500" />
         <Input
           type="number"
           value={value}
@@ -223,18 +223,22 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
         </TooltipTrigger>
         <TooltipContent>
           <p>Click to edit amount</p>
-          <p className="text-xs text-gray-500">Pending: ₹{getPendingAmount(repayment).toLocaleString()}</p>
+          <p className="text-xs text-gray-500">
+            Pending: ₹{getPendingAmount(repayment).toLocaleString()}
+          </p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
 }
 
-// ================= Edit Repayment Form =================
+/* ================= Edit Repayment Form ================= */
 function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
   const [amount, setAmount] = useState(repayment.amount || 0);
-  const [date, setDate] = useState(repayment.dueDate?.split('T')[0] || '');
-  const [status, setStatus] = useState(repayment.status || 'PENDING');
+  const [date, setDate] = useState(
+    repayment.dueDate?.split("T")[0] || ""
+  );
+  const [status, setStatus] = useState(repayment.status || "PENDING");
   const [loading, setLoading] = useState(false);
 
   const pendingAmount = getPendingAmount(repayment);
@@ -247,9 +251,13 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
       return;
     }
 
-    // Validate amount doesn't exceed pending amount when status is PAID
-    if (status === "PAID" && Number(amount) > pendingAmount + (Number(repayment.amount) || 0)) {
-      alert(`Amount cannot exceed pending amount of ₹${pendingAmount.toLocaleString()}`);
+    if (
+      status === "PAID" &&
+      Number(amount) > pendingAmount + (Number(repayment.amount) || 0)
+    ) {
+      alert(
+        `Amount cannot exceed pending amount of ₹${pendingAmount.toLocaleString()}`
+      );
       return;
     }
 
@@ -258,17 +266,17 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
       const res = await fetch(`/api/repayments/${repayment.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           amount: Number(amount),
           dueDate: date,
-          status: status
+          status: status,
         }),
       });
-      
+
       if (!res.ok) throw new Error("Failed to update repayment");
-      
+
       const updatedRepayment = await res.json();
-      
+
       if (onUpdate) onUpdate(updatedRepayment);
       if (onClose) onClose();
     } catch (err) {
@@ -300,7 +308,7 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
           />
         </div>
       </div>
-      
+
       <div className="space-y-2">
         <Label>Status</Label>
         <Select value={status} onValueChange={setStatus}>
@@ -315,21 +323,27 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
         </Select>
       </div>
 
-      {/* Show calculation summary */}
+      {/* Loan summary */}
       <div className="bg-gray-50 p-3 rounded-lg">
         <Label className="text-sm font-medium">Loan Summary</Label>
         <div className="grid grid-cols-3 gap-3 mt-2 text-xs">
           <div>
             <div className="text-gray-600">Loan Amount:</div>
-            <div className="font-medium">₹{loanAmount.toLocaleString()}</div>
+            <div className="font-medium">
+              ₹{loanAmount.toLocaleString()}
+            </div>
           </div>
           <div>
             <div className="text-gray-600">Total Paid:</div>
-            <div className="font-medium text-green-600">₹{totalPaid.toLocaleString()}</div>
+            <div className="font-medium text-green-600">
+              ₹{totalPaid.toLocaleString()}
+            </div>
           </div>
           <div>
             <div className="text-gray-600">Pending:</div>
-            <div className="font-medium text-red-600">₹{pendingAmount.toLocaleString()}</div>
+            <div className="font-medium text-red-600">
+              ₹{pendingAmount.toLocaleString()}
+            </div>
           </div>
         </div>
       </div>
@@ -346,39 +360,186 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
   );
 }
 
-// ================= Custom Pagination Component =================
-function CustomPagination({ 
-  currentPage, 
-  totalPages, 
-  onPageChange, 
+/* ================= ActionButtons Component ================= */
+function ActionButtons({ repayment, onUpdate, allRepayments }) {
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+
+  return (
+    <div className="flex gap-2">
+      {/* View dialog */}
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+            <Eye className="h-4 w-4" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Repayment Details
+            </DialogTitle>
+            <DialogDescription>
+              View detailed information about this repayment
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* --- basic info --- */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Customer ID
+                </Label>
+                <p className="text-sm font-medium">
+                  {repayment.customer?.customerCode || repayment.customerCode || "N/A"}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Aadhar Number
+                </Label>
+                <p className="text-sm font-medium">
+                  {repayment.customer?.aadhar || repayment.aadhar || "N/A"}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">
+                Customer Name
+              </Label>
+              <p className="text-sm font-medium">
+                {repayment.customer?.customerName || repayment.customerName || "N/A"}
+              </p>
+            </div>
+
+            {/* --- loan summary --- */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Loan Amount
+                </Label>
+                <p className="text-sm font-medium">
+                  {formatCurrency(repayment.loan?.amount || repayment.loanAmount || 0)}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Total Paid
+                </Label>
+                <p className="text-sm font-medium text-green-600">
+                  {formatCurrency(calculateTotalPaid(repayment, allRepayments))}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Pending Amount
+                </Label>
+                <p className="text-sm font-medium text-red-600">
+                  {formatCurrency(getPendingAmount(repayment))}
+                </p>
+              </div>
+            </div>
+
+            {/* --- repayment details --- */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  This Repayment
+                </Label>
+                <p className="text-sm font-medium">
+                  {formatCurrency(repayment.amount || 0)}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Due Date
+                </Label>
+                <p className="text-sm font-medium">
+                  {formatDate(repayment.dueDate)}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">
+                Status
+              </Label>
+              <div>{getStatusBadge(repayment.status)}</div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogTrigger asChild>
+          <Button variant="secondary" size="sm" className="h-8 w-8 p-0">
+            <Edit className="h-4 w-4" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Edit Repayment
+            </DialogTitle>
+            <DialogDescription>
+              Update repayment details
+            </DialogDescription>
+          </DialogHeader>
+          <EditRepaymentForm
+            repayment={repayment}
+            onUpdate={onUpdate}
+            onClose={() => setEditDialogOpen(false)}
+            allRepayments={allRepayments}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/* ================= Custom Pagination Component ================= */
+function CustomPagination({
+  currentPage,
+  totalPages,
+  onPageChange,
   itemsPerPage,
   onItemsPerPageChange,
   totalItems,
-  currentItemsCount 
+  currentItemsCount,
 }) {
   const maxVisiblePages = 5;
 
   const getPageNumbers = () => {
     const pages = [];
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let startPage = Math.max(
+      1,
+      currentPage - Math.floor(maxVisiblePages / 2)
+    );
     let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
 
     if (endPage - startPage + 1 < maxVisiblePages) {
       startPage = Math.max(1, endPage - maxVisiblePages + 1);
     }
 
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
-    }
+    for (let i = startPage; i <= endPage; i++) pages.push(i);
     return pages;
   };
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t">
       <div className="text-sm text-gray-600">
-        Showing {((currentPage - 1) * itemsPerPage) + 1} to {((currentPage - 1) * itemsPerPage) + currentItemsCount} of {totalItems} entries
+        Showing{" "}
+        {totalItems === 0
+          ? 0
+          : (currentPage - 1) * itemsPerPage + 1}{" "}
+        to{" "}
+        {(currentPage - 1) * itemsPerPage + currentItemsCount} of{" "}
+        {totalItems} entries
       </div>
-      
+
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2">
           <Label htmlFor="itemsPerPage" className="text-sm text-gray-600">
@@ -404,11 +565,17 @@ function CustomPagination({
           <PaginationContent>
             <PaginationItem>
               <PaginationPrevious
-                onClick={() => currentPage > 1 && onPageChange(currentPage - 1)}
-                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                onClick={() =>
+                  currentPage > 1 && onPageChange(currentPage - 1)
+                }
+                className={
+                  currentPage === 1
+                    ? "pointer-events-none opacity-50"
+                    : "cursor-pointer"
+                }
               />
             </PaginationItem>
-            
+
             {getPageNumbers().map((page) => (
               <PaginationItem key={page}>
                 <PaginationLink
@@ -420,11 +587,17 @@ function CustomPagination({
                 </PaginationLink>
               </PaginationItem>
             ))}
-            
+
             <PaginationItem>
               <PaginationNext
-                onClick={() => currentPage < totalPages && onPageChange(currentPage + 1)}
-                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                onClick={() =>
+                  currentPage < totalPages && onPageChange(currentPage + 1)
+                }
+                className={
+                  currentPage === totalPages
+                    ? "pointer-events-none opacity-50"
+                    : "cursor-pointer"
+                }
               />
             </PaginationItem>
           </PaginationContent>
@@ -434,9 +607,41 @@ function CustomPagination({
   );
 }
 
-// ================= Main Component =================
+/* ================= Simple Table Component ================= */
+function SimpleTable({ columns, data }) {
+  return (
+    <div className="rounded-md border">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50">
+          <tr>
+            {columns.map((column) => (
+              <th key={column.accessorKey || column.id} className="h-12 px-4 text-left align-middle font-medium text-gray-500">
+                {typeof column.header === 'function' ? column.header() : column.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {data.map((row, index) => (
+            <tr key={row.id || index} className="hover:bg-gray-50">
+              {columns.map((column) => (
+                <td key={column.accessorKey || column.id} className="p-4 align-middle">
+                  {column.cell ? column.cell({ row: { original: row } }) : row[column.accessorKey]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ================= Main Component ================= */
 export default function RepaymentTable() {
+  /* ---------- state ---------- */
   const [repayments, setRepayments] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
@@ -449,121 +654,252 @@ export default function RepaymentTable() {
     direction: "ascending",
   });
 
+  // URL filters (area / customer)
+  const [urlFilters, setUrlFilters] = useState({ area: "", customer: "" });
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const fetchRepayments = async () => {
+  // ---- derived pagination values ----
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const currentItems = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+  // ----------------------------------
+
+  /* ---------- Debug data structure ---------- */
+  useEffect(() => {
+    if (currentItems.length > 0) {
+      console.log('Sample repayment data structure:', currentItems[0]);
+      console.log('All repayments count:', repayments.length);
+      console.log('All customers count:', customers.length);
+      console.log('Filtered repayments count:', filtered.length);
+    }
+  }, [currentItems, repayments, customers, filtered]);
+
+  /* ---------- URL query handling ---------- */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const area = params.get("area") || "";
+    const customer = params.get("customer") || "";
+    setUrlFilters({ area, customer });
+    if (customer && !search) setSearch(customer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ---------- fetch data from both APIs ---------- */
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/repayments");
-      const data = await res.json();
-      setRepayments(data);
-      setFiltered(data);
+      
+      // Fetch repayments and customers simultaneously
+      const [repaymentsRes, customersRes] = await Promise.all([
+        fetch("/api/repayments"),
+        fetch("/api/customers")
+      ]);
+      
+      const repaymentsData = await repaymentsRes.json();
+      const customersData = await customersRes.json();
+      
+      console.log("=== API RESPONSE DEBUG ===");
+      console.log("Repayments API response:", repaymentsData);
+      console.log("Customers API response:", customersData);
+      
+      if (repaymentsData.length > 0) {
+        console.log("First repayment structure:", repaymentsData[0]);
+        console.log("Repayment keys:", Object.keys(repaymentsData[0]));
+      }
+      
+      if (customersData.length > 0) {
+        console.log("First customer structure:", customersData[0]);
+        console.log("Customer keys:", Object.keys(customersData[0]));
+      }
+      console.log("=== END DEBUG ===");
+      
+      setRepayments(repaymentsData);
+      setCustomers(customersData);
+      
+      // Merge customer data with repayments
+      const mergedData = repaymentsData.map(repayment => {
+        // Find the customer for this repayment
+        const customer = customersData.find(c => 
+          c.id === repayment.customerId || 
+          c.customerCode === repayment.customerCode ||
+          c.loanId === repayment.loanId
+        );
+        
+        return {
+          ...repayment,
+          customer: customer || null
+        };
+      });
+      
+      setFiltered(mergedData);
+      
     } catch (error) {
-      console.error("Failed to fetch repayments:", error);
+      console.error("Failed to fetch data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Update a single repayment in the state
   const updateRepaymentInState = (updatedRepayment) => {
-    setRepayments(prevRepayments => 
-      prevRepayments.map(repayment => 
-        repayment.id === updatedRepayment.id ? updatedRepayment : repayment
+    setRepayments((prev) =>
+      prev.map((r) =>
+        r.id === updatedRepayment.id ? updatedRepayment : r
+      )
+    );
+    
+    // Also update the filtered data
+    setFiltered((prev) =>
+      prev.map((r) =>
+        r.id === updatedRepayment.id ? updatedRepayment : r
       )
     );
   };
 
   useEffect(() => {
-    fetchRepayments();
+    fetchData();
   }, []);
 
-  // Reset to first page when filters change
+  /* ---------- reset page on filter change ---------- */
   useEffect(() => {
-    setCurrentPage(1);
-  }, [search, status, fromDate, toDate, sortConfig]);
+    setCurrentPage((prev) => (prev > totalPages ? 1 : prev));
+  }, [
+    search,
+    status,
+    fromDate,
+    toDate,
+    sortConfig,
+    urlFilters,
+    totalPages,
+  ]);
 
+  /* ---------- filtering & sorting ---------- */
   useEffect(() => {
-    let data = [...repayments];
+    let data = [...repayments].map(repayment => {
+      const customer = customers.find(c => 
+        c.id === repayment.customerId || 
+        c.customerCode === repayment.customerCode ||
+        c.loanId === repayment.loanId
+      );
+      
+      return {
+        ...repayment,
+        customer: customer || null
+      };
+    });
 
-    if (search) {
+    // URL filters
+    if (urlFilters.area) {
       data = data.filter(
-        (r) =>
-          r.loan?.customer?.customerCode?.toLowerCase().includes(search.toLowerCase()) ||
-          r.loan?.customer?.aadhar?.toLowerCase().includes(search.toLowerCase()) ||
-          r.loan?.customer?.customerName?.toLowerCase().includes(search.toLowerCase())
+        (r) => r.customer?.areaId === urlFilters.area
+      );
+    }
+    if (urlFilters.customer) {
+      data = data.filter(
+        (r) => r.customer?.customerCode === urlFilters.customer
       );
     }
 
+    // Text search
+    if (search) {
+      const lc = search.toLowerCase();
+      data = data.filter(
+        (r) =>
+          r.customer?.customerCode?.toLowerCase().includes(lc) ||
+          r.customer?.aadhar?.toLowerCase().includes(lc) ||
+          r.customer?.customerName?.toLowerCase().includes(lc) ||
+          r.customerCode?.toLowerCase().includes(lc) ||
+          r.aadhar?.toLowerCase().includes(lc) ||
+          r.customerName?.toLowerCase().includes(lc)
+      );
+    }
+
+    // Status
     if (status !== "ALL") {
       data = data.filter((r) => r.status === status);
     }
 
+    // Date range
     if (fromDate)
-      data = data.filter((r) => new Date(r.dueDate) >= new Date(fromDate));
+      data = data.filter(
+        (r) => new Date(r.dueDate) >= new Date(fromDate)
+      );
     if (toDate)
-      data = data.filter((r) => new Date(r.dueDate) <= new Date(toDate));
+      data = data.filter(
+        (r) => new Date(r.dueDate) <= new Date(toDate)
+      );
 
-    // Apply sorting
+    // Sorting (including computed columns)
     if (sortConfig.key) {
       data.sort((a, b) => {
-        let aValue = a[sortConfig.key];
-        let bValue = b[sortConfig.key];
-        
-        // Handle nested properties and calculated fields
-        if (sortConfig.key === 'aadhar') {
-          aValue = a.loan?.customer?.aadhar;
-          bValue = b.loan?.customer?.aadhar;
-        } else if (sortConfig.key === 'pendingAmount') {
-          aValue = getPendingAmount(a);
-          bValue = getPendingAmount(b);
-        } else if (sortConfig.key === 'totalPaid') {
-          aValue = calculateTotalPaid(a, repayments);
-          bValue = calculateTotalPaid(b, repayments);
-        } else if (sortConfig.key === 'loanAmount') {
-          aValue = a.loan?.amount || 0;
-          bValue = b.loan?.amount || 0;
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
+
+        if (sortConfig.key === "aadhar") {
+          aVal = a.customer?.aadhar || a.aadhar;
+          bVal = b.customer?.aadhar || b.aadhar;
+        } else if (sortConfig.key === "pendingAmount") {
+          aVal = getPendingAmount(a);
+          bVal = getPendingAmount(b);
+        } else if (sortConfig.key === "totalPaid") {
+          aVal = calculateTotalPaid(a, repayments);
+          bVal = calculateTotalPaid(b, repayments);
+        } else if (sortConfig.key === "loanAmount") {
+          aVal = a.loan?.amount || a.loanAmount || 0;
+          bVal = b.loan?.amount || b.loanAmount || 0;
+        } else if (sortConfig.key === "customerCode") {
+          aVal = a.customer?.customerCode || a.customerCode;
+          bVal = b.customer?.customerCode || b.customerCode;
+        } else if (sortConfig.key === "customerName") {
+          aVal = a.customer?.customerName || a.customerName;
+          bVal = b.customer?.customerName || b.customerName;
         }
 
-        if (aValue < bValue) {
-          return sortConfig.direction === "ascending" ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === "ascending" ? 1 : -1;
-        }
+        if (aVal < bVal) return sortConfig.direction === "ascending" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "ascending" ? 1 : -1;
         return 0;
       });
     }
 
     setFiltered(data);
-  }, [search, status, fromDate, toDate, repayments, sortConfig]);
+  }, [
+    search,
+    status,
+    fromDate,
+    toDate,
+    repayments,
+    customers,
+    sortConfig,
+    urlFilters,
+  ]);
 
-  // Calculate pagination data
-  const totalItems = filtered.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentItems = filtered.slice(startIndex, endIndex);
-
+  /* ---------- UI helpers ---------- */
   const handleSort = (key) => {
     let direction = "ascending";
-    if (sortConfig.key === key && sortConfig.direction === "ascending") {
+    if (sortConfig.key === key && sortConfig.direction === "ascending")
       direction = "descending";
-    }
     setSortConfig({ key, direction });
   };
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
-    // Scroll to top when page changes
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleItemsPerPageChange = (newItemsPerPage) => {
-    setItemsPerPage(newItemsPerPage);
-    setCurrentPage(1); // Reset to first page when items per page changes
+  const handleItemsPerPageChange = (newSize) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1);
+  };
+
+  const clearUrlFilters = () => {
+    setUrlFilters({ area: "", customer: "" });
+    setSearch("");
+    window.history.replaceState(null, "", window.location.pathname);
   };
 
   const handleExport = () => {
@@ -580,14 +916,15 @@ export default function RepaymentTable() {
       "Due Date",
       "Status",
     ];
+
     const csvContent = [
       headers.join(","),
       ...filtered.map((row) =>
         [
-          `"${row.loan?.customer?.customerCode || ""}"`,
-          `"${row.loan?.customer?.customerName || ""}"`,
-          `"${row.loan?.customer?.aadhar || ""}"`,
-          row.loan?.amount || 0,
+          `"${row.customer?.customerCode || row.customerCode || ""}"`,
+          `"${row.customer?.customerName || row.customerName || ""}"`,
+          `"${row.customer?.aadhar || row.aadhar || ""}"`,
+          row.loan?.amount || row.loanAmount || 0,
           row.amount || 0,
           calculateTotalPaid(row, repayments),
           getPendingAmount(row),
@@ -597,7 +934,9 @@ export default function RepaymentTable() {
       ),
     ].join("\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
@@ -628,44 +967,69 @@ export default function RepaymentTable() {
     </div>
   );
 
+  /* ---------- Updated column definitions using customer data ---------- */
   const columns = [
     {
       accessorKey: "customerCode",
       header: () => (
-        <SortableHeader columnKey="customerCode">Customer ID</SortableHeader>
+        <SortableHeader columnKey="customerCode">
+          Customer ID
+        </SortableHeader>
       ),
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-blue-100 rounded-full">
-            <User className="h-3.5 w-3.5 text-blue-700" />
+      cell: ({ row }) => {
+        const repayment = row.original;
+        const customerCode = 
+          repayment.customer?.customerCode ||
+          repayment.customerCode ||
+          "N/A";
+        
+        return (
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-blue-100 rounded-full">
+              <User className="h-3.5 w-3.5 text-blue-700" />
+            </div>
+            <span className="font-medium text-sm">
+              {customerCode}
+            </span>
           </div>
-          <span className="font-medium text-sm">
-            {row.original.loan?.customer?.customerCode || "N/A"}
-          </span>
-        </div>
-      ),
+        );
+      },
     },
     {
       accessorKey: "customerName",
       header: () => (
-        <SortableHeader columnKey="customerName">Customer Name</SortableHeader>
+        <SortableHeader columnKey="customerName">
+          Customer Name
+        </SortableHeader>
       ),
-      cell: ({ row }) => (
-        <span className="text-sm">
-          {row.original.loan?.customer?.customerName || "N/A"}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const repayment = row.original;
+        const customerName = 
+          repayment.customer?.customerName ||
+          repayment.customerName ||
+          "N/A";
+        
+        return <span className="text-sm">{customerName}</span>;
+      },
     },
     {
       accessorKey: "aadhar",
       header: () => (
         <SortableHeader columnKey="aadhar">Aadhar Number</SortableHeader>
       ),
-      cell: ({ row }) => (
-        <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
-          {row.original.loan?.customer?.aadhar || "N/A"}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const repayment = row.original;
+        const aadhar = 
+          repayment.customer?.aadhar ||
+          repayment.aadhar ||
+          "N/A";
+        
+        return (
+          <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+            {aadhar}
+          </span>
+        );
+      },
     },
     {
       accessorKey: "loanAmount",
@@ -674,12 +1038,20 @@ export default function RepaymentTable() {
           <SortableHeader columnKey="loanAmount">Loan Amount</SortableHeader>
         </div>
       ),
-      cell: ({ row }) => (
-        <div className="text-right font-semibold">
-          <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
-          {(row.original.loan?.amount || 0).toLocaleString()}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const repayment = row.original;
+        const loanAmount = 
+          repayment.loan?.amount ||
+          repayment.loanAmount ||
+          0;
+        
+        return (
+          <div className="text-right font-semibold">
+            <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
+            {loanAmount.toLocaleString()}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "amount",
@@ -690,8 +1062,8 @@ export default function RepaymentTable() {
       ),
       cell: ({ row }) => (
         <div className="text-right">
-          <EditableAmount 
-            repayment={row.original} 
+          <EditableAmount
+            repayment={row.original}
             onUpdate={updateRepaymentInState}
             allRepayments={repayments}
           />
@@ -719,15 +1091,17 @@ export default function RepaymentTable() {
       accessorKey: "pendingAmount",
       header: () => (
         <div className="text-right">
-          <SortableHeader columnKey="pendingAmount">Pending Amount</SortableHeader>
+          <SortableHeader columnKey="pendingAmount">
+            Pending Amount
+          </SortableHeader>
         </div>
       ),
       cell: ({ row }) => {
-        const pendingAmount = getPendingAmount(row.original);
+        const pending = getPendingAmount(row.original);
         return (
           <div className="text-right font-semibold text-red-600">
             <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
-            {pendingAmount.toLocaleString()}
+            {pending.toLocaleString()}
           </div>
         );
       },
@@ -752,139 +1126,17 @@ export default function RepaymentTable() {
     {
       id: "actions",
       header: "Actions",
-      cell: ({ row }) => {
-        const repayment = row.original;
-        const [editDialogOpen, setEditDialogOpen] = useState(false);
-
-        return (
-          <div className="flex gap-2">
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 w-8 p-0">
-                  <Eye className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Repayment Details
-                  </DialogTitle>
-                  <DialogDescription>
-                    View detailed information about this repayment
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        Customer ID
-                      </Label>
-                      <p className="text-sm font-medium">
-                        {repayment.loan?.customer?.customerCode || "N/A"}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        Aadhar Number
-                      </Label>
-                      <p className="text-sm font-medium">
-                        {repayment.loan?.customer?.aadhar || "N/A"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">
-                      Customer Name
-                    </Label>
-                    <p className="text-sm font-medium">
-                      {repayment.loan?.customer?.customerName || "N/A"}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        Loan Amount
-                      </Label>
-                      <p className="text-sm font-medium">
-                        {formatCurrency(repayment.loan?.amount || 0)}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        Total Paid
-                      </Label>
-                      <p className="text-sm font-medium text-green-600">
-                        {formatCurrency(calculateTotalPaid(repayment, repayments))}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        Pending Amount
-                      </Label>
-                      <p className="text-sm font-medium text-red-600">
-                        {formatCurrency(getPendingAmount(repayment))}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        This Repayment
-                      </Label>
-                      <p className="text-sm font-medium">
-                        {formatCurrency(repayment.amount || 0)}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        Due Date
-                      </Label>
-                      <p className="text-sm font-medium">
-                        {formatDate(repayment.dueDate)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">
-                      Status
-                    </Label>
-                    <div>{getStatusBadge(repayment.status)}</div>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="secondary" size="sm" className="h-8 w-8 p-0">
-                  <Edit className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Edit className="h-5 w-5" />
-                    Edit Repayment
-                  </DialogTitle>
-                  <DialogDescription>
-                    Update repayment details
-                  </DialogDescription>
-                </DialogHeader>
-                <EditRepaymentForm
-                  repayment={repayment}
-                  onUpdate={updateRepaymentInState}
-                  onClose={() => setEditDialogOpen(false)}
-                  allRepayments={repayments}
-                />
-              </DialogContent>
-            </Dialog>
-          </div>
-        );
-      },
+      cell: ({ row }) => (
+        <ActionButtons
+          repayment={row.original}
+          onUpdate={updateRepaymentInState}
+          allRepayments={repayments}
+        />
+      ),
     },
   ];
 
+  /* ---------- render ---------- */
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -900,7 +1152,8 @@ export default function RepaymentTable() {
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="px-3 py-1.5 gap-1.5">
             <CreditCard className="h-4 w-4" />
-            {filtered.length} repayment{filtered.length !== 1 ? "s" : ""}
+            {filtered.length} repayment
+            {filtered.length !== 1 ? "s" : ""}
           </Badge>
           <Button
             onClick={handleExport}
@@ -913,7 +1166,51 @@ export default function RepaymentTable() {
         </div>
       </div>
 
-      {/* Stats Summary */}
+      {/* URL‑filter banner */}
+      {(urlFilters.area || urlFilters.customer) && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Badge variant="default" className="bg-blue-100 text-blue-800">
+                  Active Filters
+                </Badge>
+                <div className="flex flex-wrap gap-2">
+                  {urlFilters.area && (
+                    <Badge
+                      variant="secondary"
+                      className="flex items-center gap-1"
+                    >
+                      <MapPin className="h-3 w-3" />
+                      Area: {urlFilters.area}
+                    </Badge>
+                  )}
+                  {urlFilters.customer && (
+                    <Badge
+                      variant="secondary"
+                      className="flex items-center gap-1"
+                    >
+                      <User className="h-3 w-3" />
+                      Customer: {urlFilters.customer}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearUrlFilters}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Clear URL Filters
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-blue-50 border-blue-100">
           <CardContent className="p-4">
@@ -922,7 +1219,9 @@ export default function RepaymentTable() {
                 <p className="text-sm font-medium text-blue-700">
                   Total Repayments
                 </p>
-                <h3 className="text-2xl font-bold mt-1">{repayments.length}</h3>
+                <h3 className="text-2xl font-bold mt-1">
+                  {repayments.length}
+                </h3>
               </div>
               <div className="p-2 bg-blue-100 rounded-full">
                 <CreditCard className="h-5 w-5 text-blue-700" />
@@ -951,7 +1250,9 @@ export default function RepaymentTable() {
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm font-medium text-amber-700">Pending</p>
+                <p className="text-sm font-medium text-amber-700">
+                  Pending
+                </p>
                 <h3 className="text-2xl font-bold mt-1">
                   {repayments.filter((r) => r.status === "PENDING").length}
                 </h3>
@@ -967,7 +1268,9 @@ export default function RepaymentTable() {
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm font-medium text-red-700">Overdue</p>
+                <p className="text-sm font-medium text-red-700">
+                  Overdue
+                </p>
                 <h3 className="text-2xl font-bold mt-1">
                   {repayments.filter((r) => r.status === "OVERDUE").length}
                 </h3>
@@ -980,7 +1283,7 @@ export default function RepaymentTable() {
         </Card>
       </div>
 
-      {/* Filters Card */}
+      {/* Filters card */}
       <Card>
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -1002,6 +1305,7 @@ export default function RepaymentTable() {
                 )}
                 {showFilters ? "Hide Filters" : "Show Filters"}
               </Button>
+
               {(search || status !== "ALL" || fromDate || toDate) && (
                 <Button
                   variant="ghost"
@@ -1022,8 +1326,9 @@ export default function RepaymentTable() {
 
         <CardContent>
           <div className="flex flex-col gap-4">
+            {/* Search bar */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 placeholder="Search by customer code, name, or Aadhar number..."
                 value={search}
@@ -1032,8 +1337,10 @@ export default function RepaymentTable() {
               />
             </div>
 
+            {/* Extra filter fields */}
             {showFilters && (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t">
+                {/* Status */}
                 <div className="space-y-2">
                   <Label className="text-sm">Status</Label>
                   <Select value={status} onValueChange={setStatus}>
@@ -1049,6 +1356,7 @@ export default function RepaymentTable() {
                   </Select>
                 </div>
 
+                {/* From Date */}
                 <div className="space-y-2">
                   <Label className="text-sm">From Date</Label>
                   <Input
@@ -1058,6 +1366,7 @@ export default function RepaymentTable() {
                   />
                 </div>
 
+                {/* To Date */}
                 <div className="space-y-2">
                   <Label className="text-sm">To Date</Label>
                   <Input
@@ -1067,6 +1376,7 @@ export default function RepaymentTable() {
                   />
                 </div>
 
+                {/* Sort By */}
                 <div className="space-y-2">
                   <Label className="text-sm">Sort By</Label>
                   <Select
@@ -1080,7 +1390,9 @@ export default function RepaymentTable() {
                       <SelectItem value="dueDate">Due Date</SelectItem>
                       <SelectItem value="amount">This Repayment</SelectItem>
                       <SelectItem value="totalPaid">Total Paid</SelectItem>
-                      <SelectItem value="pendingAmount">Pending Amount</SelectItem>
+                      <SelectItem value="pendingAmount">
+                        Pending Amount
+                      </SelectItem>
                       <SelectItem value="loanAmount">Loan Amount</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1091,10 +1403,11 @@ export default function RepaymentTable() {
         </CardContent>
       </Card>
 
-      {/* Table */}
+      {/* Main table */}
       <Card>
         <CardContent className="p-0">
           {loading ? (
+            /* Loading skeleton */
             <div className="p-6 space-y-4">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="flex items-center space-x-4">
@@ -1107,6 +1420,7 @@ export default function RepaymentTable() {
               ))}
             </div>
           ) : filtered.length === 0 ? (
+            /* Empty state */
             <div className="p-12 text-center">
               <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-1">
@@ -1120,9 +1434,10 @@ export default function RepaymentTable() {
             </div>
           ) : (
             <>
-              <DataTable columns={columns} data={currentItems} />
-              
-              {/* Pagination */}
+              {/* Using SimpleTable instead of DataTable */}
+              <SimpleTable columns={columns} data={currentItems} />
+
+              {/* Pagination component */}
               <CustomPagination
                 currentPage={currentPage}
                 totalPages={totalPages}
@@ -1136,6 +1451,6 @@ export default function RepaymentTable() {
           )}
         </CardContent>
       </Card>
-   </div>
+    </div>
   );
 }

@@ -1,10 +1,10 @@
-"use client";
-
+/* -----------------------------------------------------------------
+   NewLoanForm.jsx
+----------------------------------------------------------------- */
 import React, { useEffect, useState } from "react";
 import { LoanSchema } from "./Validation";
 import { motion } from "framer-motion";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
+
 import {
   Loader2,
   Upload,
@@ -22,15 +22,20 @@ import {
   Check,
   ChevronsUpDown,
   Phone,
-  Mail,
   IdCard,
   Home,
   Briefcase,
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
 import QRScanner from "@/components/QRScanner";
 import { cn } from "@/lib/utils";
+
 import {
   Command,
   CommandInput,
@@ -39,15 +44,20 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command";
+
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
-const NewLoanForm = () => {
+import { toast } from "sonner";
+
+/* -------------------------------------------------
+   Props:
+   - onCustomerSelect: fn(customerObject)  // optional
+------------------------------------------------- */
+const NewLoanForm = ({ onCustomerSelect }) => {
   const [areas, setAreas] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [form, setForm] = useState({
@@ -68,40 +78,49 @@ const NewLoanForm = () => {
   const [openArea, setOpenArea] = useState(false);
   const [openCustomer, setOpenCustomer] = useState(false);
 
-  // Fetch areas
+  /* ---------- FETCH AREA LIST ---------- */
   useEffect(() => {
     fetch("/api/area")
       .then((res) => res.json())
-      .then((data) => {
-        setAreas(Array.isArray(data) ? data : []);
-      })
+      .then((data) => setAreas(Array.isArray(data) ? data : []))
       .catch(() => toast.error("Failed to fetch areas"));
   }, []);
 
-  // Fetch customers for selected area
+  /* ---------- FETCH CUSTOMERS WHEN AREA CHANGES ---------- */
   useEffect(() => {
-    if (form.area) {
-      fetch(`/api/customers/by-area/${form.area}`)
-        .then((res) => res.json())
-        .then((data) => {
-          const customersList = Array.isArray(data)
-            ? data
-            : Array.isArray(data.customers)
-            ? data.customers
-            : [];
-          setCustomers(customersList);
-        })
-        .catch(() => {
-          toast.error("Failed to fetch customers");
-          setCustomers([]);
-        });
-    } else {
+    if (!form.area) {
       setCustomers([]);
       setForm((prev) => ({ ...prev, customerId: "", customerCode: "" }));
+      return;
     }
+
+    fetch(`/api/customers/by-area/${form.area}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data.customers)
+          ? data.customers
+          : [];
+        setCustomers(list);
+      })
+      .catch(() => {
+        toast.error("Failed to fetch customers");
+        setCustomers([]);
+      });
   }, [form.area]);
 
-  // Handlers
+  /* ---------- HELPERS ---------- */
+  const getFieldValue = (obj, fieldNames) => {
+    for (const f of fieldNames) {
+      if (obj[f] !== undefined && obj[f] !== null && obj[f] !== "") {
+        return obj[f];
+      }
+    }
+    return "N/A";
+  };
+
+  /* ---------- INPUT HANDLERS ---------- */
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -111,34 +130,40 @@ const NewLoanForm = () => {
     setForm((prev) => ({ ...prev, [name]: value }));
     if (name === "area") {
       setOpenArea(false);
+      setCustomerDetails(null);
+      setForm((prev) => ({ ...prev, customerId: "", customerCode: "" }));
     } else if (name === "customerId") {
       setOpenCustomer(false);
     }
   };
 
   const handleCustomerSelect = (customer) => {
+    // keep the local form state
     setForm((prev) => ({
       ...prev,
       customerId: customer.id,
-      customerCode: customer.customerCode,
+      customerCode: customer.customerCode || customer.code,
     }));
     setCustomerDetails(customer);
     setOpenCustomer(false);
+
+    // tell the parent component (if it supplied a callback)
+    if (onCustomerSelect) onCustomerSelect(customer);
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("File size must be less than 5MB");
-        return;
-      }
-      setDocumentFile(file);
-      if (file.type.startsWith("image/")) {
-        setPreviewUrl(URL.createObjectURL(file));
-      } else {
-        setPreviewUrl(null);
-      }
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be less than 5 MB");
+      return;
+    }
+    setDocumentFile(file);
+    if (file.type.startsWith("image/")) {
+      setPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setPreviewUrl(null);
     }
   };
 
@@ -147,27 +172,25 @@ const NewLoanForm = () => {
     setPreviewUrl(null);
   };
 
-  // Fetch customer details
   const fetchCustomerDetails = async (codeOrId) => {
     try {
       const res = await fetch(`/api/customers/${codeOrId}`);
       if (!res.ok) {
         toast.error(
           res.status === 404
-            ? "Customer not found. Please check the code or QR."
+            ? "Customer not found. Check the code/QR."
             : "Failed to load customer details."
         );
         return null;
       }
-      const data = await res.json();
-      return data;
-    } catch (error) {
-      toast.error("An unexpected error occurred.");
+      return await res.json();
+    } catch {
+      toast.error("Unexpected error while loading customer.");
       return null;
     }
   };
 
-  // Submit loan
+  /* ---------- SUBMIT ---------- */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -178,7 +201,7 @@ const NewLoanForm = () => {
         fieldErrors[err.path[0]] = err.message;
       });
       setErrors(fieldErrors);
-      toast.error("Please fix the form errors before submitting.");
+      toast.error("Please fix the form errors.");
       return;
     }
 
@@ -196,9 +219,7 @@ const NewLoanForm = () => {
 
       const res = await fetch("/api/loans", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
@@ -206,6 +227,7 @@ const NewLoanForm = () => {
 
       if (res.ok) {
         toast.success("Loan successfully submitted! ✅");
+        // reset form
         setForm({
           area: "",
           customerId: "",
@@ -222,15 +244,16 @@ const NewLoanForm = () => {
       } else if (res.status === 409) {
         toast.error(data.error);
       } else {
-        toast.error(data.error || "Server error submitting loan. ⚠️");
+        toast.error(data.error || "Server error while creating loan.");
       }
     } catch {
-      toast.error("Something went wrong during submission. 🌐");
+      toast.error("Something went wrong while submitting the loan.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  /* ---------- RENDER ---------- */
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-8 px-4 flex items-center justify-center">
       <motion.div
@@ -254,10 +277,11 @@ const NewLoanForm = () => {
           </div>
         </div>
 
+        {/* Form */}
         <div className="p-1">
           <div className="bg-white rounded-lg">
             <form onSubmit={handleSubmit} className="p-8 space-y-8">
-              {/* QR Scanner Section */}
+              {/* ---------- QR SCANNER ---------- */}
               <Card className="bg-blue-50 border-blue-200">
                 <CardContent className="p-6">
                   <div className="flex flex-col gap-4">
@@ -267,25 +291,25 @@ const NewLoanForm = () => {
                         Quick Customer Scan
                       </h3>
                     </div>
+
                     <p className="text-sm text-blue-600 mb-2">
                       Scan a customer's QR code to automatically fill their
                       information
                     </p>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant={scanning ? "default" : "outline"}
-                        onClick={() => setScanning((prev) => !prev)}
-                        className="flex items-center gap-2 h-10 w-full"
-                      >
-                        {scanning ? (
-                          <ArrowLeft className="h-4 w-4" />
-                        ) : (
-                          <Scan className="h-4 w-4" />
-                        )}
-                        {scanning ? "Close Scanner" : "Scan Customer QR"}
-                      </Button>
-                    </div>
+
+                    <Button
+                      type="button"
+                      variant={scanning ? "default" : "outline"}
+                      onClick={() => setScanning((p) => !p)}
+                      className="flex items-center gap-2 h-10 w-full"
+                    >
+                      {scanning ? (
+                        <ArrowLeft className="h-4 w-4" />
+                      ) : (
+                        <Scan className="h-4 w-4" />
+                      )}
+                      {scanning ? "Close Scanner" : "Scan Customer QR"}
+                    </Button>
 
                     {scanning && (
                       <motion.div
@@ -301,69 +325,64 @@ const NewLoanForm = () => {
                         <div className="p-4">
                           <QRScanner
                             onScan={async (code) => {
-                              let customerCode = code;
+                              // -------------------------------------------------
+                              // Extract the code (plain text or last segment of URL)
+                              // -------------------------------------------------
+                              let custCode = code;
                               try {
-                                const url = new URL(code);
-                                customerCode =
-                                  url.pathname
-                                    .split("/")
-                                    .filter(Boolean)
-                                    .pop() || code;
-                              } catch {
-                                customerCode = code;
-                              }
-
-                              const customerData = await fetchCustomerDetails(
-                                customerCode
-                              );
-
-                              if (customerData) {
-                                // fetch customers in the same area
-                                const customersRes = await fetch(
-                                  `/api/customers/by-area/${customerData.areaId}`
-                                );
-                                const customersForArea =
-                                  await customersRes.json();
-                                const list = Array.isArray(customersForArea)
-                                  ? customersForArea
-                                  : Array.isArray(customersForArea.customers)
-                                  ? customersForArea.customers
-                                  : [];
-
-                                setCustomers(list);
-
-                                // auto-fill area + customerCode + customerId
-                                setForm((prev) => ({
-                                  ...prev,
-                                  area: customerData.areaId || "",
-                                  customerCode: customerData.customerCode || "",
-                                  customerId: customerData.id || "",
-                                }));
-
-                                setCustomerDetails(customerData);
-
-                                toast.success(
-                                  `Customer ${customerData.customerCode} loaded successfully.`
-                                );
-                              } else {
-                                toast.error(
-                                  "Customer not found or unable to load details."
-                                );
-                                setForm((prev) => ({
-                                  ...prev,
-                                  customerCode: customerCode,
+                                const u = new URL(code);
+                                custCode = u.pathname
+                                  .split("/")
+                                  .filter(Boolean)
+                                  .pop() || code;
+                              } catch {}
+                              // -------------------------------------------------
+                              // Load the full customer record
+                              // -------------------------------------------------
+                              const cust = await fetchCustomerDetails(custCode);
+                              if (!cust) {
+                                // nothing found – keep the raw code in the form
+                                setForm((p) => ({
+                                  ...p,
+                                  customerCode: custCode,
                                   area: "",
-                                  customerId: "",
                                 }));
                                 setCustomers([]);
-                              }
+                                setCustomerDetails(null);
+                                toast.error("Customer not found.");
+                              } else {
+                                // Populate the area selector + customer selector
+                                const customersRes = await fetch(
+                                  `/api/customers/by-area/${cust.areaId}`
+                                );
+                                const custList = await customersRes.json();
+                                setCustomers(
+                                  Array.isArray(custList)
+                                    ? custList
+                                    : Array.isArray(custList.customers)
+                                    ? custList.customers
+                                    : []
+                                );
 
-                              setTimeout(() => {
-                                setScanning(false);
-                              }, 100);
+                                setForm((p) => ({
+                                  ...p,
+                                  area: cust.areaId || "",
+                                  customerCode:
+                                    cust.customerCode || cust.code || "",
+                                  customerId: cust.id || "",
+                                }));
+                                setCustomerDetails(cust);
+                                toast.success(
+                                  `Customer ${
+                                    cust.customerCode || cust.code
+                                  } loaded.`
+                                );
+                              }
+                              // close scanner after a short delay
+                              setTimeout(() => setScanning(false), 100);
                             }}
                             onError={(err) => {
-                              console.error("QR Scanner Error:", err);
+                              console.error(err);
                               toast.error("QR scan failed: " + err.message);
                             }}
                           />
@@ -374,7 +393,7 @@ const NewLoanForm = () => {
                 </CardContent>
               </Card>
 
-              {/* Customer Info */}
+              {/* ---------- CUSTOMER INFO ---------- */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-100 rounded-lg">
@@ -386,7 +405,7 @@ const NewLoanForm = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Area Selector */}
+                  {/* AREA SELECT */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700">
                       Area <span className="text-red-500">*</span>
@@ -400,15 +419,16 @@ const NewLoanForm = () => {
                           className="w-full justify-between h-11"
                         >
                           {form.area
-                            ? areas.find((a) => a.id === form.area)?.areaName ||
+                            ? areas.find((a) => a.id === form.area)
+                                ?.areaName ||
                               areas.find((a) => a.id === form.area)?.name
-                            : "Select area..."}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            : "Select area…"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-full p-0">
                         <Command>
-                          <CommandInput placeholder="Search area..." />
+                          <CommandInput placeholder="Search area…" />
                           <CommandList>
                             <CommandEmpty>No area found.</CommandEmpty>
                             <CommandGroup>
@@ -440,12 +460,15 @@ const NewLoanForm = () => {
                     )}
                   </div>
 
-                  {/* Customer Selector */}
+                  {/* CUSTOMER SELECT */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700">
                       Customer <span className="text-red-500">*</span>
                     </Label>
-                    <Popover open={openCustomer} onOpenChange={setOpenCustomer}>
+                    <Popover
+                      open={openCustomer}
+                      onOpenChange={setOpenCustomer}
+                    >
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
@@ -456,23 +479,25 @@ const NewLoanForm = () => {
                         >
                           {form.customerId
                             ? customers.find((c) => c.id === form.customerId)
-                                ?.customerCode
+                                ?.customerCode ||
+                              customers.find((c) => c.id === form.customerId)
+                                ?.code
                             : form.area
-                            ? "Select customer..."
+                            ? "Select customer…"
                             : "First select an area"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-full p-0">
                         <Command>
-                          <CommandInput placeholder="Search customer..." />
+                          <CommandInput placeholder="Search customer…" />
                           <CommandList>
                             <CommandEmpty>No customer found.</CommandEmpty>
                             <CommandGroup>
                               {customers.map((cust) => (
                                 <CommandItem
                                   key={cust.id}
-                                  value={cust.customerCode}
+                                  value={cust.customerCode || cust.code}
                                   onSelect={() => handleCustomerSelect(cust)}
                                 >
                                   <Check
@@ -483,7 +508,10 @@ const NewLoanForm = () => {
                                         : "opacity-0"
                                     )}
                                   />
-                                  {cust.customerCode} - {cust.customerName || "Unnamed Customer"}
+                                  {(cust.customerCode || cust.code)} –{" "}
+                                  {cust.customerName ||
+                                    cust.name ||
+                                    "Unnamed"}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
@@ -499,9 +527,9 @@ const NewLoanForm = () => {
                   </div>
                 </div>
 
-                {/* Customer Details Card */}
+                {/* SHOW SELECTED CUSTOMER DETAILS (same card you already had) */}
                 {customerDetails && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3 }}
@@ -513,65 +541,123 @@ const NewLoanForm = () => {
                           <User className="h-4 w-4" />
                           Customer Details
                         </h4>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-3">
                             <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                                Code: {customerDetails.customerCode}
+                              <Badge
+                                variant="outline"
+                                className="bg-blue-50 text-blue-700"
+                              >
+                                Code:{" "}
+                                {getFieldValue(customerDetails, [
+                                  "customerCode",
+                                  "code",
+                                ])}
                               </Badge>
                             </div>
+
                             <div>
-                              <Label className="text-xs text-gray-500">Full Name</Label>
+                              <Label className="text-xs text-gray-500">
+                                Full Name
+                              </Label>
                               <p className="text-sm font-medium flex items-center gap-1">
                                 <User className="h-3 w-3" />
-                                {customerDetails.customerName || "N/A"}
+                                {getFieldValue(customerDetails, [
+                                  "customerName",
+                                  "name",
+                                  "fullName",
+                                ])}
                               </p>
                             </div>
+
                             <div>
-                              <Label className="text-xs text-gray-500">Mobile</Label>
+                              <Label className="text-xs text-gray-500">
+                                Mobile
+                              </Label>
                               <p className="text-sm font-medium flex items-center gap-1">
                                 <Phone className="h-3 w-3" />
-                                {customerDetails.mobile || "N/A"}
+                                {getFieldValue(customerDetails, [
+                                  "mobile",
+                                  "phone",
+                                  "contactNumber",
+                                  "contact",
+                                ])}
                               </p>
                             </div>
+
                             <div>
-                              <Label className="text-xs text-gray-500">Aadhar</Label>
+                              <Label className="text-xs text-gray-500">
+                                Aadhar
+                              </Label>
                               <p className="text-sm font-medium flex items-center gap-1">
                                 <IdCard className="h-3 w-3" />
-                                {customerDetails.aadhar || "N/A"}
+                                {getFieldValue(customerDetails, [
+                                  "aadhar",
+                                  "aadhaar",
+                                  "aadharNumber",
+                                  "aadhaarNumber",
+                                ])}
                               </p>
                             </div>
                           </div>
+
                           <div className="space-y-3">
                             <div>
-                              <Label className="text-xs text-gray-500">Area</Label>
+                              <Label className="text-xs text-gray-500">
+                                Area
+                              </Label>
                               <p className="text-sm font-medium flex items-center gap-1">
                                 <MapPin className="h-3 w-3" />
-                                {areas.find(a => a.id === customerDetails.areaId)?.areaName || 
-                                 areas.find(a => a.id === customerDetails.areaId)?.name || 
-                                 "N/A"}
+                                {areas.find(
+                                  (a) => a.id === customerDetails.areaId
+                                )?.areaName ||
+                                  areas.find(
+                                    (a) => a.id === customerDetails.areaId
+                                  )?.name ||
+                                  getFieldValue(customerDetails, [
+                                    "areaName",
+                                    "area",
+                                  ])}
                               </p>
                             </div>
+
                             <div>
-                              <Label className="text-xs text-gray-500">Address</Label>
+                              <Label className="text-xs text-gray-500">
+                                Address
+                              </Label>
                               <p className="text-sm font-medium flex items-center gap-1">
                                 <Home className="h-3 w-3" />
-                                {customerDetails.address || "N/A"}
+                                {getFieldValue(customerDetails, [
+                                  "address",
+                                  "fullAddress",
+                                  "residenceAddress",
+                                ])}
                               </p>
                             </div>
+
                             <div>
-                              <Label className="text-xs text-gray-500">Status</Label>
-                              <Badge variant="outline" className="bg-green-50 text-green-700">
+                              <Label className="text-xs text-gray-500">
+                                Status
+                              </Label>
+                              <Badge
+                                variant="outline"
+                                className="bg-green-50 text-green-700"
+                              >
                                 Active Customer
                               </Badge>
                             </div>
                           </div>
                         </div>
-                        
-                        {/* Document Links */}
-                        {(customerDetails.aadharDocumentUrl || customerDetails.incomeProofUrl || customerDetails.residenceProofUrl) && (
+
+                        {/* Optional document badges */}
+                        {(customerDetails.aadharDocumentUrl ||
+                          customerDetails.incomeProofUrl ||
+                          customerDetails.residenceProofUrl) && (
                           <div className="mt-4 pt-4 border-t border-gray-200">
-                            <Label className="text-xs text-gray-500 mb-2 block">Documents</Label>
+                            <Label className="text-xs text-gray-500 mb-2 block">
+                              Documents
+                            </Label>
                             <div className="flex flex-wrap gap-2">
                               {customerDetails.aadharDocumentUrl && (
                                 <Badge variant="outline" className="bg-gray-50">
@@ -600,7 +686,7 @@ const NewLoanForm = () => {
                 )}
               </div>
 
-              {/* Loan Details */}
+              {/* ---------- LOAN DETAILS ---------- */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-100 rounded-lg">
@@ -612,12 +698,13 @@ const NewLoanForm = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Amount */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700">
                       Loan Amount <span className="text-red-500">*</span>
                     </Label>
                     <div className="relative">
-                      <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
                         id="amount"
                         name="amount"
@@ -629,18 +716,17 @@ const NewLoanForm = () => {
                       />
                     </div>
                     {errors.amount && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.amount}
-                      </p>
+                      <p className="text-red-500 text-xs">{errors.amount}</p>
                     )}
                   </div>
 
+                  {/* Rate */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700">
                       Interest Rate (%) <span className="text-red-500">*</span>
                     </Label>
                     <div className="relative">
-                      <Percent className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
                         id="rate"
                         name="rate"
@@ -652,16 +738,17 @@ const NewLoanForm = () => {
                       />
                     </div>
                     {errors.rate && (
-                      <p className="text-red-500 text-xs mt-1">{errors.rate}</p>
+                      <p className="text-red-500 text-xs">{errors.rate}</p>
                     )}
                   </div>
 
+                  {/* Tenure */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700">
                       Tenure (Months) <span className="text-red-500">*</span>
                     </Label>
                     <div className="relative">
-                      <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
                         id="tenure"
                         name="tenure"
@@ -673,18 +760,17 @@ const NewLoanForm = () => {
                       />
                     </div>
                     {errors.tenure && (
-                      <p className="text-red-500 text-xs mt-1">
-                        {errors.tenure}
-                      </p>
+                      <p className="text-red-500 text-xs">{errors.tenure}</p>
                     )}
                   </div>
 
+                  {/* Loan Date */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-gray-700">
                       Loan Date <span className="text-red-500">*</span>
                     </Label>
                     <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
                         type="date"
                         id="loanDate"
@@ -698,7 +784,7 @@ const NewLoanForm = () => {
                 </div>
               </div>
 
-              {/* Document Upload */}
+              {/* ---------- DOCUMENT UPLOAD ---------- */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-100 rounded-lg">
@@ -722,20 +808,19 @@ const NewLoanForm = () => {
                       className="cursor-pointer flex flex-col items-center justify-center gap-2"
                     >
                       <Upload className="h-10 w-10 text-gray-400" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">
-                          Drag and drop or click to upload
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          PNG, JPG, PDF up to 5MB
-                        </p>
-                      </div>
+                      <p className="text-sm font-medium text-gray-700">
+                        Drag & drop or click to upload
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        PNG, JPG, PDF (max 5 MB)
+                      </p>
                       <Button variant="outline" className="mt-2">
                         Select File
                       </Button>
                     </label>
                   </div>
 
+                  {/* preview for images */}
                   {previewUrl && (
                     <div className="mt-4">
                       <Label className="text-sm font-medium text-gray-700">
@@ -745,7 +830,7 @@ const NewLoanForm = () => {
                         <div className="w-48 h-48 border rounded-lg overflow-hidden shadow-sm">
                           <img
                             src={previewUrl}
-                            alt="Preview"
+                            alt="preview"
                             className="object-cover w-full h-full"
                           />
                         </div>
@@ -762,6 +847,7 @@ const NewLoanForm = () => {
                     </div>
                   )}
 
+                  {/* non‑image files */}
                   {documentFile && !previewUrl && (
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
                       <div className="flex items-center gap-2">
@@ -784,17 +870,16 @@ const NewLoanForm = () => {
                 </div>
               </div>
 
-              {/* Submit */}
+              {/* ---------- SUBMIT ---------- */}
               <div className="pt-6 border-t border-gray-200 flex justify-end">
                 <Button
                   type="submit"
                   disabled={isSubmitting}
                   className="h-11 px-8 bg-blue-600 hover:bg-blue-700"
-                  size="lg"
                 >
-                  {isSubmitting ? (
-                    <Loader2 className="animate-spin h-5 w-5 mr-2" />
-                  ) : null}
+                  {isSubmitting && (
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  )}
                   Submit Loan
                 </Button>
               </div>
