@@ -1,7 +1,7 @@
 // Updated AddArea to store data into DB using API call
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { areaSchema } from "./validation";
 
 import {
@@ -21,12 +21,18 @@ import { toast } from "sonner";
 export function AddArea({ onAreaCreated = () => {} }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const [formData, setFormData] = useState({
     areaName: "",
     shortCode: "",
     pincode: "",
   });
   const [errors, setErrors] = useState({});
+
+  // Set isMounted to true after component mounts on client
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -88,6 +94,15 @@ export function AddArea({ onAreaCreated = () => {} }) {
       setLoading(false);
     }
   };
+
+  // Don't render the dialog during SSR to avoid hydration mismatch
+  if (!isMounted) {
+    return (
+      <Button variant="default" type="button" disabled>
+        + Create New Area
+      </Button>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

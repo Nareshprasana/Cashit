@@ -2,35 +2,29 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import QRCode from "qrcode";
-import { put } from "@vercel/blob";
+import { writeFile, mkdir } from "fs/promises";
+import path from "path";
 
-export const runtime = "nodejs";
+const uploadDir = path.join(process.cwd(), "public", "uploads");
+const qrDir = path.join(process.cwd(), "public", "qrcodes");
 
-/* ------------------------------------------------------------------
-   HELPERS
------------------------------------------------------------------- */
+async function ensureDir(dir) {
+  try {
+    await mkdir(dir, { recursive: true });
+  } catch {}
+}
+
 async function saveFile(file, prefix) {
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  const filename = `${prefix}-${Date.now()}-${file.name}`;
-  const blob = await put(filename, buffer, {
-    access: "public",
-  });
-  return blob.url;
+  if (!file || typeof file === "string") return null;
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const ext = String(file.name || "").split(".").pop() || "bin";
+  const filename = `${prefix}-${Date.now()}.${ext}`;
+  const filepath = path.join(uploadDir, filename);
+  await writeFile(filepath, buffer);
+  return `/uploads/${filename}`;
 }
 
-async function saveQRCode(data, filenamePrefix) {
-  const qrBuffer = await QRCode.toBuffer(data);
-  const filename = `${filenamePrefix}-${Date.now()}.png`;
-  const blob = await put(filename, qrBuffer, {
-    access: "public",
-  });
-  return blob.url;
-}
-
-/* ------------------------------------------------------------------
-   GET – return **all** fields needed by the UI
------------------------------------------------------------------- */
+// ✅ GET customers (with optional filters)
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
@@ -39,251 +33,262 @@ export async function GET(req) {
     const min = searchParams.get("min");
     const max = searchParams.get("max");
 
-    /* ---- SUMMARY ---- */
     if (summary) {
       const total = await prisma.customer.count();
       return NextResponse.json({ total }, { status: 200 });
     }
 
-    /* ---- OPTIONAL loan filter ---- */
-    const loanFilter =
-      min || max
-        ? {
-            some: {
-              amount: {
-                gte: min ? parseFloat(min) : undefined,
-                lte: max ? parseFloat(max) : undefined,
-              },
-            },
-          }
-        : undefined;
-
-    /* ---- MAIN QUERY ---- */
     const customers = await prisma.customer.findMany({
       where: {
-        ...(areaId ? { areaId: parseInt(areaId, 10) } : {}),
-        ...(loanFilter ? { loans: loanFilter } : {}),
-      },
-      select: {
-        id: true,
-        customerCode: true,
-        customerName: true,
-        spouseName: true,
-        parentName: true,
-        mobile: true,
-        dob: true,
-        aadhar: true,
-        gender: true,
-        address: true,
-        guarantorName: true,
-        guarantorAadhar: true,
-        areaId: true,
-        photoUrl: true,
-        aadharDocumentUrl: true,
-        incomeProofUrl: true,
-        residenceProofUrl: true,
-        qrUrl: true,
-        createdAt: true,
-        // Latest loan
+        ...(areaId ? { areaId } : {}),
         loans: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: {
-            amount: true,
-            loanDate: true,
-            tenure: true,
-            repayments: {
-              select: { amount: true, repaymentDate: true },
+          some: {
+            amount: {
+              gte: min ? parseFloat(min) : undefined,
+              lte: max ? parseFloat(max) : undefined,
             },
           },
         },
-        // Area info
-        area: {
-          select: { areaName: true },
+      },
+      include: {
+        area: true,
+        loans: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          include: {
+            repayments: { select: { amount: true, repaymentDate: true } },
+          },
         },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    /* ---- FORMAT for UI ---- */
-    const formatted = customers.map((c) => {
-      const latestLoan = c.loans?.[0] ?? null;
+    const formatted = customers.map((customer) => {
+      const latestLoan = customer.loans?.[0] || null;
 
-      const loanAmount = latestLoan?.amount
-        ? Number(latestLoan.amount)
-        : 0;
-
-      // totalPaid = sum of repayments
-      const totalPaid = (latestLoan?.repayments ?? []).reduce(
-        (sum, r) => sum + (Number(r.amount) || 0),
-        0
-      );
-
-      const pendingAmount = Math.max(loanAmount - totalPaid, 0);
-
-      // status: Active if pending > 0, Closed if fully paid, N/A otherwise
-      let status = "N/A";
-      if (loanAmount > 0) {
-        status = pendingAmount > 0 ? "Active" : "Closed";
+      // ✅ Calculate endDate using loanDate + tenure
+      let endDate = null;
+      if (latestLoan?.loanDate && latestLoan?.tenure != null) {
+        const loanDate = new Date(latestLoan.loanDate);
+        const tenureMonths = Number(latestLoan.tenure);
+        if (!isNaN(loanDate.getTime()) && !isNaN(tenureMonths)) {
+          const end = new Date(loanDate);
+          end.setMonth(end.getMonth() + tenureMonths);
+          endDate = end;
+        }
       }
 
+      const loanAmount = Number(latestLoan?.amount ?? 0);
+      const totalPaid = (latestLoan?.repayments || []).reduce((acc, r) => {
+        const val = typeof r.amount === "number" ? r.amount : Number(r.amount || 0);
+        return acc + (isNaN(val) ? 0 : val);
+      }, 0);
+      const pendingAmount = Math.max(loanAmount - totalPaid, 0);
+
       return {
-        // Basic
-        id: c.id,
-        customerCode: c.customerCode,
-        name: c.customerName,
-        spouseName: c.spouseName,
-        parentName: c.parentName,
-        mobile: c.mobile,
-        dob: c.dob ? new Date(c.dob).toISOString() : null,
-        aadhar: c.aadhar,
-        gender: c.gender,
-        address: c.address,
-        guarantorName: c.guarantorName,
-        guarantorAadhar: c.guarantorAadhar,
-        areaId: c.areaId,
-        area: c.area?.areaName ?? null,
-        createdAt: c.createdAt,
-
-        // Docs
-        photoUrl: c.photoUrl,
-        aadharDocumentUrl: c.aadharDocumentUrl,
-        incomeProofUrl: c.incomeProofUrl,
-        residenceProofUrl: c.residenceProofUrl,
-        qrUrl: c.qrUrl,
-
-        // Loan related
+        id: customer.id,
+        customerCode: customer.customerCode,
+        name: customer.customerName,
+        aadhar: customer.aadhar,
+        photoUrl: customer.photoUrl,
+        mobile: customer.mobile,
+        address: customer.address || "",
+        areaId: customer.area?.id ?? null,
+        area: customer.area?.areaName ?? null,
         loanAmount,
+        totalPaid,
         pendingAmount,
-        status,
+        endDate,
       };
     });
 
     return NextResponse.json(formatted, { status: 200 });
-  } catch (err) {
-    console.error("❌ GET /api/customers error:", err);
+  } catch (error) {
+    console.error("❌ GET /api/customers error:", error);
     return NextResponse.json(
-      {
-        message: "Failed to fetch customers",
-        details: err?.message ?? String(err),
-      },
+      { message: "Failed to fetch customers", details: error?.message ?? String(error) },
       { status: 500 }
     );
   }
 }
 
-/* ------------------------------------------------------------------
-   POST – unchanged (handles upload + QR)
------------------------------------------------------------------- */
+// ✅ POST create customer (with file uploads + QR + optional loan)
 export async function POST(req) {
+  await ensureDir(uploadDir);
+  await ensureDir(qrDir);
+
   try {
     const formData = await req.formData();
+    const customer = Object.fromEntries(formData.entries());
 
-    const customerCode = formData.get("customerCode");
-    const customerName = formData.get("customerName");
-    const spouseName = formData.get("spouseName");
-    const parentName = formData.get("parentName");
-    const mobile = formData.get("mobile");
-    const dob = formData.get("dob");
-    const aadhar = formData.get("aadhar");
-    const gender = formData.get("gender");
-    const address = formData.get("address");
-    const guarantorName = formData.get("guarantorName");
-    const guarantorAadhar = formData.get("guarantorAadhar");
-    const areaId = formData.get("areaId");
-
-    // Files
     const photo = formData.get("photo");
-    const aadharDoc = formData.get("aadharDocument");
+    const aadharDocument = formData.get("aadharDocument");
     const incomeProof = formData.get("incomeProof");
     const residenceProof = formData.get("residenceProof");
 
-    let photoUrl = photo ? await saveFile(photo, "photo") : null;
-    let aadharDocumentUrl = aadharDoc
-      ? await saveFile(aadharDoc, "aadhar")
-      : null;
-    let incomeProofUrl = incomeProof
-      ? await saveFile(incomeProof, "income")
-      : null;
-    let residenceProofUrl = residenceProof
-      ? await saveFile(residenceProof, "residence")
-      : null;
+    const photoUrl = await saveFile(photo, "photo");
+    const aadharDocumentUrl = await saveFile(aadharDocument, "aadhar");
+    const incomeProofUrl = await saveFile(incomeProof, "income");
+    const residenceProofUrl = await saveFile(residenceProof, "residence");
 
-    // QR code
-    const qrUrl = await saveQRCode(customerCode, "customer-qr");
+    const dobDate = customer.dob ? new Date(customer.dob) : null;
+    const dob = dobDate && !isNaN(dobDate.getTime()) ? dobDate : null;
 
+    if (!customer.area || typeof customer.area !== "string" || customer.area.trim() === "") {
+      return NextResponse.json(
+        { success: false, error: "area is required and must be a valid string" },
+        { status: 400 }
+      );
+    }
+
+    // ✅ Create customer
     const newCustomer = await prisma.customer.create({
       data: {
-        customerCode,
-        customerName,
-        spouseName,
-        parentName,
-        mobile,
-        dob: dob ? new Date(dob) : null,
-        aadhar,
-        gender,
-        address,
-        guarantorName,
-        guarantorAadhar,
-        areaId: parseInt(areaId, 10),
+        customerName: customer.customerName,
+        spouseName: customer.spouseName || null,
+        parentName: customer.parentName || null,
+        mobile: customer.mobile,
+        dob,
+        aadhar: customer.aadhar,
+        gender: customer.gender,
+        address: customer.address,
+        guarantorName: customer.guarantorName || null,
+        guarantorAadhar: customer.guarantorAadhar || null,
+        customerCode: customer.customerCode || null,
+        areaId: customer.area,
         photoUrl,
         aadharDocumentUrl,
         incomeProofUrl,
         residenceProofUrl,
-        qrUrl,
       },
     });
 
-    return NextResponse.json(newCustomer, { status: 201 });
-  } catch (err) {
-    console.error("❌ POST /api/customers error:", err);
+    // ✅ Optional: create initial loan if provided
+    if (customer.loanAmount && customer.loanDate && customer.tenure) {
+      const loanDateObj = new Date(customer.loanDate);
+      if (!isNaN(loanDateObj.getTime())) {
+        await prisma.loan.create({
+          data: {
+            customerId: newCustomer.id,
+            amount: Number(customer.loanAmount),
+            loanDate: loanDateObj,
+            tenure: Number(customer.tenure),
+          },
+        });
+      }
+    }
+
+    // Generate QR and save URL
+    const filename = `${newCustomer.customerCode}.png`;
+    const qrPath = path.join(qrDir, filename);
+    await QRCode.toFile(qrPath, newCustomer.customerCode);
+
+    const qrUrl = `/qrcodes/${filename}`;
+    await prisma.customer.update({
+      where: { id: newCustomer.id },
+      data: { qrUrl },
+    });
+
     return NextResponse.json(
-      { message: "Failed to create customer", details: err?.message },
+      { success: true, customer: { ...newCustomer, qrUrl } },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("❌ POST /api/customers error:", error);
+    return NextResponse.json(
+      { success: false, error: error?.message || "Failed to create customer" },
       { status: 500 }
     );
   }
 }
 
-/* ------------------------------------------------------------------
-   PUT – update customer
------------------------------------------------------------------- */
+// ✅ PUT update customer (with optional file updates + QR regen if code changes)
 export async function PUT(req) {
+  await ensureDir(uploadDir);
+  await ensureDir(qrDir);
+
   try {
-    const data = await req.json();
-    const customerId = data.id; // keep as string if UUID
+    const formData = await req.formData();
+    const data = Object.fromEntries(formData.entries());
+
+    if (!data.id) {
+      return NextResponse.json({ success: false, error: "Customer ID is required" }, { status: 400 });
+    }
+
+    const customerId = parseInt(data.id, 10);
+
+    const photo = formData.get("photo");
+    const aadharDocument = formData.get("aadharDocument");
+    const incomeProof = formData.get("incomeProof");
+    const residenceProof = formData.get("residenceProof");
+
+    const updateData = {
+      customerName: data.customerName,
+      spouseName: data.spouseName || null,
+      parentName: data.parentName || null,
+      mobile: data.mobile,
+      dob: data.dob ? new Date(data.dob) : null,
+      aadhar: data.aadhar,
+      gender: data.gender,
+      address: data.address,
+      guarantorName: data.guarantorName || null,
+      guarantorAadhar: data.guarantorAadhar || null,
+      areaId: data.area,
+      customerCode: data.customerCode || null,
+    };
+
+    if (photo && typeof photo !== "string") updateData.photoUrl = await saveFile(photo, "photo");
+    if (aadharDocument && typeof aadharDocument !== "string") updateData.aadharDocumentUrl = await saveFile(aadharDocument, "aadhar");
+    if (incomeProof && typeof incomeProof !== "string") updateData.incomeProofUrl = await saveFile(incomeProof, "income");
+    if (residenceProof && typeof residenceProof !== "string") updateData.residenceProofUrl = await saveFile(residenceProof, "residence");
 
     const updatedCustomer = await prisma.customer.update({
       where: { id: customerId },
-      data,
+      data: updateData,
     });
 
-    return NextResponse.json(updatedCustomer, { status: 200 });
-  } catch (err) {
-    console.error("❌ PUT /api/customers error:", err);
+    // ✅ Regenerate QR if customerCode changed
+    if (data.customerCode) {
+      const filename = `${data.customerCode}.png`;
+      const qrPath = path.join(qrDir, filename);
+      await QRCode.toFile(qrPath, data.customerCode);
+
+      const qrUrl = `/qrcodes/${filename}`;
+      await prisma.customer.update({
+        where: { id: customerId },
+        data: { qrUrl },
+      });
+
+      updatedCustomer.qrUrl = qrUrl;
+    }
+
+    return NextResponse.json({ success: true, customer: updatedCustomer }, { status: 200 });
+  } catch (error) {
+    console.error("❌ PUT /api/customers error:", error);
     return NextResponse.json(
-      { message: "Failed to update customer", details: err?.message },
+      { success: false, error: error?.message || "Failed to update customer" },
       { status: 500 }
     );
   }
 }
 
-/* ------------------------------------------------------------------
-   DELETE – remove customer
------------------------------------------------------------------- */
+// ✅ DELETE customer
 export async function DELETE(req) {
   try {
-    const data = await req.json();
-    const customerId = data.id; // keep as string if UUID
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
 
-    await prisma.customer.delete({
-      where: { id: customerId },
-    });
+    if (!id) {
+      return NextResponse.json({ success: false, error: "Customer ID is required" }, { status: 400 });
+    }
 
-    return NextResponse.json({ success: true }, { status: 200 });
-  } catch (err) {
-    console.error("❌ DELETE /api/customers error:", err);
+    await prisma.customer.delete({ where: { id: parseInt(id, 10) } });
+
+    return NextResponse.json({ success: true, message: "Customer deleted successfully" }, { status: 200 });
+  } catch (error) {
+    console.error("❌ DELETE /api/customers error:", error);
     return NextResponse.json(
-      { message: "Failed to delete customer", details: err?.message },
+      { success: false, error: error?.message || "Failed to delete customer" },
       { status: 500 }
     );
   }
