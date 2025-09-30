@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from "react";
 import NewLoanForm from "./NewLoanForm";
 import LoanTable from "../loan/LoanTable";   // adjust if needed
+import { AllCustomerTable } from "@/components/AllCustomerTable.jsx";
 
 export default function NewloanPage() {
   const [loans, setLoans] = useState([]);
@@ -37,7 +38,14 @@ export default function NewloanPage() {
       <NewLoanForm onCustomerSelect={setSelectedCustomer} />
 
       {/* Pass **customerCode** (or the fallback `code`) to the table */}
-      <LoanTable
+      {/* <LoanTable
+        loans={loans}
+        loading={loading}
+        selectedCustomerCode={
+          selectedCustomer?.customerCode || selectedCustomer?.code
+        }
+      /> */}
+      <AllCustomerTable 
         loans={loans}
         loading={loading}
         selectedCustomerCode={

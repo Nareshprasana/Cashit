@@ -96,6 +96,27 @@ const getStatusBadge = (status) => {
   }
 };
 
+/* ================= Payment Method Badge ================= */
+const getPaymentMethodBadge = (paymentMethod) => {
+  if (!paymentMethod) return null;
+  
+  const methodConfig = {
+    CASH: { label: "Cash", className: "bg-green-100 text-green-800 border-green-200" },
+    UPI: { label: "UPI", className: "bg-purple-100 text-purple-800 border-purple-200" },
+    BANK_TRANSFER: { label: "Bank Transfer", className: "bg-blue-100 text-blue-800 border-blue-200" },
+    CHEQUE: { label: "Cheque", className: "bg-orange-100 text-orange-800 border-orange-200" },
+    OTHER: { label: "Other", className: "bg-gray-100 text-gray-800 border-gray-200" }
+  };
+
+  const config = methodConfig[paymentMethod] || { label: paymentMethod, className: "bg-gray-100 text-gray-800 border-gray-200" };
+  
+  return (
+    <Badge variant="outline" className={`text-xs ${config.className}`}>
+      {config.label}
+    </Badge>
+  );
+};
+
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -169,7 +190,8 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
     amount: "",
     dueDate: "",
     status: "PENDING",
-    notes: ""
+    notes: "",
+    paymentMethod: "CASH"
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -221,7 +243,8 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
         amount: "",
         dueDate: "",
         status: "PENDING",
-        notes: ""
+        notes: "",
+        paymentMethod: "CASH"
       });
     } catch (err) {
       console.error(err);
@@ -317,23 +340,44 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
           </div>
         </div>
 
-        {/* Status */}
-        <div className="space-y-2">
-          <Label htmlFor="status">Status *</Label>
-          <Select 
-            value={formData.status} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
-          >
-            <SelectTrigger className={errors.status ? "border-red-500" : ""}>
-              <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="PENDING">Pending</SelectItem>
-              <SelectItem value="PAID">Paid</SelectItem>
-              <SelectItem value="OVERDUE">Overdue</SelectItem>
-            </SelectContent>
-          </Select>
-          {errors.status && <p className="text-red-500 text-sm">{errors.status}</p>}
+        {/* Status and Payment Method */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Status */}
+          <div className="space-y-2">
+            <Label htmlFor="status">Status *</Label>
+            <Select 
+              value={formData.status} 
+              onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+            >
+              <SelectTrigger className={errors.status ? "border-red-500" : ""}>
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="PAID">Paid</SelectItem>
+                <SelectItem value="OVERDUE">Overdue</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.status && <p className="text-red-500 text-sm">{errors.status}</p>}
+          </div>
+
+          {/* Payment Method */}
+          <div className="space-y-2">
+            <Label htmlFor="paymentMethod">Payment Method</Label>
+            <Select 
+              value={formData.paymentMethod} 
+              onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select payment method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CASH">Cash</SelectItem>
+                <SelectItem value="UPI">UPI</SelectItem>
+                <SelectItem value="OTHER">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Notes */}
@@ -517,7 +561,8 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
     amount: repayment.amount || 0,
     dueDate: repayment.dueDate?.split("T")[0] || "",
     status: repayment.status || "PENDING",
-    notes: repayment.notes || ""
+    notes: repayment.notes || "",
+    paymentMethod: repayment.paymentMethod || "CASH"
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -560,7 +605,8 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
           amount: Number(formData.amount),
           dueDate: formData.dueDate,
           status: formData.status,
-          notes: formData.notes
+          notes: formData.notes,
+          paymentMethod: formData.paymentMethod
         }),
       });
 
@@ -604,22 +650,42 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label>Status *</Label>
-        <Select 
-          value={formData.status} 
-          onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
-        >
-          <SelectTrigger className={errors.status ? "border-red-500" : ""}>
-            <SelectValue placeholder="Select status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="PENDING">Pending</SelectItem>
-            <SelectItem value="PAID">Paid</SelectItem>
-            <SelectItem value="OVERDUE">Overdue</SelectItem>
-          </SelectContent>
-        </Select>
-        {errors.status && <p className="text-red-500 text-sm">{errors.status}</p>}
+      {/* Status and Payment Method */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Status *</Label>
+          <Select 
+            value={formData.status} 
+            onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+          >
+            <SelectTrigger className={errors.status ? "border-red-500" : ""}>
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PENDING">Pending</SelectItem>
+              <SelectItem value="PAID">Paid</SelectItem>
+              <SelectItem value="OVERDUE">Overdue</SelectItem>
+            </SelectContent>
+          </Select>
+          {errors.status && <p className="text-red-500 text-sm">{errors.status}</p>}
+        </div>
+
+        <div className="space-y-2">
+          <Label>Payment Method</Label>
+          <Select 
+            value={formData.paymentMethod} 
+            onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select payment method" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="CASH">Cash</SelectItem>
+              <SelectItem value="UPI">UPI</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -738,9 +804,15 @@ function ActionButtons({ repayment, onUpdate, onDelete, allRepayments }) {
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Status</Label>
-              <div>{getStatusBadge(repayment.status)}</div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Status</Label>
+                <div>{getStatusBadge(repayment.status)}</div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Payment Method</Label>
+                <div>{getPaymentMethodBadge(repayment.paymentMethod)}</div>
+              </div>
             </div>
 
             {repayment.notes && (
@@ -926,6 +998,7 @@ export default function RepaymentTable() {
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
+  const [paymentMethod, setPaymentMethod] = useState("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -1017,7 +1090,7 @@ export default function RepaymentTable() {
   /* ---------- reset page on filter change ---------- */
   useEffect(() => {
     setCurrentPage((prev) => (prev > totalPages ? 1 : prev));
-  }, [search, status, fromDate, toDate, sortConfig, urlFilters, totalPages]);
+  }, [search, status, paymentMethod, fromDate, toDate, sortConfig, urlFilters, totalPages]);
 
   /* ---------- filtering & sorting ---------- */
   useEffect(() => {
@@ -1047,6 +1120,11 @@ export default function RepaymentTable() {
     // Status
     if (status !== "ALL") {
       data = data.filter((r) => r.status === status);
+    }
+
+    // Payment Method
+    if (paymentMethod !== "ALL") {
+      data = data.filter((r) => r.paymentMethod === paymentMethod);
     }
 
     // Date range
@@ -1088,7 +1166,7 @@ export default function RepaymentTable() {
     }
 
     setFiltered(data);
-  }, [search, status, fromDate, toDate, repayments, sortConfig, urlFilters]);
+  }, [search, status, paymentMethod, fromDate, toDate, repayments, sortConfig, urlFilters]);
 
   /* ---------- UI helpers ---------- */
   const handleSort = (key) => {
@@ -1118,7 +1196,8 @@ export default function RepaymentTable() {
 
     const headers = [
       "Customer ID", "Customer Name", "Aadhar Number", "Loan Amount", 
-      "This Repayment", "Total Paid", "Pending Amount", "Due Date", "Status", "Notes"
+      "This Repayment", "Total Paid", "Pending Amount", "Due Date", 
+      "Payment Method", "Status", "Notes"
     ];
 
     const csvContent = [
@@ -1138,6 +1217,7 @@ export default function RepaymentTable() {
           totalPaid,
           pendingAmount,
           `"${formatDate(row.dueDate || "")}"`,
+          `"${row.paymentMethod || ""}"`,
           `"${row.status || ""}"`,
           `"${row.notes || ""}"`,
         ].join(",");
@@ -1272,6 +1352,11 @@ export default function RepaymentTable() {
       ),
     },
     {
+      accessorKey: "paymentMethod",
+      header: "Payment Method",
+      cell: ({ row }) => getPaymentMethodBadge(row.original.paymentMethod),
+    },
+    {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => getStatusBadge(row.original.status),
@@ -1292,7 +1377,7 @@ export default function RepaymentTable() {
 
   /* ---------- render ---------- */
   return (
-    <div className="space-y-6 p-6 max-w-7xl mx-auto">
+    <div className="space-y-6 p-6 max-w-8xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -1304,31 +1389,6 @@ export default function RepaymentTable() {
             <CreditCard className="h-4 w-4" />
             {filtered.length} repayment{filtered.length !== 1 ? "s" : ""}
           </Badge>
-          
-          {/* Create Repayment Dialog */}
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="h-10 gap-2 bg-green-600 hover:bg-green-700">
-                <Plus className="h-4 w-4" />
-                New Repayment
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Plus className="h-5 w-5" />
-                  Create New Repayment
-                </DialogTitle>
-                <DialogDescription>Add a new repayment record for a customer</DialogDescription>
-              </DialogHeader>
-              <CreateRepaymentForm
-                onCreated={addRepaymentToState}
-                onClose={() => setCreateDialogOpen(false)}
-                customers={customers}
-                loans={loans}
-              />
-            </DialogContent>
-          </Dialog>
 
           <Button onClick={handleExport} className="h-10 gap-2" disabled={filtered.length === 0}>
             <Download className="h-4 w-4" />
@@ -1401,8 +1461,14 @@ export default function RepaymentTable() {
                 {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
                 {showFilters ? "Hide Filters" : "Show Filters"}
               </Button>
-              {(search || status !== "ALL" || fromDate || toDate) && (
-                <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setStatus("ALL"); setFromDate(""); setToDate(""); }}>
+              {(search || status !== "ALL" || paymentMethod !== "ALL" || fromDate || toDate) && (
+                <Button variant="ghost" size="sm" onClick={() => { 
+                  setSearch(""); 
+                  setStatus("ALL"); 
+                  setPaymentMethod("ALL");
+                  setFromDate(""); 
+                  setToDate(""); 
+                }}>
                   Clear All
                 </Button>
               )}
@@ -1432,22 +1498,22 @@ export default function RepaymentTable() {
                   </Select>
                 </div>
 
-                <div className="space-y-2"><Label className="text-sm">From Date</Label><Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></div>
-                <div className="space-y-2"><Label className="text-sm">To Date</Label><Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} /></div>
-                
                 <div className="space-y-2">
-                  <Label className="text-sm">Sort By</Label>
-                  <Select value={sortConfig.key || "dueDate"} onValueChange={(value) => handleSort(value)}>
-                    <SelectTrigger><SelectValue placeholder="Sort by" /></SelectTrigger>
+                  <Label className="text-sm">Payment Method</Label>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger><SelectValue placeholder="All Methods" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="dueDate">Due Date</SelectItem>
-                      <SelectItem value="amount">This Repayment</SelectItem>
-                      <SelectItem value="totalPaid">Total Paid</SelectItem>
-                      <SelectItem value="pendingAmount">Running Balance</SelectItem>
-                      <SelectItem value="loanAmount">Loan Amount</SelectItem>
+                      <SelectItem value="ALL">All Methods</SelectItem>
+                      <SelectItem value="CASH">Cash</SelectItem>
+                      <SelectItem value="UPI">UPI</SelectItem>
+
+                      <SelectItem value="OTHER">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="space-y-2"><Label className="text-sm">From Date</Label><Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></div>
+                <div className="space-y-2"><Label className="text-sm">To Date</Label><Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} /></div>
               </div>
             )}
           </div>

@@ -112,6 +112,135 @@ const ProgressBar = ({ value, className = "" }) => (
   </div>
 );
 
+// Loan Card Component
+const LoanCard = ({ loan, index, status, onEdit, onDelete, onUpload }) => {
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      'ACTIVE': { className: 'bg-green-100 text-green-800', label: 'Active' },
+      'CLOSED': { className: 'bg-gray-100 text-gray-800', label: 'Closed' },
+      'OVERDUE': { className: 'bg-red-100 text-red-800', label: 'Overdue' },
+      'COMPLETED': { className: 'bg-blue-100 text-blue-800', label: 'Completed' }
+    };
+    
+    const config = statusConfig[status] || statusConfig.ACTIVE;
+    return (
+      <Badge className={config.className}>
+        {config.label}
+      </Badge>
+    );
+  };
+
+  const calculatePendingAmount = (loan) => {
+    return loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
+  };
+
+  const pendingAmount = calculatePendingAmount(loan);
+  const isClosed = pendingAmount <= 0 || status === 'CLOSED' || status === 'COMPLETED';
+
+  return (
+    <div className={`border rounded-lg p-4 ${isClosed ? 'bg-gray-50' : 'bg-white'}`}>
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center gap-2">
+          <h4 className="font-medium">Loan #{index + 1}</h4>
+          {getStatusBadge(status)}
+        </div>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(loan)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Loan
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onUpload(loan)}>
+                <Upload className="h-4 w-4 mr-2" />
+                {loan.documentUrl ? 'Update Document' : 'Upload Document'}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                className="text-red-600"
+                onClick={() => onDelete(loan)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Loan
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        {[
+          { label: "Amount", value: `₹${Number(loan.amount || 0).toLocaleString('en-IN')}` },
+          { label: "Rate", value: `${loan.rate}%` },
+          { label: "Tenure", value: `${loan.tenure} months` },
+          { label: "Loan Date", value: loan.loanDate ? new Date(loan.loanDate).toLocaleDateString() : "N/A" },
+          { label: "End Date", value: loan.endDate ? new Date(loan.endDate).toLocaleDateString() : "N/A" },
+          { label: "Total Paid", value: `₹${Number(loan.totalPaid || 0).toLocaleString('en-IN')}`, className: "text-green-600" },
+          { 
+            label: "Pending", 
+            value: `₹${Number(pendingAmount).toLocaleString('en-IN')}`, 
+            className: isClosed ? "text-gray-600" : "text-red-600" 
+          },
+          ...(loan.interestAmount !== undefined ? [{ label: "Interest", value: `₹${Number(loan.interestAmount || 0).toLocaleString('en-IN')}` }] : []),
+          ...(loan.documentUrl ? [{ label: "Document", value: "Uploaded", className: "text-green-600" }] : [{ label: "Document", value: "Not Uploaded", className: "text-gray-600" }]),
+        ].map((item, idx) => (
+          <div key={idx}>
+            <Label className="text-xs text-gray-500">{item.label}</Label>
+            <div className={`font-medium ${item.className || ''}`}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+      {loan.documentUrl && (
+        <div className="mt-3 pt-3 border-t">
+          <Label className="text-xs text-gray-500">Loan Agreement</Label>
+          <div className="flex gap-2 mt-1">
+            <Button variant="outline" size="sm" asChild>
+              <a href={loan.documentUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                <Eye className="h-3 w-3" /> View
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <a href={loan.documentUrl} download className="flex items-center gap-1">
+                <Download className="h-3 w-3" /> Download
+              </a>
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Helper function to calculate loan status
+const getLoanStatus = (loan) => {
+  // First check if there's an explicit status from the database
+  if (loan.status === 'CLOSED' || loan.status === 'ACTIVE' || loan.status === 'OVERDUE' || loan.status === 'COMPLETED') {
+    return loan.status;
+  }
+  
+  // Calculate based on financial data
+  const pendingAmount = loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
+  const now = new Date();
+  const endDate = loan.endDate ? new Date(loan.endDate) : null;
+  
+  // If pending amount is zero or negative, loan is completed
+  if (pendingAmount <= 0) {
+    return 'COMPLETED';
+  } 
+  // If end date has passed and there's still pending amount, it's overdue
+  else if (endDate && endDate < now) {
+    return 'OVERDUE';
+  } 
+  // Otherwise, it's active
+  else {
+    return 'ACTIVE';
+  }
+};
+
 export default function AllCustomerTable() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -208,12 +337,23 @@ export default function AllCustomerTable() {
             if (!loansByCustomer[customerId]) {
               loansByCustomer[customerId] = [];
             }
+            
+            // Calculate loan status and pending amount
+            const pendingAmount = loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
+            const status = getLoanStatus(loan);
+            
+            console.log(`Loan ${loan.id}: amount=${loan.amount}, totalPaid=${loan.totalPaid}, pending=${pendingAmount}, status=${status}`);
+            
             loansByCustomer[customerId].push({
               ...loan,
               // Ensure all required fields are present
               documentUrl: loan.documentUrl || null,
-              status: loan.status || 'ACTIVE',
+              status: status,
               amount: loan.amount || loan.loanAmount || 0,
+              pendingAmount: pendingAmount,
+              totalPaid: loan.totalPaid || 0,
+              // Ensure endDate is calculated if not present
+              endDate: loan.endDate || (loan.loanDate && loan.tenure ? calculateEndDate(loan.loanDate, loan.tenure) : null),
             });
           }
         });
@@ -580,8 +720,7 @@ export default function AllCustomerTable() {
 
   // Helper function to check if loan is active
   const isLoanActive = (loan) => {
-    return loan.status === 'ACTIVE' || 
-           (loan.endDate && new Date(loan.endDate) > new Date());
+    return getLoanStatus(loan) === 'ACTIVE';
   };
 
   // Initialize loan form for editing
@@ -676,19 +815,39 @@ export default function AllCustomerTable() {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => {
-        const paid = row.original.totalPaid ?? 0;
-        const loan = row.original.loanAmount ?? 0;
-        const active = paid < loan;
-        return active ? (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Active
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="text-gray-600">
-            Closed
-          </Badge>
-        );
+        const customerLoansList = customerLoans[row.original.id] || [];
+        const hasActiveLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'ACTIVE');
+        const hasOverdueLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'OVERDUE');
+        const hasCompletedLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'COMPLETED');
+        
+        if (hasOverdueLoan) {
+          return (
+            <Badge variant="destructive" className="flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              Overdue
+            </Badge>
+          );
+        } else if (hasActiveLoan) {
+          return (
+            <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Active
+            </Badge>
+          );
+        } else if (hasCompletedLoan) {
+          return (
+            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Completed
+            </Badge>
+          );
+        } else {
+          return (
+            <Badge variant="outline" className="text-gray-600">
+              No Loans
+            </Badge>
+          );
+        }
       },
     },
     {
@@ -787,12 +946,19 @@ export default function AllCustomerTable() {
         c.customerCode?.toLowerCase().includes(globalFilter.toLowerCase()) ||
         c.aadhar?.includes(globalFilter);
 
-      const totalPaid = c.totalPaid ?? 0;
-      const loanAmt = c.loanAmount ?? 0;
-      const active = totalPaid < loanAmt;
-      const statusMatch = !statusFilter ||
-        (statusFilter === "active" && active) ||
-        (statusFilter === "closed" && !active);
+      const customerLoansList = customerLoans[c.id] || [];
+      const hasActiveLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'ACTIVE');
+      const hasCompletedLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'COMPLETED');
+      const hasOverdueLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'OVERDUE');
+      
+      let statusMatch = true;
+      if (statusFilter === "active") {
+        statusMatch = hasActiveLoan || hasOverdueLoan;
+      } else if (statusFilter === "completed") {
+        statusMatch = hasCompletedLoan && !hasActiveLoan && !hasOverdueLoan;
+      } else if (statusFilter === "closed") {
+        statusMatch = !hasActiveLoan && !hasOverdueLoan;
+      }
 
       const areaMatch = !areaFilter || c.area === areaFilter;
 
@@ -802,7 +968,7 @@ export default function AllCustomerTable() {
 
       return globalMatch && statusMatch && areaMatch && startDateMatch && endDateMatch;
     });
-  }, [data, globalFilter, statusFilter, areaFilter, startEndDate, endEndDate]);
+  }, [data, globalFilter, statusFilter, areaFilter, startEndDate, endEndDate, customerLoans]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
   const paginatedData = useMemo(() => {
@@ -909,7 +1075,7 @@ export default function AllCustomerTable() {
             <CreditCard className="h-4 w-4" />
             {filteredData.length} filtered
           </Badge>
-          <Button onClick={() => router.push("/customers/create")} className="ml-4">
+          <Button onClick={() => router.push("/dashboard/addNewCustomer")} className="ml-4">
             <Plus className="h-4 w-4 mr-2" />
             Add Customer
           </Button>
@@ -974,6 +1140,7 @@ export default function AllCustomerTable() {
                   >
                     <option value="">All</option>
                     <option value="active">Active</option>
+                    <option value="completed">Completed</option>
                     <option value="closed">Closed</option>
                   </select>
                 </div>
@@ -1278,12 +1445,15 @@ export default function AllCustomerTable() {
                     </Card>
 
                     {/* Loan Details from Loan Model */}
-                    {customerLoans[selectedCustomer.id]?.length > 0 && (
+                    {(customerLoans[selectedCustomer.id]?.length > 0) && (
                       <Card>
                         <CardHeader>
-                          <CardTitle className="text-lg">Loan Details (from Loan Model)</CardTitle>
+                          <CardTitle className="text-lg">All Loans</CardTitle>
                           <CardDescription>
-                            {customerLoans[selectedCustomer.id].length} loan(s) found
+                            {customerLoans[selectedCustomer.id].length} loan(s) found - 
+                            Active: {customerLoans[selectedCustomer.id].filter(loan => getLoanStatus(loan) === 'ACTIVE').length}, 
+                            Completed: {customerLoans[selectedCustomer.id].filter(loan => getLoanStatus(loan) === 'COMPLETED').length},
+                            Overdue: {customerLoans[selectedCustomer.id].filter(loan => getLoanStatus(loan) === 'OVERDUE').length}
                             <Button 
                               variant="outline" 
                               size="sm" 
@@ -1296,81 +1466,53 @@ export default function AllCustomerTable() {
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-4">
-                            {customerLoans[selectedCustomer.id].map((loan, index) => (
-                              <div key={loan.id} className="border rounded-lg p-4 bg-gray-50">
-                                <div className="flex justify-between items-start mb-3">
-                                  <h4 className="font-medium">Loan #{index + 1}</h4>
-                                  <div className="flex items-center gap-2">
-                                    <Badge className={
-                                      loan.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
-                                      loan.status === 'CLOSED' ? 'bg-gray-100 text-gray-800' :
-                                      loan.status === 'OVERDUE' ? 'bg-red-100 text-red-800' :
-                                      'bg-yellow-100 text-yellow-800'
-                                    }>
-                                      {loan.status}
-                                    </Badge>
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                          <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => initializeEditLoan(loan)}>
-                                          <Edit className="h-4 w-4 mr-2" />
-                                          Edit Loan
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }}>
-                                          <Upload className="h-4 w-4 mr-2" />
-                                          Upload Document
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem 
-                                          className="text-red-600"
-                                          onClick={() => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
-                                        >
-                                          <Trash2 className="h-4 w-4 mr-2" />
-                                          Delete Loan
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                  {[
-                                    { label: "Amount", value: `₹${Number(loan.amount || 0).toLocaleString('en-IN')}` },
-                                    { label: "Rate", value: `${loan.rate}%` },
-                                    { label: "Tenure", value: `${loan.tenure} months` },
-                                    { label: "Loan Date", value: loan.loanDate ? new Date(loan.loanDate).toLocaleDateString() : "N/A" },
-                                    ...(loan.pendingAmount !== undefined ? [{ label: "Pending", value: `₹${Number(loan.pendingAmount || 0).toLocaleString('en-IN')}`, className: "text-red-600" }] : []),
-                                    ...(loan.interestAmount !== undefined ? [{ label: "Interest", value: `₹${Number(loan.interestAmount || 0).toLocaleString('en-IN')}` }] : []),
-                                    ...(loan.documentUrl ? [{ label: "Document", value: "Uploaded", className: "text-green-600" }] : [{ label: "Document", value: "Not Uploaded", className: "text-gray-600" }]),
-                                  ].map((item, idx) => (
-                                    <div key={idx}>
-                                      <Label className="text-xs text-gray-500">{item.label}</Label>
-                                      <div className={`font-medium ${item.className || ''}`}>{item.value}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                                {loan.documentUrl && (
-                                  <div className="mt-3 pt-3 border-t">
-                                    <Label className="text-xs text-gray-500">Loan Agreement</Label>
-                                    <div className="flex gap-2 mt-1">
-                                      <Button variant="outline" size="sm" asChild>
-                                        <a href={loan.documentUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
-                                          <Eye className="h-3 w-3" /> View
-                                        </a>
-                                      </Button>
-                                      <Button variant="outline" size="sm" asChild>
-                                        <a href={loan.documentUrl} download className="flex items-center gap-1">
-                                          <Download className="h-3 w-3" /> Download
-                                        </a>
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+                            {/* Show active loans first */}
+                            {customerLoans[selectedCustomer.id]
+                              .filter(loan => getLoanStatus(loan) === 'ACTIVE')
+                              .map((loan, index) => (
+                                <LoanCard 
+                                  key={loan.id} 
+                                  loan={loan} 
+                                  index={index} 
+                                  status="ACTIVE"
+                                  onEdit={initializeEditLoan}
+                                  onDelete={(loan) => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
+                                  onUpload={(loan) => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }}
+                                />
+                              ))
+                            }
+                            
+                            {/* Show overdue loans */}
+                            {customerLoans[selectedCustomer.id]
+                              .filter(loan => getLoanStatus(loan) === 'OVERDUE')
+                              .map((loan, index) => (
+                                <LoanCard 
+                                  key={loan.id} 
+                                  loan={loan} 
+                                  index={index} 
+                                  status="OVERDUE"
+                                  onEdit={initializeEditLoan}
+                                  onDelete={(loan) => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
+                                  onUpload={(loan) => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }}
+                                />
+                              ))
+                            }
+                            
+                            {/* Show completed loans - THIS IS THE KEY FIX */}
+                            {customerLoans[selectedCustomer.id]
+                              .filter(loan => getLoanStatus(loan) === 'COMPLETED')
+                              .map((loan, index) => (
+                                <LoanCard 
+                                  key={loan.id} 
+                                  loan={loan} 
+                                  index={index} 
+                                  status="COMPLETED"
+                                  onEdit={initializeEditLoan}
+                                  onDelete={(loan) => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
+                                  onUpload={(loan) => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }}
+                                />
+                              ))
+                            }
                           </div>
                         </CardContent>
                       </Card>
@@ -1580,20 +1722,23 @@ export default function AllCustomerTable() {
                                 </tr>
                               ))}
                               
-                              {/* Loan Agreements */}
+                              {/* Loan Agreements - Show ALL loans including completed ones */}
                               {customerLoans[selectedCustomer.id]?.length > 0 ? (
                                 customerLoans[selectedCustomer.id].map((loan, index) => {
-                                  const isActiveLoan = isLoanActive(loan);
+                                  const loanStatus = getLoanStatus(loan);
                                   return (
                                     <tr key={loan.id} className="hover:bg-gray-50">
                                       <td className="p-3 font-medium">
                                         <div className="flex items-center gap-2">
                                           Loan Agreement {customerLoans[selectedCustomer.id].length > 1 ? `#${index + 1}` : ''}
-                                          {isActiveLoan && (
-                                            <Badge className="bg-green-100 text-green-800 text-xs">
-                                              Active
-                                            </Badge>
-                                          )}
+                                          <Badge className={
+                                            loanStatus === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                                            loanStatus === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                                            loanStatus === 'OVERDUE' ? 'bg-red-100 text-red-800' :
+                                            'bg-gray-100 text-gray-800'
+                                          }>
+                                            {loanStatus}
+                                          </Badge>
                                         </div>
                                       </td>
                                       <td className="p-3">

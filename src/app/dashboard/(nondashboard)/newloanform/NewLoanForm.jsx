@@ -814,9 +814,15 @@ const NewLoanForm = ({ onCustomerSelect }) => {
                       <p className="text-xs text-gray-500">
                         PNG, JPG, PDF (max 5 MB)
                       </p>
-                      <Button variant="outline" className="mt-2">
+                      {/* <Button 
+                        variant="outline" 
+                        className="mt-2"
+                        type="button"
+                        onChange={handleFileChange}
+                        id="file-upload"
+                      >
                         Select File
-                      </Button>
+                      </Button> */}
                     </label>
                   </div>
 
