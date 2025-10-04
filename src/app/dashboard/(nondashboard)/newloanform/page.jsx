@@ -38,13 +38,6 @@ export default function NewloanPage() {
       <NewLoanForm onCustomerSelect={setSelectedCustomer} />
 
       {/* Pass **customerCode** (or the fallback `code`) to the table */}
-      {/* <LoanTable
-        loans={loans}
-        loading={loading}
-        selectedCustomerCode={
-          selectedCustomer?.customerCode || selectedCustomer?.code
-        }
-      /> */}
       <AllCustomerTable 
         loans={loans}
         loading={loading}
@@ -52,6 +45,7 @@ export default function NewloanPage() {
           selectedCustomer?.customerCode || selectedCustomer?.code
         }
       />
+
     </div>
   );
 }

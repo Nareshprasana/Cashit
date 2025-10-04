@@ -953,7 +953,9 @@ export default function AllCustomerTable() {
       
       let statusMatch = true;
       if (statusFilter === "active") {
-        statusMatch = hasActiveLoan || hasOverdueLoan;
+        statusMatch = hasActiveLoan && !hasOverdueLoan; // Active but not overdue
+      } else if (statusFilter === "overdue") {
+        statusMatch = hasOverdueLoan; // Only overdue loans
       } else if (statusFilter === "completed") {
         statusMatch = hasCompletedLoan && !hasActiveLoan && !hasOverdueLoan;
       } else if (statusFilter === "closed") {
@@ -1131,6 +1133,7 @@ export default function AllCustomerTable() {
             </div>
             {showFilters && (
               <div className="grid gap-4 pt-4 border-t md:grid-cols-3">
+                {/* Status Filter with Overdue Option */}
                 <div className="space-y-2">
                   <Label className="text-sm">Status</Label>
                   <select 
@@ -1140,10 +1143,12 @@ export default function AllCustomerTable() {
                   >
                     <option value="">All</option>
                     <option value="active">Active</option>
+                    <option value="overdue">Overdue</option>
                     <option value="completed">Completed</option>
                     <option value="closed">Closed</option>
                   </select>
                 </div>
+
                 <div className="space-y-2">
                   <Label className="text-sm">Area</Label>
                   <Popover open={areaOpen} onOpenChange={setAreaOpen}>
@@ -1173,6 +1178,7 @@ export default function AllCustomerTable() {
                     </PopoverContent>
                   </Popover>
                 </div>
+
                 <div className="space-y-2">
                   <Label className="text-sm">End Date Range</Label>
                   <div className="grid grid-cols-2 gap-2">
