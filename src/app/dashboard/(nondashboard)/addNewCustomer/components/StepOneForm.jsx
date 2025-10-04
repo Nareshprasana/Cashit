@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react"; // Added useRef
 import Image from "next/image";
 import { AddArea } from "../../addArea/Addarea";
 import {
@@ -33,13 +33,19 @@ import {
 
 const StepOneForm = ({
   form,
-  errors = [], // ✅ default empty array
+  errors = [],
   onChange,
   photoPreview,
   setPhotoPreview,
 }) => {
   const [areas, setAreas] = useState([]);
   const [open, setOpen] = useState(false);
+
+  // Create refs for all file inputs
+  const photoInputRef = useRef(null);
+  const aadharInputRef = useRef(null);
+  const incomeInputRef = useRef(null);
+  const residenceInputRef = useRef(null);
 
   useEffect(() => {
     const fetchAreas = async () => {
@@ -87,6 +93,20 @@ const StepOneForm = ({
   const getError = (name) =>
     (errors || []).find((e) => e?.path?.[0] === name)?.message;
 
+  // Function to handle file removal
+  const handleRemoveFile = (inputRef, fileKey, isImage = false) => {
+    // 1. Clear the file input value using the ref
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+    // 2. Clear the preview if it's an image
+    if (isImage) {
+      setPhotoPreview(null);
+    }
+    // 3. Clear the file from the form state
+    onChange({ target: { name: fileKey, value: null } });
+  };
+
   // icon mapping for inputs
   const fieldIcons = {
     customerName: <User size={18} />,
@@ -111,7 +131,11 @@ const StepOneForm = ({
           ["DOB", "dob", { type: "date" }],
           ["Aadhar Number", "aadhar", { maxLength: 12, inputMode: "numeric" }],
           ["Guarantor Name", "guarantorName"],
-          ["Guarantor Aadhar", "guarantorAadhar"],
+          [
+            "Guarantor Aadhar",
+            "guarantorAadhar",
+            { maxLength: 12, inputMode: "numeric" },
+          ],
           ["Customer Code", "customerCode", { readOnly: true }],
         ].map(([label, name, props = {}]) => (
           <div key={name} className="space-y-1">
@@ -261,7 +285,7 @@ const StepOneForm = ({
 
       {/* Uploads */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Photo Upload */}
+        {/* Photo Upload - FIXED */}
         <div
           className="border-2 border-dashed p-6 rounded-md text-center hover:border-blue-500"
           onDragOver={(e) => e.preventDefault()}
@@ -281,12 +305,19 @@ const StepOneForm = ({
               type="file"
               name="photo"
               accept="image/*"
-              onChange={onChange}
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  onChange({ target: { name: "photo", files: [file] } });
+                  setPhotoPreview(URL.createObjectURL(file));
+                }
+              }}
               className="hidden"
+              ref={photoInputRef} // Attach the ref
             />
           </label>
-          {form.photo && (
-            <div className="mt-3 relative">
+          {photoPreview && (
+            <div className="mt-3 relative inline-block">
               <Image
                 src={photoPreview}
                 alt="Preview"
@@ -296,10 +327,7 @@ const StepOneForm = ({
               />
               <button
                 type="button"
-                onClick={() => {
-                  setPhotoPreview(null);
-                  onChange({ target: { name: "photo", files: [] } });
-                }}
+                onClick={() => handleRemoveFile(photoInputRef, "photo", true)} // Use the unified handler
                 className="absolute top-[-8px] right-[-8px] bg-white text-red-500 rounded-full w-5 h-5 shadow flex items-center justify-center"
               >
                 <CircleX size={14} />
@@ -311,53 +339,55 @@ const StepOneForm = ({
           )}
         </div>
 
-        {/* Document Uploads */}
-        {["aadharDocument", "incomeProof", "residenceProof"].map((docKey) => (
+        {/* Document Uploads - FIXED */}
+        {[
+          { key: "aadharDocument", label: "Aadhar", ref: aadharInputRef },
+          { key: "incomeProof", label: "Income Proof", ref: incomeInputRef },
+          {
+            key: "residenceProof",
+            label: "Residence Proof",
+            ref: residenceInputRef,
+          },
+        ].map(({ key, label, ref }) => (
           <div
-            key={docKey}
+            key={key}
             className="border-2 border-dashed p-6 rounded-md text-center hover:border-blue-500"
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
               const file = e.dataTransfer.files[0];
               if (file) {
-                onChange({ target: { name: docKey, value: file } });
+                onChange({ target: { name: key, value: file } });
               }
             }}
           >
             <label className="text-sm font-medium mb-2 block">
               <Upload size={16} className="inline-block mr-1" />
-              {docKey === "aadharDocument"
-                ? "Aadhar"
-                : docKey === "incomeProof"
-                ? "Income Proof"
-                : "Residence Proof"}{" "}
-              Document
+              {label} Document
             </label>
             <label className="cursor-pointer inline-flex px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 gap-2 items-center">
               <Upload size={18} /> Choose File
               <input
                 type="file"
-                name={docKey}
+                name={key}
                 accept=".pdf,.doc,.docx"
                 onChange={(e) => {
                   const file = e.target.files[0];
                   if (file) {
-                    onChange({ target: { name: docKey, value: file } });
+                    onChange({ target: { name: key, value: file } });
                   }
                 }}
                 className="hidden"
+                ref={ref} // Attach the ref
               />
             </label>
 
-            {form[docKey] && (
+            {form[key] && (
               <div className="mt-2 text-sm text-blue-700 flex items-center justify-center gap-2">
-                📄 {form[docKey]?.name}
+                📄 {form[key]?.name}
                 <button
                   type="button"
-                  onClick={() =>
-                    onChange({ target: { name: docKey, value: null } })
-                  }
+                  onClick={() => handleRemoveFile(ref, key)} // Use the unified handler
                   className="text-red-600"
                 >
                   <CircleX size={16} />
@@ -365,8 +395,8 @@ const StepOneForm = ({
               </div>
             )}
 
-            {getError(docKey) && (
-              <p className="text-xs text-red-500 mt-2">* {getError(docKey)}</p>
+            {getError(key) && (
+              <p className="text-xs text-red-500 mt-2">* {getError(key)}</p>
             )}
           </div>
         ))}
@@ -376,20 +406,7 @@ const StepOneForm = ({
       <div className="text-right">
         <button
           type="submit"
-          disabled={
-            !form.aadharDocument ||
-            !form.incomeProof ||
-            !form.residenceProof ||
-            !form.photo
-          }
-          className={`px-6 py-2 rounded shadow flex items-center justify-center gap-2 ${
-            form.aadharDocument &&
-            form.incomeProof &&
-            form.residenceProof &&
-            form.photo
-              ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-gray-400 text-gray-200 cursor-not-allowed"
-          }`}
+          className="px-6 py-2 rounded shadow flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700"
         >
           Next Step →
         </button>

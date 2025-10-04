@@ -68,28 +68,49 @@ export const CustomerSchema = z.object({
   // Document uploads (PDF/DOC/DOCX)
   aadharDocument: z
     .any()
-    .refine((file) => file instanceof File && file.size <= MAX_FILE_SIZE, {
-      message: "Aadhar Document must be less than 10MB",
-    })
-    .refine((file) => ACCEPTED_DOC_TYPES.includes(file.type), {
-      message: "Only PDF or DOC files allowed for Aadhar Document",
-    }),
+    .refine(
+      (file) => !file || (file instanceof File && file.size <= MAX_FILE_SIZE),
+      {
+        message: "Aadhar Document must be less than 10MB",
+      }
+    )
+    .refine(
+      (file) => !file || ACCEPTED_DOC_TYPES.includes(file.type),
+      {
+        message: "Only PDF or DOC files allowed for Aadhar Document",
+      }
+    )
+    .optional(),
 
   incomeProof: z
     .any()
-    .refine((file) => file instanceof File && file.size <= MAX_FILE_SIZE, {
-      message: "Income Proof must be less than 10MB",
-    })
-    .refine((file) => ACCEPTED_DOC_TYPES.includes(file.type), {
-      message: "Only PDF or DOC files allowed for Income Proof",
-    }),
+    .refine(
+      (file) => !file || (file instanceof File && file.size <= MAX_FILE_SIZE),
+      {
+        message: "Income Proof must be less than 10MB",
+      }
+    )
+    .refine(
+      (file) => !file || ACCEPTED_DOC_TYPES.includes(file.type),
+      {
+        message: "Only PDF or DOC files allowed for Income Proof",
+      }
+    )
+    .optional(),
 
   residenceProof: z
     .any()
-    .refine((file) => file instanceof File && file.size <= MAX_FILE_SIZE, {
-      message: "Residence Proof must be less than 10MB",
-    })
-    .refine((file) => ACCEPTED_DOC_TYPES.includes(file.type), {
-      message: "Only PDF or DOC files allowed for Residence Proof",
-    }),
+    .refine(
+      (file) => !file || (file instanceof File && file.size <= MAX_FILE_SIZE),
+      {
+        message: "Residence Proof must be less than 10MB",
+      }
+    )
+    .refine(
+      (file) => !file || ACCEPTED_DOC_TYPES.includes(file.type),
+      {
+        message: "Only PDF or DOC files allowed for Residence Proof",
+      }
+    )
+    .optional(),
 });
