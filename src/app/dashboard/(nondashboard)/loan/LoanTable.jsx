@@ -1,9 +1,9 @@
 /* -----------------------------------------------------------------
-   LoanTable.jsx - Updated Component with Overdue Column
+   LoanTable.jsx - Fixed Hydration & Overdue Display
 ----------------------------------------------------------------- */
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Search,
   Filter,
@@ -70,6 +70,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+/* ------------------- CLIENT ONLY WRAPPER ------------------- */
+const ClientOnly = ({ children, fallback = null }) => {
+  const [isClient, setIsClient] = useState(false);
+  
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
+  return isClient ? children : fallback;
+};
+
 /* ------------------- STATUS BADGE ------------------- */
 const StatusBadge = ({ status, pendingAmount }) => {
   const actualStatus = status || (pendingAmount > 0 ? "ACTIVE" : "CLOSED");
@@ -97,24 +108,53 @@ const StatusBadge = ({ status, pendingAmount }) => {
   }
 };
 
-/* ------------------- HELPER FUNCTION FOR OVERDUE CALCULATION ------------------- */
-const calculateEndDate = (loanDate, tenure) => {
-  if (!loanDate || tenure == null) return null;
-  const d = new Date(loanDate);
-  d.setMonth(d.getMonth() + Number(tenure));
-  return d;
+/* ------------------- ROBUST HELPER FOR OVERDUE CALCULATION ------------------- */
+const calculateOverdueDays = (loanDate, tenure) => {
+  if (!loanDate || tenure == null || isNaN(Number(tenure))) {
+    return null;
+  }
+
+  try {
+    let startDate;
+    if (typeof loanDate === 'string' || typeof loanDate === 'number') {
+      startDate = new Date(loanDate);
+    } else if (loanDate instanceof Date) {
+      startDate = loanDate;
+    } else {
+      return null;
+    }
+
+    if (isNaN(startDate.getTime())) {
+      return null;
+    }
+
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + Number(tenure));
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const comparisonEndDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+    
+    const timeDiff = today.getTime() - comparisonEndDate.getTime();
+    const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+    
+    return daysDiff > 0 ? daysDiff : 0;
+  } catch (error) {
+    return null;
+  }
 };
 
 /* -------------------------------------------------
-   LoanTable Component with Customer Filtering and Overdue Column
+   LoanTable Component with Fixed Hydration
 ------------------------------------------------- */
 const LoanTable = ({
   loans = [],
   loading,
-  selectedCustomerCode, // Filter by specific customer
+  selectedCustomerCode,
 }) => {
   const [globalFilter, setGlobalFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ACTIVE");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [overdueFilter, setOverdueFilter] = useState("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -133,7 +173,7 @@ const LoanTable = ({
     loanAmount: "",
     pendingAmount: "",
     rate: "",
-    tenure: "", // Added tenure for overdue calculation
+    tenure: "",
     loanDate: new Date().toISOString().split("T")[0],
   });
 
@@ -154,6 +194,22 @@ const LoanTable = ({
     };
   }, [loans]);
 
+  /* 👈 Client-only computed loans with overdue */
+  const computedLoans = useMemo(() => {
+    return loans.map(loan => {
+      const overdueDays = calculateOverdueDays(loan.loanDate, loan.tenure);
+      const hasPendingAmount = (loan.pendingAmount || 0) > 0;
+      const isPastDueDate = (overdueDays || 0) > 0;
+      const isOverdue = hasPendingAmount && isPastDueDate;
+      
+      return {
+        ...loan,
+        overdueDays,
+        isOverdue
+      };
+    });
+  }, [loans]);
+
   /* ------------ DIALOG HANDLERS ------------ */
   const openDialog = (loan = null) => {
     setEditingLoan(loan);
@@ -165,7 +221,7 @@ const LoanTable = ({
         loanAmount: loan.loanAmount || "",
         pendingAmount: loan.pendingAmount || "",
         rate: loan.rate || "",
-        tenure: loan.tenure || "", // Added tenure
+        tenure: loan.tenure || "",
         loanDate: loan.loanDate
           ? new Date(loan.loanDate).toISOString().split("T")[0]
           : new Date().toISOString().split("T")[0],
@@ -191,10 +247,8 @@ const LoanTable = ({
   const handleSave = () => {
     if (editingLoan) {
       console.log("Update loan:", { id: editingLoan.id, ...form });
-      // TODO: call API PUT /api/loans/:id
     } else {
       console.log("Create new loan:", form);
-      // TODO: call API POST /api/loans
     }
     setShowDialog(false);
   };
@@ -206,12 +260,11 @@ const LoanTable = ({
       )
     ) {
       console.log("Delete loan:", loan.id);
-      // TODO: call API DELETE /api/loans/:id
     }
   };
 
   /* ------------------- SORTING ------------------- */
-  const sortedLoans = [...loans].sort((a, b) => {
+  const sortedLoans = [...computedLoans].sort((a, b) => {
     let aValue, bValue;
 
     if (sortField.includes("customer.")) {
@@ -231,36 +284,54 @@ const LoanTable = ({
     return sortDirection === "asc" ? aValue - bValue : bValue - aValue;
   });
 
-  /* ------------------- FILTERING ------------------- */
-  const filteredLoans = sortedLoans.filter((loan) => {
-    /* ---- 1️⃣ FILTER BY SELECTED CUSTOMER CODE ---- */
-    if (selectedCustomerCode) {
-      const loanCode = loan.customer?.customerCode || loan.customer?.code;
-      if (loanCode !== selectedCustomerCode) return false;
-    }
+  /* ------------------- COMPLETELY SEPARATED FILTERING LOGIC ------------------- */
+  const filteredLoans = useMemo(() => {
+    return sortedLoans.filter((loan) => {
+      // Customer code filter
+      if (selectedCustomerCode) {
+        const loanCode = loan.customer?.customerCode || loan.customer?.code;
+        if (loanCode !== selectedCustomerCode) return false;
+      }
 
-    /* ---- 2️⃣ GLOBAL TEXT SEARCH ---- */
-    const custName = loan.customer?.name || "";
-    const custCode = loan.customer?.customerCode || loan.customer?.code || "";
-    const aadhar = loan.customer?.aadhar || "";
+      // Global search filter
+      const custName = loan.customer?.name || "";
+      const custCode = loan.customer?.customerCode || loan.customer?.code || "";
+      const aadhar = loan.customer?.aadhar || "";
 
-    const matchesGlobal =
-      !globalFilter ||
-      custName.toLowerCase().includes(globalFilter.toLowerCase()) ||
-      custCode.toLowerCase().includes(globalFilter.toLowerCase()) ||
-      aadhar.includes(globalFilter);
+      const matchesGlobal =
+        !globalFilter ||
+        custName.toLowerCase().includes(globalFilter.toLowerCase()) ||
+        custCode.toLowerCase().includes(globalFilter.toLowerCase()) ||
+        aadhar.includes(globalFilter);
 
-    /* ---- 3️⃣ STATUS FILTER ---- */
-    const loanStatus = loan.status || (loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED");
-    const matchesStatus = statusFilter === "ALL" || loanStatus === statusFilter;
+      if (!matchesGlobal) return false;
 
-    /* ---- 4️⃣ DATE RANGE FILTER ---- */
-    const loanDate = loan.loanDate ? new Date(loan.loanDate) : null;
-    const matchesFrom = !fromDate || (loanDate && loanDate >= new Date(fromDate));
-    const matchesTo = !toDate || (loanDate && loanDate <= new Date(toDate + "T23:59:59"));
+      // Independent status filter
+      const loanStatus = loan.status || (loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED");
+      const matchesStatus = statusFilter === "ALL" || loanStatus === statusFilter;
 
-    return matchesGlobal && matchesStatus && matchesFrom && matchesTo;
-  });
+      if (!matchesStatus) return false;
+
+      // Date filters
+      const loanDate = loan.loanDate ? new Date(loan.loanDate) : null;
+      const matchesFrom = !fromDate || (loanDate && loanDate >= new Date(fromDate));
+      const matchesTo = !toDate || (loanDate && loanDate <= new Date(toDate + "T23:59:59"));
+
+      if (!matchesFrom || !matchesTo) return false;
+
+      // Completely independent overdue filter
+      let matchesOverdue = true;
+      if (overdueFilter !== "ALL") {
+        if (overdueFilter === "YES") {
+          matchesOverdue = loan.isOverdue === true;
+        } else if (overdueFilter === "NO") {
+          matchesOverdue = loan.isOverdue === false;
+        }
+      }
+
+      return matchesOverdue;
+    });
+  }, [sortedLoans, selectedCustomerCode, globalFilter, statusFilter, fromDate, toDate, overdueFilter]);
 
   /* ------------------- PAGINATION ------------------- */
   const totalPages = Math.max(1, Math.ceil(filteredLoans.length / rowsPerPage));
@@ -390,7 +461,15 @@ const LoanTable = ({
           </h1>
           <p className="text-gray-600">Manage and track all customer loans</p>
         </div>
-        
+        <ClientOnly>
+          <Button 
+            onClick={() => openDialog()} 
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            New Loan
+          </Button>
+        </ClientOnly>
       </div>
 
       {/* ----- Stats Cards ----- */}
@@ -446,15 +525,17 @@ const LoanTable = ({
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardTitle>Loan Records</CardTitle>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2"
-              >
-                <Filter className="h-4 w-4" />
-                Filters
-                {showFilters && <X className="h-4 w-4" />}
-              </Button>
+              <ClientOnly>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center gap-2"
+                >
+                  <Filter className="h-4 w-4" />
+                  Filters
+                  {showFilters && <X className="h-4 w-4" />}
+                </Button>
+              </ClientOnly>
             </div>
           </div>
         </CardHeader>
@@ -472,84 +553,115 @@ const LoanTable = ({
           </div>
 
           {/* ----- Advanced Filters ----- */}
-          {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg mb-4">
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Status</SelectItem>
-                    <SelectItem value="ACTIVE">Active</SelectItem>
-                    <SelectItem value="CLOSED">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <ClientOnly
+            fallback={
+              showFilters && (
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg mb-4">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="space-y-2">
+                      <Label className="invisible">Placeholder</Label>
+                      <div className="h-10 bg-gray-200 animate-pulse rounded-md" />
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+          >
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg mb-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Status</SelectItem>
+                      <SelectItem value="ACTIVE">Active</SelectItem>
+                      <SelectItem value="CLOSED">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>From Date</Label>
-                <Input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label>Overdue</Label>
+                  <Select value={overdueFilter} onValueChange={setOverdueFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All</SelectItem>
+                      <SelectItem value="YES">Yes</SelectItem>
+                      <SelectItem value="NO">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>To Date</Label>
-                <Input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label>From Date</Label>
+                  <Input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label>Rows per page</Label>
-                <Select 
-                  value={rowsPerPage.toString()} 
-                  onValueChange={(value) => {
-                    setRowsPerPage(Number(value));
-                    setCurrentPage(1);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="10" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Label>To Date</Label>
+                  <Input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Rows per page</Label>
+                  <Select 
+                    value={rowsPerPage.toString()} 
+                    onValueChange={(value) => {
+                      setRowsPerPage(Number(value));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="10" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </ClientOnly>
 
           {/* ----- Customer Filter Notice ----- */}
-          {selectedCustomerCode && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm text-blue-800">
-                    Showing loans for customer: <strong>{selectedCustomerCode}</strong>
-                  </span>
+          <ClientOnly>
+            {selectedCustomerCode && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm text-blue-800">
+                      Showing loans for customer: <strong>{selectedCustomerCode}</strong>
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => window.location.reload()}
+                    className="h-6 text-blue-600 hover:text-blue-800"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => window.location.reload()} // Or however you clear the filter
-                  className="h-6 text-blue-600 hover:text-blue-800"
-                >
-                  <X className="h-3 w-3" />
-                </Button>
               </div>
-            </div>
-          )}
+            )}
+          </ClientOnly>
 
           {/* ----- Loan Table ----- */}
           <div className="rounded-md border">
@@ -612,15 +724,27 @@ const LoanTable = ({
                 </TableRow>
               </TableHeader>
 
-              <TableBody>
-                {paginatedLoans.map((loan) => {
-                  // Calculate overdue days
-                  const endDate = calculateEndDate(loan.loanDate, loan.tenure);
-                  const overdueDays = endDate
-                    ? Math.floor((Date.now() - endDate) / (1000 * 60 * 60 * 24))
-                    : null;
-
-                  return (
+              <ClientOnly
+                fallback={
+                  <TableBody>
+                    {Array.from({ length: Math.min(10, rowsPerPage) }).map((_, i) => (
+                      <TableRow key={`skeleton-${i}`} className="animate-pulse">
+                        <TableCell><div className="h-4 bg-gray-200 rounded w-16" /></TableCell>
+                        <TableCell><div className="h-4 bg-gray-200 rounded w-32" /></TableCell>
+                        <TableCell><div className="h-4 bg-gray-200 rounded w-24" /></TableCell>
+                        <TableCell className="text-right"><div className="h-4 bg-gray-200 rounded w-20 inline-block" /></TableCell>
+                        <TableCell className="text-right"><div className="h-4 bg-gray-200 rounded w-20 inline-block" /></TableCell>
+                        <TableCell><div className="h-4 bg-gray-200 rounded w-20" /></TableCell>
+                        <TableCell><div className="h-6 w-20 bg-gray-200 rounded" /></TableCell>
+                        <TableCell><div className="h-6 w-24 bg-gray-200 rounded" /></TableCell>
+                        <TableCell className="text-right"><div className="h-8 w-16 bg-gray-200 rounded inline-block" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                }
+              >
+                <TableBody>
+                  {paginatedLoans.map((loan) => (
                     <TableRow key={loan.id} className="hover:bg-gray-50">
                       <TableCell className="font-medium">
                         {loan.customer?.customerCode || loan.customer?.code}
@@ -656,15 +780,17 @@ const LoanTable = ({
                         />
                       </TableCell>
                       <TableCell>
-                        {overdueDays && overdueDays > 0 ? (
-                          <Badge variant="destructive" className="flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            {overdueDays} days
-                          </Badge>
+                        {loan.overdueDays !== null ? (
+                          loan.isOverdue ? (
+                            <Badge variant="destructive" className="flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              {loan.overdueDays} days
+                            </Badge>
+                          ) : (
+                            <span className="text-green-600 text-xs font-medium">On time</span>
+                          )
                         ) : (
-                          <span className="text-green-600 text-xs font-medium">
-                            {endDate ? "On time" : "N/A"}
-                          </span>
+                          <span className="text-gray-500 text-xs italic">Missing data</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -688,189 +814,202 @@ const LoanTable = ({
                         </div>
                       </TableCell>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
+                  ))}
+                </TableBody>
+              </ClientOnly>
             </Table>
           </div>
 
           {/* ----- Pagination ----- */}
-          {filteredLoans.length > 0 && (
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4">
-              <div className="text-sm text-gray-600">
-                Showing{" "}
-                {((currentPage - 1) * rowsPerPage) + 1} to{" "}
-                {Math.min(currentPage * rowsPerPage, filteredLoans.length)} of{" "}
-                {filteredLoans.length} entries
+          <ClientOnly>
+            {filteredLoans.length > 0 && (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4">
+                <div className="text-sm text-gray-600">
+                  Showing{" "}
+                  {((currentPage - 1) * rowsPerPage) + 1} to{" "}
+                  {Math.min(currentPage * rowsPerPage, filteredLoans.length)} of{" "}
+                  {filteredLoans.length} entries
+                </div>
+
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setCurrentPage(Math.max(1, currentPage - 1));
+                        }}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+
+                    {renderPageWindow()}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setCurrentPage(Math.min(totalPages, currentPage + 1));
+                        }}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
               </div>
+            )}
 
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setCurrentPage(Math.max(1, currentPage - 1));
-                      }}
-                      className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-                    />
-                  </PaginationItem>
-
-                  {renderPageWindow()}
-
-                  <PaginationItem>
-                    <PaginationNext
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setCurrentPage(Math.min(totalPages, currentPage + 1));
-                      }}
-                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </div>
-          )}
-
-          {/* ----- Empty State ----- */}
-          {filteredLoans.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              <Search className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No loans found matching your criteria</p>
-              {selectedCustomerCode && (
+            {filteredLoans.length === 0 && (
+              <div className="text-center py-12 text-gray-500">
+                <Search className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No loans found matching your criteria</p>
+                {selectedCustomerCode && (
+                  <p className="text-sm mt-2">
+                    No loans found for customer code: <strong>{selectedCustomerCode}</strong>
+                  </p>
+                )}
+                {(statusFilter !== "ALL" || overdueFilter !== "ALL") && (
+                  <p className="text-sm mt-2">
+                    Current filters: 
+                    {statusFilter !== "ALL" && ` Status: ${statusFilter}`}
+                    {overdueFilter !== "ALL" && ` Overdue: ${overdueFilter}`}
+                  </p>
+                )}
                 <p className="text-sm mt-2">
-                  No loans found for customer code: <strong>{selectedCustomerCode}</strong>
+                  Total loans available: {loans.length}
                 </p>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </ClientOnly>
         </CardContent>
       </Card>
 
       {/* ----- Edit/Create Dialog ----- */}
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl">
-              {editingLoan ? "Edit Loan Details" : "Create New Loan"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingLoan ? "Update the loan information below." : "Fill in the details to create a new loan."}
-            </DialogDescription>
-          </DialogHeader>
+      <ClientOnly>
+        <Dialog open={showDialog} onOpenChange={setShowDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl">
+                {editingLoan ? "Edit Loan Details" : "Create New Loan"}
+              </DialogTitle>
+              <DialogDescription>
+                {editingLoan ? "Update the loan information below." : "Fill in the details to create a new loan."}
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="customerName">Customer Name</Label>
-              <Input
-                id="customerName"
-                name="customerName"
-                value={form.customerName}
-                onChange={handleChange}
-                placeholder="Enter customer name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="customerCode">Customer Code</Label>
-              <Input
-                id="customerCode"
-                name="customerCode"
-                value={form.customerCode}
-                onChange={handleChange}
-                placeholder="Enter customer code"
-                disabled
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="aadhar">Aadhar Number</Label>
-              <Input
-                id="aadhar"
-                name="aadhar"
-                value={form.aadhar}
-                onChange={handleChange}
-                placeholder="Enter Aadhar number"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="loanAmount">Loan Amount</Label>
+                <Label htmlFor="customerName">Customer Name</Label>
                 <Input
-                  id="loanAmount"
-                  name="loanAmount"
-                  type="number"
-                  value={form.loanAmount}
+                  id="customerName"
+                  name="customerName"
+                  value={form.customerName}
                   onChange={handleChange}
-                  placeholder="0.00"
+                  placeholder="Enter customer name"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="pendingAmount">Pending Amount</Label>
+                <Label htmlFor="customerCode">Customer Code</Label>
                 <Input
-                  id="pendingAmount"
-                  name="pendingAmount"
-                  type="number"
-                  value={form.pendingAmount}
+                  id="customerCode"
+                  name="customerCode"
+                  value={form.customerCode}
                   onChange={handleChange}
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="rate">Interest Rate (%)</Label>
-                <Input
-                  id="rate"
-                  name="rate"
-                  type="number"
-                  value={form.rate}
-                  onChange={handleChange}
-                  placeholder="0.00"
-                  step="0.01"
+                  placeholder="Enter customer code"
+                  disabled
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="tenure">Tenure (months)</Label>
+                <Label htmlFor="aadhar">Aadhar Number</Label>
                 <Input
-                  id="tenure"
-                  name="tenure"
-                  type="number"
-                  value={form.tenure}
+                  id="aadhar"
+                  name="aadhar"
+                  value={form.aadhar}
                   onChange={handleChange}
-                  placeholder="12"
+                  placeholder="Enter Aadhar number"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="loanAmount">Loan Amount</Label>
+                  <Input
+                    id="loanAmount"
+                    name="loanAmount"
+                    type="number"
+                    value={form.loanAmount}
+                    onChange={handleChange}
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="pendingAmount">Pending Amount</Label>
+                  <Input
+                    id="pendingAmount"
+                    name="pendingAmount"
+                    type="number"
+                    value={form.pendingAmount}
+                    onChange={handleChange}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="rate">Interest Rate (%)</Label>
+                  <Input
+                    id="rate"
+                    name="rate"
+                    type="number"
+                    value={form.rate}
+                    onChange={handleChange}
+                    placeholder="0.00"
+                    step="0.01"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="tenure">Tenure (months)</Label>
+                  <Input
+                    id="tenure"
+                    name="tenure"
+                    type="number"
+                    value={form.tenure}
+                    onChange={handleChange}
+                    placeholder="12"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="loanDate">Loan Date</Label>
+                <Input
+                  id="loanDate"
+                  name="loanDate"
+                  type="date"
+                  value={form.loanDate}
+                  onChange={handleChange}
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="loanDate">Loan Date</Label>
-              <Input
-                id="loanDate"
-                name="loanDate"
-                type="date"
-                value={form.loanDate}
-                onChange={handleChange}
-              />
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
+                {editingLoan ? "Update Loan" : "Create Loan"}
+              </Button>
             </div>
-          </div>
-
-          <div className="mt-6 flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setShowDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
-              {editingLoan ? "Update Loan" : "Create Loan"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      </ClientOnly>
     </div>
   );
 };

@@ -993,8 +993,9 @@ function SimpleTable({ columns, data }) {
 }
 
 /* ================= Main Component ================= */
-export default function RepaymentTable() {
-  const [repayments, setRepayments] = useState([]);
+export default function RepaymentTable({ repayments: propRepayments = [] }) {
+  // Use prop repayments if provided, otherwise use internal state
+  const [internalRepayments, setInternalRepayments] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
@@ -1002,7 +1003,7 @@ export default function RepaymentTable() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!propRepayments); // Only load if no props provided
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "ascending" });
   const [urlFilters, setUrlFilters] = useState({ area: "", customer: "" });
   const [currentPage, setCurrentPage] = useState(1);
@@ -1010,6 +1011,9 @@ export default function RepaymentTable() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [loans, setLoans] = useState([]);
+
+  // Use prop repayments if provided, otherwise use internal state
+  const repayments = propRepayments.length > 0 ? propRepayments : internalRepayments;
 
   const totalItems = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
@@ -1038,14 +1042,14 @@ export default function RepaymentTable() {
     try {
       setLoading(true);
       
-      // Fetch repayments, customers, and loans in parallel
+      // Only fetch repayments if no prop repayments provided
       const [repaymentsRes, customersRes, loansRes] = await Promise.all([
-        fetch("/api/repayments"),
+        propRepayments.length === 0 ? fetch("/api/repayments") : Promise.resolve({ json: () => Promise.resolve([]) }),
         fetch("/api/customers"),
         fetch("/api/loans")
       ]);
 
-      const repaymentsData = await repaymentsRes.json();
+      const repaymentsData = propRepayments.length === 0 ? await repaymentsRes.json() : [];
       const customersData = await customersRes.json();
       const loansData = await loansRes.json();
       
@@ -1057,8 +1061,11 @@ export default function RepaymentTable() {
       }
       console.log("=== END DEBUG ===");
       
-      setRepayments(repaymentsData);
-      setFiltered(repaymentsData);
+      // Only set internal repayments if no props provided
+      if (propRepayments.length === 0) {
+        setInternalRepayments(repaymentsData);
+        setFiltered(repaymentsData);
+      }
       setCustomers(customersData);
       setLoans(loansData);
     } catch (error) {
@@ -1068,24 +1075,55 @@ export default function RepaymentTable() {
     }
   };
 
+  // Update state functions to work with both scenarios
   const updateRepaymentInState = (updatedRepayment) => {
-    setRepayments((prev) => prev.map((r) => r.id === updatedRepayment.id ? updatedRepayment : r));
+    if (propRepayments.length > 0) {
+      // If using props, we can't update internal state
+      // The parent component should handle updates
+      console.log("Repayment updated (prop mode):", updatedRepayment);
+    } else {
+      setInternalRepayments((prev) => prev.map((r) => r.id === updatedRepayment.id ? updatedRepayment : r));
+    }
     setFiltered((prev) => prev.map((r) => r.id === updatedRepayment.id ? updatedRepayment : r));
   };
 
   const deleteRepaymentFromState = (repaymentId) => {
-    setRepayments((prev) => prev.filter((r) => r.id !== repaymentId));
+    if (propRepayments.length > 0) {
+      // If using props, the parent component should handle deletions
+      console.log("Repayment deleted (prop mode):", repaymentId);
+    } else {
+      setInternalRepayments((prev) => prev.filter((r) => r.id !== repaymentId));
+    }
     setFiltered((prev) => prev.filter((r) => r.id !== repaymentId));
   };
 
   const addRepaymentToState = (newRepayment) => {
-    setRepayments((prev) => [newRepayment, ...prev]);
+    if (propRepayments.length > 0) {
+      // If using props, the parent component should handle additions
+      console.log("Repayment added (prop mode):", newRepayment);
+    } else {
+      setInternalRepayments((prev) => [newRepayment, ...prev]);
+    }
     setFiltered((prev) => [newRepayment, ...prev]);
   };
 
+  // Only fetch data if no prop repayments provided
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (propRepayments.length === 0) {
+      fetchData();
+    } else {
+      // If props provided, use them directly
+      setFiltered(propRepayments);
+      setLoading(false);
+    }
+  }, [propRepayments]);
+
+  /* ---------- Sync filtered state with repayments prop ---------- */
+  useEffect(() => {
+    if (propRepayments.length > 0) {
+      setFiltered(propRepayments);
+    }
+  }, [propRepayments]);
 
   /* ---------- reset page on filter change ---------- */
   useEffect(() => {

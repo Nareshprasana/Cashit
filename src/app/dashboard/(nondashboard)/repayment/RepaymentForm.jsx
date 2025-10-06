@@ -247,15 +247,21 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
           pendingAmount: formData.pendingAmount,
           dueDate: formData.dueDate,
           loanId: formData.loanId,
+          customerId: customerDetails?.id,
+          customerCode: formData.customerCode,
         }),
       });
+      
       if (!res.ok) throw new Error("Failed to save repayment");
-      await res.json();
+      
+      // Get the complete repayment data from the response
+      const newRepayment = await res.json();
+      
       toast.success("Repayment added successfully!");
       
-      // Call the refresh callback if provided
+      // Pass the complete repayment object to parent instead of just calling the function
       if (onRepaymentSaved) {
-        onRepaymentSaved();
+        onRepaymentSaved(newRepayment);
       }
       
       handleClear();

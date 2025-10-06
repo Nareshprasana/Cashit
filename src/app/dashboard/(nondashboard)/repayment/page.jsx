@@ -1,49 +1,47 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { useParams } from "next/navigation";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import dynamic from "next/dynamic";
 import RepaymentTable from "../repayments/RepaymentTable";
 
-// ✅ Load components client-side only (avoid hydration mismatch)
-const RepaymentForm = dynamic(() => import("./RepaymentForm"), {
-  ssr: false,
-});
-const AllCustomerTable = dynamic(
-  () => import("@/components/AllCustomerTable"),
-  {
-    ssr: false,
-  }
-);
+// ✅ Load components client-side only
+const RepaymentForm = dynamic(() => import("./RepaymentForm"), { ssr: false });
+const AllCustomerTable = dynamic(() => import("@/components/AllCustomerTable"), { ssr: false });
 
 const user = { name: "Admin", image: "/profile-user.png", isLoggedIn: true };
 
 const RepaymentFormPage = () => {
-  const { customerId } = useParams(); // get ID from URL
+  const { customerId } = useParams();
+  
+  // 1. Create state to hold the list of repayments
+  const [repayments, setRepayments] = useState([]);
 
-  const handleFilterChange = ({ area, customerCode }) => {
-    setFilters({ area, customer: customerCode });
+  // 2. Function to add a new repayment to the state
+  const handleNewRepayment = (newRepayment) => {
+    // Add the new repayment to the beginning of the array so it appears first
+    setRepayments(prevRepayments => [newRepayment, ...prevRepayments]);
   };
 
-  const handleRepaymentSaved = () => {
-    console.log("Repayment saved");
-    // Optionally trigger a data refresh for the table
+  const handleFilterChange = ({ area, customerCode }) => {
+    // Your existing filter logic
+    console.log({ area, customerCode });
   };
 
   return (
     <SidebarProvider>
       <div className="p-6">
         <div>
-          {/* Pass customerId to the form */}
+          {/* 3. Pass the update function to the form */}
           <RepaymentForm
             customerId={customerId}
-            onRepaymentSaved={handleRepaymentSaved}
+            onRepaymentSaved={handleNewRepayment} // Use the new state updater
             onFilterChange={handleFilterChange}
           />
         </div>
         <div>
-          {/* <AllCustomerTable /> */}
-          <RepaymentTable/>
+          {/* 4. Pass the current repayment state down to the table */}
+          <RepaymentTable repayments={repayments} />
         </div>
       </div>
     </SidebarProvider>
