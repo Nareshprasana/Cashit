@@ -108,6 +108,24 @@ const StatusBadge = ({ status, pendingAmount }) => {
   }
 };
 
+/* ------------------- OVERDUE BADGE ------------------- */
+const OverdueBadge = ({ isOverdue, overdueDays }) => {
+  if (isOverdue) {
+    return (
+      <Badge variant="destructive" className="flex items-center gap-1">
+        <AlertCircle className="h-3 w-3" />
+        Overdue {overdueDays} days
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="flex items-center gap-1">
+      <CheckCircle className="h-3 w-3 text-green-600" />
+      On Time
+    </Badge>
+  );
+};
+
 /* ------------------- ROBUST HELPER FOR OVERDUE CALCULATION ------------------- */
 const calculateOverdueDays = (loanDate, tenure) => {
   if (!loanDate || tenure == null || isNaN(Number(tenure))) {
@@ -322,9 +340,9 @@ const LoanTable = ({
       // Completely independent overdue filter
       let matchesOverdue = true;
       if (overdueFilter !== "ALL") {
-        if (overdueFilter === "YES") {
+        if (overdueFilter === "OVERDUE") {
           matchesOverdue = loan.isOverdue === true;
-        } else if (overdueFilter === "NO") {
+        } else if (overdueFilter === "ON_TIME") {
           matchesOverdue = loan.isOverdue === false;
         }
       }
@@ -436,6 +454,15 @@ const LoanTable = ({
     }
 
     return items;
+  };
+
+  /* Helper to display filter value */
+  const getOverdueFilterDisplay = (value) => {
+    switch (value) {
+      case "OVERDUE": return "Overdue";
+      case "ON_TIME": return "On Time";
+      default: return "All";
+    }
   };
 
   /* ------------------- LOADING STATE ------------------- */
@@ -584,15 +611,25 @@ const LoanTable = ({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Overdue</Label>
+                  <Label>Payment Status</Label>
                   <Select value={overdueFilter} onValueChange={setOverdueFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All" />
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select Payment Status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">All</SelectItem>
-                      <SelectItem value="YES">Yes</SelectItem>
-                      <SelectItem value="NO">No</SelectItem>
+                      <SelectItem value="OVERDUE">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 text-red-500" />
+                          Overdue
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="ON_TIME">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          On Time
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -718,7 +755,7 @@ const LoanTable = ({
 
                   <TableHead>Status</TableHead>
 
-                  <TableHead>Overdue</TableHead>
+                  <TableHead>Payment Status</TableHead>
 
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -781,14 +818,10 @@ const LoanTable = ({
                       </TableCell>
                       <TableCell>
                         {loan.overdueDays !== null ? (
-                          loan.isOverdue ? (
-                            <Badge variant="destructive" className="flex items-center gap-1">
-                              <AlertCircle className="h-3 w-3" />
-                              {loan.overdueDays} days
-                            </Badge>
-                          ) : (
-                            <span className="text-green-600 text-xs font-medium">On time</span>
-                          )
+                          <OverdueBadge
+                            isOverdue={loan.isOverdue}
+                            overdueDays={loan.overdueDays}
+                          />
                         ) : (
                           <span className="text-gray-500 text-xs italic">Missing data</span>
                         )}
@@ -874,7 +907,7 @@ const LoanTable = ({
                   <p className="text-sm mt-2">
                     Current filters: 
                     {statusFilter !== "ALL" && ` Status: ${statusFilter}`}
-                    {overdueFilter !== "ALL" && ` Overdue: ${overdueFilter}`}
+                    {overdueFilter !== "ALL" && ` Payment Status: ${getOverdueFilterDisplay(overdueFilter)}`}
                   </p>
                 )}
                 <p className="text-sm mt-2">

@@ -215,7 +215,7 @@ const LoanCard = ({ loan, index, status, onEdit, onDelete, onUpload }) => {
   );
 };
 
-// Helper function to calculate loan status
+// IMPROVED Helper function to calculate loan status
 const getLoanStatus = (loan) => {
   // First check if there's an explicit status from the database
   if (loan.status === 'CLOSED' || loan.status === 'ACTIVE' || loan.status === 'OVERDUE' || loan.status === 'COMPLETED') {
@@ -239,6 +239,24 @@ const getLoanStatus = (loan) => {
   else {
     return 'ACTIVE';
   }
+};
+
+// NEW: Enhanced function to get customer's overall status for filtering
+const getCustomerOverallStatus = (customerLoansList) => {
+  if (!customerLoansList || customerLoansList.length === 0) {
+    return 'NO_LOANS';
+  }
+  
+  const hasOverdueLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'OVERDUE');
+  const hasActiveLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'ACTIVE');
+  const hasCompletedLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'COMPLETED');
+  
+  // Priority: Overdue > Active > Completed
+  if (hasOverdueLoan) return 'OVERDUE';
+  if (hasActiveLoan) return 'ACTIVE';
+  if (hasCompletedLoan) return 'COMPLETED';
+  
+  return 'CLOSED';
 };
 
 export default function AllCustomerTable() {
@@ -328,34 +346,34 @@ export default function AllCustomerTable() {
         setData(customers);
         setAvailableAreas([...new Set(customers.map((c) => c.area).filter(Boolean))]);
 
-        // Organize loans by customer ID - FIXED VERSION
+        // Organize loans by multiple possible customer keys so lookups are robust
         const loansByCustomer = {};
         loans.forEach(loan => {
-          // Use customerId directly from loan object
-          const customerId = loan.customerId;
-          if (customerId) {
-            if (!loansByCustomer[customerId]) {
-              loansByCustomer[customerId] = [];
-            }
-            
-            // Calculate loan status and pending amount
-            const pendingAmount = loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
-            const status = getLoanStatus(loan);
-            
-            console.log(`Loan ${loan.id}: amount=${loan.amount}, totalPaid=${loan.totalPaid}, pending=${pendingAmount}, status=${status}`);
-            
-            loansByCustomer[customerId].push({
-              ...loan,
-              // Ensure all required fields are present
-              documentUrl: loan.documentUrl || null,
-              status: status,
-              amount: loan.amount || loan.loanAmount || 0,
-              pendingAmount: pendingAmount,
-              totalPaid: loan.totalPaid || 0,
-              // Ensure endDate is calculated if not present
-              endDate: loan.endDate || (loan.loanDate && loan.tenure ? calculateEndDate(loan.loanDate, loan.tenure) : null),
-            });
-          }
+          const pendingAmount = loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
+          const status = getLoanStatus(loan);
+          const normalizedLoan = {
+            ...loan,
+            documentUrl: loan.documentUrl || null,
+            status: status,
+            amount: loan.amount || loan.loanAmount || 0,
+            pendingAmount: pendingAmount,
+            totalPaid: loan.totalPaid || 0,
+            endDate: loan.endDate || (loan.loanDate && loan.tenure ? calculateEndDate(loan.loanDate, loan.tenure) : null),
+          };
+
+          // candidate keys the loan might be associated with
+          const candidateKeys = [
+            loan.customerId,
+            loan.customer?.id,
+            loan.customer?.customerCode,
+            loan.customer?.customerCode?.toString?.(),
+            loan.customerId?.toString?.(),
+          ].filter(Boolean).map(k => String(k));
+
+          candidateKeys.forEach(key => {
+            if (!loansByCustomer[key]) loansByCustomer[key] = [];
+            loansByCustomer[key].push(normalizedLoan);
+          });
         });
         
         console.log('Loans by customer:', loansByCustomer); // Debug log
@@ -370,6 +388,26 @@ export default function AllCustomerTable() {
     }
     fetchCustomers();
   }, []);
+
+  // DEBUG: Add this to check overdue detection
+  useEffect(() => {
+    console.log('=== OVERDUE DEBUG INFO ===');
+    const overdueCustomers = data.filter(c => {
+      const customerLoansList = customerLoans[c.id] || [];
+      return customerLoansList.some(loan => getLoanStatus(loan) === 'OVERDUE');
+    });
+    console.log('Total customers with overdue loans:', overdueCustomers.length);
+    console.log('Overdue customers:', overdueCustomers.map(c => ({
+      id: c.id,
+      name: c.name,
+      loans: customerLoans[c.id]?.map(loan => ({
+        id: loan.id,
+        status: getLoanStatus(loan),
+        endDate: loan.endDate,
+        pendingAmount: loan.pendingAmount
+      }))
+    })));
+  }, [customerLoans, data]);
 
   // Enhanced customer selection handler
   useEffect(() => {
@@ -938,28 +976,70 @@ export default function AllCustomerTable() {
     },
   ];
 
-  // Filtering and pagination
+  // FIXED: Filtering and pagination - Fixed overdue filter logic
   const filteredData = useMemo(() => {
+    console.log('Applying filters - Status:', statusFilter, 'Total customers:', data.length);
+    
     return data.filter((c) => {
       const globalMatch = !globalFilter ||
         c.name?.toLowerCase().includes(globalFilter.toLowerCase()) ||
         c.customerCode?.toLowerCase().includes(globalFilter.toLowerCase()) ||
         c.aadhar?.includes(globalFilter);
 
-      const customerLoansList = customerLoans[c.id] || [];
-      const hasActiveLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'ACTIVE');
-      const hasCompletedLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'COMPLETED');
-      const hasOverdueLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'OVERDUE');
-      
+      // Robust helper to find loans for a customer using direct keys or by scanning values
+      const getLoansForCustomer = (cust) => {
+        const keyCandidates = [cust.id, String(cust.id), String(cust.customerCode), cust.customerCode?.toString?.()].filter(Boolean).map(k => String(k));
+        // try direct map lookups first
+        for (const key of keyCandidates) {
+          if (customerLoans[key] && customerLoans[key].length) return customerLoans[key];
+        }
+        // fallback: scan all loans arrays
+        const allLoans = Object.values(customerLoans).flat();
+        return allLoans.filter(loan => {
+          if (!loan) return false;
+          if (loan.customerId && String(loan.customerId) === String(cust.id)) return true;
+          if (loan.customer?.id && String(loan.customer.id) === String(cust.id)) return true;
+          if (loan.customer?.customerCode && String(loan.customer.customerCode) === String(cust.customerCode)) return true;
+          return false;
+        });
+      };
+
+      const customerLoansList = getLoansForCustomer(c) || [];
+
+      // Helper to determine overdue based on pending amount and end date
+      const loanIsOverdue = (loan) => {
+        const pending = loan.pendingAmount ?? ((loan.amount || 0) - (loan.totalPaid || 0));
+        // Prefer loan endDate, fallback to customer's endDate
+        let end = loan.endDate ? new Date(loan.endDate) : (loan.loanDate && loan.tenure ? calculateEndDate(loan.loanDate, loan.tenure) : null);
+        if (!end && c.endDate) end = new Date(c.endDate);
+        if (!end) return false;
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        return Number(pending) > 0 && end < today;
+      };
+
+      const loanIsActive = (loan) => {
+        const pending = loan.pendingAmount ?? ((loan.amount || 0) - (loan.totalPaid || 0));
+        return Number(pending) > 0 && !loanIsOverdue(loan);
+      };
+
+      const loanIsCompleted = (loan) => {
+        const pending = loan.pendingAmount ?? ((loan.amount || 0) - (loan.totalPaid || 0));
+        return Number(pending) <= 0;
+      };
+
+      const hasOverdueLoan = customerLoansList.some(loanIsOverdue);
+      const hasActiveLoan = customerLoansList.some(loanIsActive);
+      const hasCompletedLoan = customerLoansList.some(loanIsCompleted);
+
       let statusMatch = true;
-      if (statusFilter === "active") {
-        statusMatch = hasActiveLoan && !hasOverdueLoan; // Active but not overdue
-      } else if (statusFilter === "overdue") {
-        statusMatch = hasOverdueLoan; // Only overdue loans
-      } else if (statusFilter === "completed") {
-        statusMatch = hasCompletedLoan && !hasActiveLoan && !hasOverdueLoan;
-      } else if (statusFilter === "closed") {
-        statusMatch = !hasActiveLoan && !hasOverdueLoan;
+      if (statusFilter) {
+        const sf = String(statusFilter).toLowerCase();
+        if (sf === 'active') statusMatch = hasActiveLoan;
+        else if (sf === 'overdue') statusMatch = hasOverdueLoan;
+        else if (sf === 'completed') statusMatch = hasCompletedLoan;
+        else if (sf === 'closed') statusMatch = customerLoansList.length === 0 || (!hasActiveLoan && !hasOverdueLoan && hasCompletedLoan);
+        else statusMatch = true;
       }
 
       const areaMatch = !areaFilter || c.area === areaFilter;
@@ -968,7 +1048,17 @@ export default function AllCustomerTable() {
       const startDateMatch = !startEndDate || (end && end >= new Date(startEndDate));
       const endDateMatch = !endEndDate || (end && end <= new Date(endEndDate));
 
-      return globalMatch && statusMatch && areaMatch && startDateMatch && endDateMatch;
+      const result = globalMatch && statusMatch && areaMatch && startDateMatch && endDateMatch;
+      
+      // Debug logging for overdue filter (detailed)
+      if (statusFilter === "overdue") {
+        console.log(`Customer ${c.name}: loans=${(customerLoansList || []).length}, hasOverdue=${hasOverdueLoan}, hasActive=${hasActiveLoan}, hasCompleted=${hasCompletedLoan}, statusMatch=${statusMatch}, result=${result}`);
+        if ((customerLoansList || []).length > 0) {
+          console.log('  loans detail:', (customerLoansList || []).map(l => ({ id: l.id, endDate: l.endDate, pending: l.pendingAmount, status: getLoanStatus(l) })));
+        }
+      }
+      
+      return result;
     });
   }, [data, globalFilter, statusFilter, areaFilter, startEndDate, endEndDate, customerLoans]);
 
@@ -1504,7 +1594,7 @@ export default function AllCustomerTable() {
                               ))
                             }
                             
-                            {/* Show completed loans - THIS IS THE KEY FIX */}
+                            {/* Show completed loans */}
                             {customerLoans[selectedCustomer.id]
                               .filter(loan => getLoanStatus(loan) === 'COMPLETED')
                               .map((loan, index) => (
@@ -2340,7 +2430,7 @@ export default function AllCustomerTable() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </div>  
   );
 }
 export { AllCustomerTable };
