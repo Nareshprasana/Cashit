@@ -112,7 +112,6 @@ const ProgressBar = ({ value, className = "" }) => (
   </div>
 );
 
-// Loan Card Component
 const LoanCard = ({ loan, index, status, onEdit, onDelete, onUpload }) => {
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -215,48 +214,38 @@ const LoanCard = ({ loan, index, status, onEdit, onDelete, onUpload }) => {
   );
 };
 
-// IMPROVED Helper function to calculate loan status
 const getLoanStatus = (loan) => {
-  // First check if there's an explicit status from the database
   if (loan.status === 'CLOSED' || loan.status === 'ACTIVE' || loan.status === 'OVERDUE' || loan.status === 'COMPLETED') {
     return loan.status;
   }
   
-  // Calculate based on financial data
   const pendingAmount = loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
   const now = new Date();
   const endDate = loan.endDate ? new Date(loan.endDate) : null;
   
-  // If pending amount is zero or negative, loan is completed
   if (pendingAmount <= 0) {
     return 'COMPLETED';
   } 
-  // If end date has passed and there's still pending amount, it's overdue
   else if (endDate && endDate < now) {
     return 'OVERDUE';
   } 
-  // Otherwise, it's active
   else {
     return 'ACTIVE';
   }
 };
 
-// NEW: Enhanced function to get customer's overall status for filtering
-const getCustomerOverallStatus = (customerLoansList) => {
+const getCurrentLoan = (customerLoansList) => {
   if (!customerLoansList || customerLoansList.length === 0) {
-    return 'NO_LOANS';
+    return null;
   }
   
-  const hasOverdueLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'OVERDUE');
-  const hasActiveLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'ACTIVE');
-  const hasCompletedLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'COMPLETED');
+  const sortedLoans = [...customerLoansList].sort((a, b) => 
+    new Date(b.loanDate || 0) - new Date(a.loanDate || 0)
+  );
   
-  // Priority: Overdue > Active > Completed
-  if (hasOverdueLoan) return 'OVERDUE';
-  if (hasActiveLoan) return 'ACTIVE';
-  if (hasCompletedLoan) return 'COMPLETED';
-  
-  return 'CLOSED';
+  return sortedLoans.find(loan => getLoanStatus(loan) === 'ACTIVE') || 
+         sortedLoans.find(loan => getLoanStatus(loan) === 'OVERDUE') || 
+         sortedLoans[0];
 };
 
 export default function AllCustomerTable() {
@@ -289,7 +278,6 @@ export default function AllCustomerTable() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadingDocument, setUploadingDocument] = useState(false);
 
-  // New states for loan CRUD operations
   const [createLoanOpen, setCreateLoanOpen] = useState(false);
   const [editLoanOpen, setEditLoanOpen] = useState(false);
   const [deleteLoanOpen, setDeleteLoanOpen] = useState(false);
@@ -298,7 +286,6 @@ export default function AllCustomerTable() {
   const [updatingLoan, setUpdatingLoan] = useState(false);
   const [deletingLoan, setDeletingLoan] = useState(false);
 
-  // New loan form state
   const [loanFormData, setLoanFormData] = useState({
     amount: "",
     rate: "",
@@ -316,7 +303,6 @@ export default function AllCustomerTable() {
     return d;
   };
 
-  // Enhanced fetch function with better error handling
   useEffect(() => {
     async function fetchCustomers() {
       try {
@@ -331,9 +317,6 @@ export default function AllCustomerTable() {
         let customers = await customersRes.json();
         const loans = loansRes.ok ? await loansRes.json() : [];
 
-        console.log('Fetched loans:', loans); // Debug log
-
-        // Process customers with calculated end dates
         customers = customers.map((c) => ({
           ...c,
           endDate: c.endDate
@@ -346,8 +329,11 @@ export default function AllCustomerTable() {
         setData(customers);
         setAvailableAreas([...new Set(customers.map((c) => c.area).filter(Boolean))]);
 
-        // Organize loans by multiple possible customer keys so lookups are robust
         const loansByCustomer = {};
+        const toDeleteLoanIds = [];
+        const today = new Date();
+        const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
         loans.forEach(loan => {
           const pendingAmount = loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
           const status = getLoanStatus(loan);
@@ -361,7 +347,15 @@ export default function AllCustomerTable() {
             endDate: loan.endDate || (loan.loanDate && loan.tenure ? calculateEndDate(loan.loanDate, loan.tenure) : null),
           };
 
-          // candidate keys the loan might be associated with
+          const end = normalizedLoan.endDate ? new Date(normalizedLoan.endDate) : null;
+          if (end) {
+            const daysSinceEnd = Math.floor((today.getTime() - new Date(end).getTime()) / MS_PER_DAY);
+            if (daysSinceEnd > 30) {
+              if (loan.id) toDeleteLoanIds.push(loan.id);
+              return;
+            }
+          }
+
           const candidateKeys = [
             loan.customerId,
             loan.customer?.id,
@@ -375,8 +369,17 @@ export default function AllCustomerTable() {
             loansByCustomer[key].push(normalizedLoan);
           });
         });
+
+        if (toDeleteLoanIds.length > 0) {
+          Promise.all(
+            toDeleteLoanIds.map(id =>
+              fetch(`/api/loans?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+                .then(res => ({ id, ok: res.ok }))
+                .catch(err => ({ id, ok: false, error: err.message }))
+            )
+          ).then(results => console.log('Auto-delete results:', results)).catch(err => console.error('Auto-delete error:', err));
+        }
         
-        console.log('Loans by customer:', loansByCustomer); // Debug log
         setCustomerLoans(loansByCustomer);
 
       } catch (e) {
@@ -389,27 +392,6 @@ export default function AllCustomerTable() {
     fetchCustomers();
   }, []);
 
-  // DEBUG: Add this to check overdue detection
-  useEffect(() => {
-    console.log('=== OVERDUE DEBUG INFO ===');
-    const overdueCustomers = data.filter(c => {
-      const customerLoansList = customerLoans[c.id] || [];
-      return customerLoansList.some(loan => getLoanStatus(loan) === 'OVERDUE');
-    });
-    console.log('Total customers with overdue loans:', overdueCustomers.length);
-    console.log('Overdue customers:', overdueCustomers.map(c => ({
-      id: c.id,
-      name: c.name,
-      loans: customerLoans[c.id]?.map(loan => ({
-        id: loan.id,
-        status: getLoanStatus(loan),
-        endDate: loan.endDate,
-        pendingAmount: loan.pendingAmount
-      }))
-    })));
-  }, [customerLoans, data]);
-
-  // Enhanced customer selection handler
   useEffect(() => {
     if (!selectedCustomer?.customerCode) {
       setQrCodeUrl("");
@@ -418,12 +400,10 @@ export default function AllCustomerTable() {
       return;
     }
 
-    // Generate QR code
     QRCode.toDataURL(selectedCustomer.customerCode)
       .then(setQrCodeUrl)
       .catch(console.error);
 
-    // Fetch repayments
     fetch(`/api/repayments?customerId=${selectedCustomer.id}`)
       .then((r) => {
         if (!r.ok) throw new Error("Failed to fetch repayments");
@@ -435,12 +415,11 @@ export default function AllCustomerTable() {
         setRepayments([]);
       });
 
-    // Set first loan as selected
     const customerLoansList = customerLoans[selectedCustomer.id] || [];
-    setSelectedLoan(customerLoansList[0] || null);
+    const currentLoan = getCurrentLoan(customerLoansList);
+    setSelectedLoan(currentLoan || null);
   }, [selectedCustomer, customerLoans]);
 
-  // Enhanced delete handler
   const handleDelete = async (id) => {
     if (!id || typeof id !== "string") {
       alert("Invalid customer ID");
@@ -476,7 +455,6 @@ export default function AllCustomerTable() {
     }
   };
 
-  // Download QR code
   const handleDownloadQRCode = () => {
     if (!qrCodeUrl) {
       alert("QR code not available");
@@ -490,7 +468,6 @@ export default function AllCustomerTable() {
     document.body.removeChild(a);
   };
 
-  // Download statement
   const handleDownloadStatement = () => {
     if (!selectedCustomer) return;
     
@@ -526,7 +503,6 @@ export default function AllCustomerTable() {
     URL.revokeObjectURL(url);
   };
 
-  // Document update handlers
   const handleDocumentUpdate = (field) => {
     setDocumentToUpdate(field);
     setSelectedFile(null);
@@ -555,7 +531,6 @@ export default function AllCustomerTable() {
       
       const { customer } = await res.json();
       
-      // Update both data and selected customer
       setData((prev) => prev.map((c) => (c.id === customer.id ? { ...c, ...customer } : c)));
       setSelectedCustomer((prev) => prev?.id === customer.id ? { ...prev, ...customer } : prev);
       
@@ -570,7 +545,6 @@ export default function AllCustomerTable() {
     }
   };
 
-  // Enhanced loan document handler
   const handleLoanDocumentUpdate = async (e) => {
     e.preventDefault();
     if (!selectedFile || !selectedLoan) return;
@@ -594,7 +568,6 @@ export default function AllCustomerTable() {
       
       const { loan } = await res.json();
 
-      // Update customer loans state
       setCustomerLoans(prev => ({
         ...prev,
         [selectedCustomer.id]: (prev[selectedCustomer.id] || []).map(l => 
@@ -602,7 +575,6 @@ export default function AllCustomerTable() {
         )
       }));
 
-      // Update selected loan
       if (selectedLoan?.id === loan.id) {
         setSelectedLoan(prev => ({ ...prev, documentUrl: loan.documentUrl }));
       }
@@ -618,7 +590,6 @@ export default function AllCustomerTable() {
     }
   };
 
-  // Loan CRUD Operations
   const handleCreateLoan = async (e) => {
     e.preventDefault();
     if (!selectedCustomer) return;
@@ -647,13 +618,13 @@ export default function AllCustomerTable() {
 
       const { loan } = await res.json();
 
-      // Update customer loans state
       setCustomerLoans(prev => ({
         ...prev,
         [selectedCustomer.id]: [...(prev[selectedCustomer.id] || []), loan]
       }));
 
-      // Reset form and close dialog
+      setSelectedLoan(loan);
+
       setLoanFormData({
         amount: "",
         rate: "",
@@ -699,7 +670,6 @@ export default function AllCustomerTable() {
 
       const { loan } = await res.json();
 
-      // Update customer loans state
       setCustomerLoans(prev => ({
         ...prev,
         [selectedCustomer.id]: (prev[selectedCustomer.id] || []).map(l => 
@@ -707,7 +677,6 @@ export default function AllCustomerTable() {
         )
       }));
 
-      // Update selected loan
       setSelectedLoan(loan);
       setEditLoanOpen(false);
       alert("Loan updated successfully!");
@@ -733,16 +702,15 @@ export default function AllCustomerTable() {
         throw new Error(errorData.error || "Failed to delete loan");
       }
 
-      // Update customer loans state
       setCustomerLoans(prev => ({
         ...prev,
         [selectedCustomer.id]: (prev[selectedCustomer.id] || []).filter(l => l.id !== loanToDelete.id)
       }));
 
-      // Reset selected loan if it was deleted
       if (selectedLoan?.id === loanToDelete.id) {
-        const remainingLoans = customerLoans[selectedCustomer.id]?.filter(l => l.id !== loanToDelete.id) || [];
-        setSelectedLoan(remainingLoans[0] || null);
+        const customerLoansList = customerLoans[selectedCustomer.id] || [];
+        const currentLoan = getCurrentLoan(customerLoansList.filter(l => l.id !== loanToDelete.id));
+        setSelectedLoan(currentLoan || null);
       }
 
       setDeleteLoanOpen(false);
@@ -756,12 +724,6 @@ export default function AllCustomerTable() {
     }
   };
 
-  // Helper function to check if loan is active
-  const isLoanActive = (loan) => {
-    return getLoanStatus(loan) === 'ACTIVE';
-  };
-
-  // Initialize loan form for editing
   const initializeEditLoan = (loan) => {
     setSelectedLoan(loan);
     setLoanFormData({
@@ -774,7 +736,6 @@ export default function AllCustomerTable() {
     setEditLoanOpen(true);
   };
 
-  // Initialize create loan form
   const initializeCreateLoan = () => {
     setLoanFormData({
       amount: "",
@@ -786,7 +747,6 @@ export default function AllCustomerTable() {
     setCreateLoanOpen(true);
   };
 
-  // Columns definition
   const columns = [
     {
       accessorKey: "photoUrl",
@@ -976,24 +936,18 @@ export default function AllCustomerTable() {
     },
   ];
 
-  // FIXED: Filtering and pagination - Fixed overdue filter logic
   const filteredData = useMemo(() => {
-    console.log('Applying filters - Status:', statusFilter, 'Total customers:', data.length);
-    
     return data.filter((c) => {
       const globalMatch = !globalFilter ||
         c.name?.toLowerCase().includes(globalFilter.toLowerCase()) ||
         c.customerCode?.toLowerCase().includes(globalFilter.toLowerCase()) ||
         c.aadhar?.includes(globalFilter);
 
-      // Robust helper to find loans for a customer using direct keys or by scanning values
       const getLoansForCustomer = (cust) => {
         const keyCandidates = [cust.id, String(cust.id), String(cust.customerCode), cust.customerCode?.toString?.()].filter(Boolean).map(k => String(k));
-        // try direct map lookups first
         for (const key of keyCandidates) {
           if (customerLoans[key] && customerLoans[key].length) return customerLoans[key];
         }
-        // fallback: scan all loans arrays
         const allLoans = Object.values(customerLoans).flat();
         return allLoans.filter(loan => {
           if (!loan) return false;
@@ -1006,10 +960,8 @@ export default function AllCustomerTable() {
 
       const customerLoansList = getLoansForCustomer(c) || [];
 
-      // Helper to determine overdue based on pending amount and end date
       const loanIsOverdue = (loan) => {
         const pending = loan.pendingAmount ?? ((loan.amount || 0) - (loan.totalPaid || 0));
-        // Prefer loan endDate, fallback to customer's endDate
         let end = loan.endDate ? new Date(loan.endDate) : (loan.loanDate && loan.tenure ? calculateEndDate(loan.loanDate, loan.tenure) : null);
         if (!end && c.endDate) end = new Date(c.endDate);
         if (!end) return false;
@@ -1050,14 +1002,6 @@ export default function AllCustomerTable() {
 
       const result = globalMatch && statusMatch && areaMatch && startDateMatch && endDateMatch;
       
-      // Debug logging for overdue filter (detailed)
-      if (statusFilter === "overdue") {
-        console.log(`Customer ${c.name}: loans=${(customerLoansList || []).length}, hasOverdue=${hasOverdueLoan}, hasActive=${hasActiveLoan}, hasCompleted=${hasCompletedLoan}, statusMatch=${statusMatch}, result=${result}`);
-        if ((customerLoansList || []).length > 0) {
-          console.log('  loans detail:', (customerLoansList || []).map(l => ({ id: l.id, endDate: l.endDate, pending: l.pendingAmount, status: getLoanStatus(l) })));
-        }
-      }
-      
       return result;
     });
   }, [data, globalFilter, statusFilter, areaFilter, startEndDate, endEndDate, customerLoans]);
@@ -1077,12 +1021,12 @@ export default function AllCustomerTable() {
     const customerDocCount = customerDocs.filter((f) => selectedCustomer[f]).length;
     
     const customerLoansList = customerLoans[selectedCustomer.id] || [];
-    const loanDocCount = customerLoansList.filter(loan => loan.documentUrl).length;
+    const currentLoan = getCurrentLoan(customerLoansList);
+    const loanDocCount = currentLoan?.documentUrl ? 1 : 0;
     
     return customerDocCount + loanDocCount;
   }, [selectedCustomer, customerLoans]);
 
-  // Pagination helper
   const renderPageWindow = () => {
     const max = 5;
     const start = Math.max(1, Math.min(currentPage - Math.floor(max / 2), totalPages - max + 1));
@@ -1140,7 +1084,6 @@ export default function AllCustomerTable() {
     return items;
   };
 
-  // Loading state
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -1152,7 +1095,6 @@ export default function AllCustomerTable() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Customer Management</h1>
@@ -1174,7 +1116,6 @@ export default function AllCustomerTable() {
         </div>
       </div>
 
-      {/* Filters */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
@@ -1223,7 +1164,6 @@ export default function AllCustomerTable() {
             </div>
             {showFilters && (
               <div className="grid gap-4 pt-4 border-t md:grid-cols-3">
-                {/* Status Filter with Overdue Option */}
                 <div className="space-y-2">
                   <Label className="text-sm">Status</Label>
                   <select 
@@ -1290,7 +1230,6 @@ export default function AllCustomerTable() {
         </CardContent>
       </Card>
 
-      {/* Results */}
       <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <p className="text-sm text-gray-600">
           Showing <span className="font-medium">{paginatedData.length}</span> of <span className="font-medium">{filteredData.length}</span> customers (Total: {data.length})
@@ -1307,14 +1246,12 @@ export default function AllCustomerTable() {
         </div>
       </div>
 
-      {/* Table */}
       <Card>
         <CardContent className="p-0">
           <DataTable columns={columns} data={paginatedData} />
         </CardContent>
       </Card>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-gray-600">Page {currentPage} of {totalPages}</p>
@@ -1340,7 +1277,6 @@ export default function AllCustomerTable() {
         </div>
       )}
 
-      {/* Customer Detail Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -1391,7 +1327,6 @@ export default function AllCustomerTable() {
             <p className="text-center py-8 text-gray-500">No customer selected.</p>
           ) : (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-              {/* Left Sidebar */}
               <div className="space-y-6 lg:col-span-1">
                 <Card>
                   <CardContent className="pt-6">
@@ -1468,7 +1403,6 @@ export default function AllCustomerTable() {
                 </Card>
               </div>
 
-              {/* Right Content */}
               <div className="lg:col-span-3 space-y-6">
                 <Tabs defaultValue="details">
                   <TabsList className="grid w-full grid-cols-3">
@@ -1477,7 +1411,6 @@ export default function AllCustomerTable() {
                     <TabsTrigger value="documents">Documents ({numberOfDocuments})</TabsTrigger>
                   </TabsList>
 
-                  {/* Details Tab */}
                   <TabsContent value="details" className="space-y-4">
                     <Card>
                       <CardHeader>
@@ -1540,16 +1473,19 @@ export default function AllCustomerTable() {
                       </CardContent>
                     </Card>
 
-                    {/* Loan Details from Loan Model */}
                     {(customerLoans[selectedCustomer.id]?.length > 0) && (
                       <Card>
                         <CardHeader>
                           <CardTitle className="text-lg">All Loans</CardTitle>
                           <CardDescription>
-                            {customerLoans[selectedCustomer.id].length} loan(s) found - 
-                            Active: {customerLoans[selectedCustomer.id].filter(loan => getLoanStatus(loan) === 'ACTIVE').length}, 
-                            Completed: {customerLoans[selectedCustomer.id].filter(loan => getLoanStatus(loan) === 'COMPLETED').length},
-                            Overdue: {customerLoans[selectedCustomer.id].filter(loan => getLoanStatus(loan) === 'OVERDUE').length}
+                            {(() => {
+                              const customerLoansList = customerLoans[selectedCustomer.id] || [];
+                              const total = customerLoansList.length;
+                              const activeCount = customerLoansList.filter(loan => getLoanStatus(loan) === 'ACTIVE').length;
+                              const completedCount = customerLoansList.filter(loan => getLoanStatus(loan) === 'COMPLETED').length;
+                              const overdueCount = customerLoansList.filter(loan => getLoanStatus(loan) === 'OVERDUE').length;
+                              return `${total} loan(s) found - Active: ${activeCount}, Completed: ${completedCount}, Overdue: ${overdueCount}`;
+                            })()}
                             <Button 
                               variant="outline" 
                               size="sm" 
@@ -1562,60 +1498,34 @@ export default function AllCustomerTable() {
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-4">
-                            {/* Show active loans first */}
-                            {customerLoans[selectedCustomer.id]
-                              .filter(loan => getLoanStatus(loan) === 'ACTIVE')
-                              .map((loan, index) => (
-                                <LoanCard 
-                                  key={loan.id} 
-                                  loan={loan} 
-                                  index={index} 
-                                  status="ACTIVE"
-                                  onEdit={initializeEditLoan}
-                                  onDelete={(loan) => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
-                                  onUpload={(loan) => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }}
-                                />
-                              ))
-                            }
-                            
-                            {/* Show overdue loans */}
-                            {customerLoans[selectedCustomer.id]
-                              .filter(loan => getLoanStatus(loan) === 'OVERDUE')
-                              .map((loan, index) => (
-                                <LoanCard 
-                                  key={loan.id} 
-                                  loan={loan} 
-                                  index={index} 
-                                  status="OVERDUE"
-                                  onEdit={initializeEditLoan}
-                                  onDelete={(loan) => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
-                                  onUpload={(loan) => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }}
-                                />
-                              ))
-                            }
-                            
-                            {/* Show completed loans */}
-                            {customerLoans[selectedCustomer.id]
-                              .filter(loan => getLoanStatus(loan) === 'COMPLETED')
-                              .map((loan, index) => (
-                                <LoanCard 
-                                  key={loan.id} 
-                                  loan={loan} 
-                                  index={index} 
-                                  status="COMPLETED"
-                                  onEdit={initializeEditLoan}
-                                  onDelete={(loan) => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
-                                  onUpload={(loan) => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }}
-                                />
-                              ))
-                            }
+                            {(() => {
+                              const customerLoansList = customerLoans[selectedCustomer.id] || [];
+                              const sortedLoans = [...customerLoansList].sort((a, b) => 
+                                new Date(b.loanDate || 0) - new Date(a.loanDate || 0)
+                              );
+                              const toShow = sortedLoans.slice(0, 2);
+                              return toShow.map((loan, index) => {
+                                const uniqueKey = `${loan.id}-${index}-${Date.now()}`;
+                                
+                                return (
+                                  <LoanCard 
+                                    key={uniqueKey}
+                                    loan={loan} 
+                                    index={index} 
+                                    status={getLoanStatus(loan)}
+                                    onEdit={initializeEditLoan}
+                                    onDelete={(loan) => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
+                                    onUpload={(loan) => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }}
+                                  />
+                                );
+                              });
+                            })()}
                           </div>
                         </CardContent>
                       </Card>
                     )}
                   </TabsContent>
 
-                  {/* Repayments Tab */}
                   <TabsContent value="repayments">
                     <Card>
                       <CardHeader>
@@ -1662,7 +1572,6 @@ export default function AllCustomerTable() {
                     </Card>
                   </TabsContent>
 
-                  {/* Documents Tab */}
                   <TabsContent value="documents">
                     <Card>
                       <CardHeader>
@@ -1695,7 +1604,6 @@ export default function AllCustomerTable() {
                               </tr>
                             </thead>
                             <tbody className="divide-y">
-                              {/* Profile Photo */}
                               <tr className="hover:bg-gray-50">
                                 <td className="p-3 font-medium">Profile Photo</td>
                                 <td className="p-3">
@@ -1752,7 +1660,6 @@ export default function AllCustomerTable() {
                                 </td>
                               </tr>
 
-                              {/* Customer Documents */}
                               {[
                                 { title: "Aadhar Document", field: "aadharDocumentUrl" },
                                 { title: "Income Proof", field: "incomeProofUrl" },
@@ -1818,140 +1725,132 @@ export default function AllCustomerTable() {
                                 </tr>
                               ))}
                               
-                              {/* Loan Agreements - Show ALL loans including completed ones */}
-                              {customerLoans[selectedCustomer.id]?.length > 0 ? (
-                                customerLoans[selectedCustomer.id].map((loan, index) => {
-                                  const loanStatus = getLoanStatus(loan);
+                              {(() => {
+                                const customerLoansList = customerLoans[selectedCustomer.id] || [];
+                                const currentLoan = getCurrentLoan(customerLoansList);
+                                
+                                if (!currentLoan) {
                                   return (
-                                    <tr key={loan.id} className="hover:bg-gray-50">
-                                      <td className="p-3 font-medium">
-                                        <div className="flex items-center gap-2">
-                                          Loan Agreement {customerLoans[selectedCustomer.id].length > 1 ? `#${index + 1}` : ''}
-                                          <Badge className={
-                                            loanStatus === 'ACTIVE' ? 'bg-green-100 text-green-800' :
-                                            loanStatus === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
-                                            loanStatus === 'OVERDUE' ? 'bg-red-100 text-red-800' :
-                                            'bg-gray-100 text-gray-800'
-                                          }>
-                                            {loanStatus}
-                                          </Badge>
-                                        </div>
+                                    <tr className="hover:bg-gray-50">
+                                      <td className="p-3 font-medium">Loan Agreement</td>
+                                      <td className="p-3">
+                                        <Badge variant="outline" className="text-gray-600">No Loans Found</Badge>
                                       </td>
                                       <td className="p-3">
-                                        {loan.documentUrl ? (
-                                          <Badge className="bg-green-100 text-green-800">
-                                            <CheckCircle className="h-3 w-3 mr-1" />
-                                            Uploaded
-                                          </Badge>
-                                        ) : (
-                                          <Badge variant="outline" className="text-gray-600">
-                                            Not Uploaded
-                                          </Badge>
-                                        )}
+                                        <span className="text-sm text-gray-500">-</span>
                                       </td>
                                       <td className="p-3">
-                                        {loan.documentUrl ? (
-                                          <Badge variant="outline" className="text-xs">
-                                            {loan.documentUrl.toLowerCase().endsWith(".pdf") ? "PDF" : "Document"}
-                                          </Badge>
-                                        ) : (
-                                          <span className="text-sm text-gray-500">-</span>
-                                        )}
-                                      </td>
-                                      <td className="p-3">
-                                        {loan.documentUrl ? (
-                                          <div className="flex flex-wrap gap-2">
-                                            <Button variant="outline" size="sm" asChild>
-                                              <a href={loan.documentUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
-                                                <Eye className="h-4 w-4" />
-                                                {loan.documentUrl.toLowerCase().endsWith(".pdf") ? "View PDF" : "View"}
-                                              </a>
-                                            </Button>
-                                            <Button variant="outline" size="sm" asChild>
-                                              <a href={loan.documentUrl} download className="flex items-center gap-1">
-                                                <Download className="h-4 w-4" /> Download
-                                              </a>
-                                            </Button>
-                                            <Button 
-                                              variant="outline" 
-                                              size="sm" 
-                                              onClick={() => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }} 
-                                              className="flex items-center gap-1"
-                                            >
-                                              <Pencil className="h-4 w-4" /> Modify
-                                            </Button>
-                                            <Button 
-                                              variant="outline" 
-                                              size="sm" 
-                                              onClick={() => initializeEditLoan(loan)}
-                                              className="flex items-center gap-1"
-                                            >
-                                              <Edit className="h-4 w-4" /> Edit
-                                            </Button>
-                                            <Button 
-                                              variant="outline" 
-                                              size="sm" 
-                                              onClick={() => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
-                                              className="flex items-center gap-1 text-red-600 hover:text-red-700"
-                                            >
-                                              <Trash2 className="h-4 w-4" /> Delete
-                                            </Button>
-                                          </div>
-                                        ) : (
-                                          <div className="flex flex-wrap gap-2">
-                                            <Button 
-                                              variant="outline" 
-                                              size="sm" 
-                                              onClick={() => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }} 
-                                              className="flex items-center gap-1"
-                                            >
-                                              <Upload className="h-4 w-4" /> Upload
-                                            </Button>
-                                            <Button 
-                                              variant="outline" 
-                                              size="sm" 
-                                              onClick={() => initializeEditLoan(loan)}
-                                              className="flex items-center gap-1"
-                                            >
-                                              <Edit className="h-4 w-4" /> Edit
-                                            </Button>
-                                            <Button 
-                                              variant="outline" 
-                                              size="sm" 
-                                              onClick={() => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
-                                              className="flex items-center gap-1 text-red-600 hover:text-red-700"
-                                            >
-                                              <Trash2 className="h-4 w-4" /> Delete
-                                            </Button>
-                                          </div>
-                                        )}
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm" 
+                                          onClick={initializeCreateLoan}
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Plus className="h-4 w-4" /> Create Loan
+                                        </Button>
                                       </td>
                                     </tr>
                                   );
-                                })
-                              ) : (
-                                <tr className="hover:bg-gray-50">
-                                  <td className="p-3 font-medium">Loan Agreement</td>
-                                  <td className="p-3">
-                                    <Badge variant="outline" className="text-gray-600">No Loans Found</Badge>
-                                  </td>
-                                  <td className="p-3">
-                                    <span className="text-sm text-gray-500">-</span>
-                                  </td>
-                                  <td className="p-3">
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm" 
-                                      onClick={initializeCreateLoan}
-                                      className="flex items-center gap-1"
-                                    >
-                                      <Plus className="h-4 w-4" /> Create Loan
-                                    </Button>
-                                  </td>
-                                </tr>
-                              )}
+                                }
 
-                              {/* QR Code */}
+                                const loanStatus = getLoanStatus(currentLoan);
+                                
+                                return (
+                                  <tr key={currentLoan.id} className="hover:bg-gray-50">
+                                    <td className="p-3 font-medium">
+                                      <div className="flex items-center gap-2">
+                                        Current Loan Agreement
+                                        <Badge className={
+                                          loanStatus === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                                          loanStatus === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                                          loanStatus === 'OVERDUE' ? 'bg-red-100 text-red-800' :
+                                          'bg-gray-100 text-gray-800'
+                                        }>
+                                          {loanStatus}
+                                        </Badge>
+                                      </div>
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        Amount: ₹{Number(currentLoan.amount || 0).toLocaleString('en-IN')} | 
+                                        Created: {currentLoan.loanDate ? new Date(currentLoan.loanDate).toLocaleDateString() : 'N/A'}
+                                      </div>
+                                    </td>
+                                    <td className="p-3">
+                                      {currentLoan.documentUrl ? (
+                                        <Badge className="bg-green-100 text-green-800">
+                                          <CheckCircle className="h-3 w-3 mr-1" />
+                                          Uploaded
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-gray-600">
+                                          Not Uploaded
+                                        </Badge>
+                                      )}
+                                    </td>
+                                    <td className="p-3">
+                                      {currentLoan.documentUrl ? (
+                                        <Badge variant="outline" className="text-xs">
+                                          {currentLoan.documentUrl.toLowerCase().endsWith(".pdf") ? "PDF" : "Document"}
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-sm text-gray-500">-</span>
+                                      )}
+                                    </td>
+                                    <td className="p-3">
+                                      {currentLoan.documentUrl ? (
+                                        <div className="flex flex-wrap gap-2">
+                                          <Button variant="outline" size="sm" asChild>
+                                            <a href={currentLoan.documentUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                                              <Eye className="h-4 w-4" />
+                                              {currentLoan.documentUrl.toLowerCase().endsWith(".pdf") ? "View PDF" : "View"}
+                                            </a>
+                                          </Button>
+                                          <Button variant="outline" size="sm" asChild>
+                                            <a href={currentLoan.documentUrl} download className="flex items-center gap-1">
+                                              <Download className="h-4 w-4" /> Download
+                                            </a>
+                                          </Button>
+                                          <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={() => { setSelectedLoan(currentLoan); setDocumentToUpdate("loanAgreement"); }} 
+                                            className="flex items-center gap-1"
+                                          >
+                                            <Pencil className="h-4 w-4" /> Modify
+                                          </Button>
+                                          <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={() => initializeEditLoan(currentLoan)}
+                                            className="flex items-center gap-1"
+                                          >
+                                            <Edit className="h-4 w-4" /> Edit Loan
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex flex-wrap gap-2">
+                                          <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={() => { setSelectedLoan(currentLoan); setDocumentToUpdate("loanAgreement"); }} 
+                                            className="flex items-center gap-1"
+                                          >
+                                            <Upload className="h-4 w-4" /> Upload
+                                          </Button>
+                                          <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={() => initializeEditLoan(currentLoan)}
+                                            className="flex items-center gap-1"
+                                          >
+                                            <Edit className="h-4 w-4" /> Edit Loan
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })()}
+
                               <tr className="hover:bg-gray-50">
                                 <td className="p-3 font-medium">QR Code</td>
                                 <td className="p-3">
@@ -1998,7 +1897,6 @@ export default function AllCustomerTable() {
                       </CardContent>
                     </Card>
 
-                    {/* Document Upload Modal */}
                     <Dialog open={!!documentToUpdate} onOpenChange={() => setDocumentToUpdate(null)}>
                       <DialogContent className="sm:max-w-md">
                         <DialogHeader>
@@ -2092,7 +1990,6 @@ export default function AllCustomerTable() {
         </DialogContent>
       </Dialog>
 
-      {/* Create Loan Dialog */}
       <Dialog open={createLoanOpen} onOpenChange={setCreateLoanOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2172,7 +2069,6 @@ export default function AllCustomerTable() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Loan Dialog */}
       <Dialog open={editLoanOpen} onOpenChange={setEditLoanOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2252,7 +2148,6 @@ export default function AllCustomerTable() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Loan Confirmation */}
       <AlertDialog open={deleteLoanOpen} onOpenChange={setDeleteLoanOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -2282,7 +2177,6 @@ export default function AllCustomerTable() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Edit Customer Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -2399,7 +2293,6 @@ export default function AllCustomerTable() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Customer Confirmation */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

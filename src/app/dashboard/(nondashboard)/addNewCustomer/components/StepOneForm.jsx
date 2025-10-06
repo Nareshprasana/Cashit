@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react"; // Added useRef
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { AddArea } from "../../addArea/Addarea";
 import {
@@ -285,7 +285,7 @@ const StepOneForm = ({
 
       {/* Uploads */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Photo Upload - FIXED */}
+        {/* Photo Upload - Supports all image types */}
         <div
           className="border-2 border-dashed p-6 rounded-md text-center hover:border-blue-500"
           onDragOver={(e) => e.preventDefault()}
@@ -304,7 +304,7 @@ const StepOneForm = ({
             <input
               type="file"
               name="photo"
-              accept="image/*"
+              accept="image/*,.jpg,.jpeg,.png"
               onChange={(e) => {
                 const file = e.target.files[0];
                 if (file) {
@@ -313,9 +313,10 @@ const StepOneForm = ({
                 }
               }}
               className="hidden"
-              ref={photoInputRef} // Attach the ref
+              ref={photoInputRef}
             />
           </label>
+          <p className="text-xs text-gray-500 mt-2">Supports: JPG, PNG, etc.</p>
           {photoPreview && (
             <div className="mt-3 relative inline-block">
               <Image
@@ -327,7 +328,7 @@ const StepOneForm = ({
               />
               <button
                 type="button"
-                onClick={() => handleRemoveFile(photoInputRef, "photo", true)} // Use the unified handler
+                onClick={() => handleRemoveFile(photoInputRef, "photo", true)}
                 className="absolute top-[-8px] right-[-8px] bg-white text-red-500 rounded-full w-5 h-5 shadow flex items-center justify-center"
               >
                 <CircleX size={14} />
@@ -339,7 +340,7 @@ const StepOneForm = ({
           )}
         </div>
 
-        {/* Document Uploads - FIXED */}
+        {/* Document Uploads - Supports all file types */}
         {[
           { key: "aadharDocument", label: "Aadhar", ref: aadharInputRef },
           { key: "incomeProof", label: "Income Proof", ref: incomeInputRef },
@@ -370,7 +371,7 @@ const StepOneForm = ({
               <input
                 type="file"
                 name={key}
-                accept=".pdf,.doc,.docx"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={(e) => {
                   const file = e.target.files[0];
                   if (file) {
@@ -378,16 +379,19 @@ const StepOneForm = ({
                   }
                 }}
                 className="hidden"
-                ref={ref} // Attach the ref
+                ref={ref}
               />
             </label>
+            <p className="text-xs text-gray-500 mt-2">
+              Supports: PDF, DOC, JPG, PNG
+            </p>
 
             {form[key] && (
               <div className="mt-2 text-sm text-blue-700 flex items-center justify-center gap-2">
                 📄 {form[key]?.name}
                 <button
                   type="button"
-                  onClick={() => handleRemoveFile(ref, key)} // Use the unified handler
+                  onClick={() => handleRemoveFile(ref, key)}
                   className="text-red-600"
                 >
                   <CircleX size={16} />

@@ -54,6 +54,50 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const summary = searchParams.get("summary");
     const customerId = searchParams.get("customerId");
+    const debugId = searchParams.get("debugId"); // Add debug endpoint
+
+    // Add debug endpoint to check loan status
+    if (debugId) {
+      console.log(`🔍 Debug request for loan ID: ${debugId}`);
+      const loan = await prisma.loan.findUnique({
+        where: { id: debugId },
+        include: {
+          repayments: {
+            select: {
+              id: true,
+              amount: true,
+              repaymentDate: true,
+            }
+          },
+          customer: {
+            select: {
+              customerName: true,
+              customerCode: true,
+            }
+          }
+        },
+      });
+      
+      if (!loan) {
+        return NextResponse.json({
+          exists: false,
+          message: "Loan not found"
+        }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        exists: true,
+        loan: {
+          id: loan.id,
+          customer: loan.customer,
+          amount: loan.amount,
+          pendingAmount: loan.pendingAmount,
+          repaymentCount: loan.repayments?.length,
+          repayments: loan.repayments,
+          canBeDeleted: loan.repayments?.length === 0 && loan.pendingAmount === 0
+        }
+      });
+    }
 
     if (summary) {
       const active = await prisma.loan.count({
@@ -282,6 +326,14 @@ export async function POST(req) {
   } catch (error) {
     console.error("Loan creation error:", error);
     
+    // Handle Prisma known errors
+    if (error.code === 'P2002') {
+      return NextResponse.json(
+        { error: "A loan with similar unique constraints already exists" },
+        { status: 409 }
+      );
+    }
+    
     if (error.message.includes('Invalid file type') || error.message.includes('File size too large')) {
       return NextResponse.json(
         { error: error.message },
@@ -495,6 +547,14 @@ export async function PUT(req) {
   } catch (error) {
     console.error("Loan update error:", error);
     
+    // Handle Prisma known errors
+    if (error.code === 'P2025') {
+      return NextResponse.json(
+        { error: "Loan not found or cannot be updated" },
+        { status: 404 }
+      );
+    }
+    
     if (error.message.includes('Invalid file type') || error.message.includes('File size too large')) {
       return NextResponse.json(
         { error: error.message },
@@ -509,57 +569,149 @@ export async function PUT(req) {
   }
 }
 
-// 🔹 DELETE handler (for deleting a loan)
+// 🔹 DELETE handler (for deleting a loan) - FIXED WITH DEBUGGING
 export async function DELETE(req) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
 
+    console.log(`🔍 DELETE request for loan ID: ${id}`);
+
     if (!id) {
+      console.log('❌ No loan ID provided');
       return NextResponse.json(
         { error: "Loan ID is required" },
         { status: 400 }
       );
     }
 
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      console.log('❌ Invalid UUID format:', id);
+      return NextResponse.json(
+        { error: "Invalid loan ID format" },
+        { status: 400 }
+      );
+    }
+
+    console.log(`📊 Searching for loan with ID: ${id}`);
+    
     const existingLoan = await prisma.loan.findUnique({
       where: { id },
       include: {
-        repayments: true,
+        repayments: {
+          select: {
+            id: true,
+            amount: true,
+            repaymentDate: true,
+          }
+        },
       },
     });
 
     if (!existingLoan) {
+      console.log('❌ Loan not found in database');
       return NextResponse.json(
         { error: "Loan not found" },
         { status: 404 }
       );
     }
 
+    console.log('✅ Loan found:', {
+      id: existingLoan.id,
+      amount: existingLoan.amount,
+      pendingAmount: existingLoan.pendingAmount,
+      repaymentCount: existingLoan.repayments?.length,
+      repayments: existingLoan.repayments
+    });
+
+    // Check for repayments
     if (existingLoan.repayments && existingLoan.repayments.length > 0) {
+      console.log('❌ Cannot delete - loan has repayments:', {
+        repaymentCount: existingLoan.repayments.length,
+        repaymentDetails: existingLoan.repayments
+      });
       return NextResponse.json(
-        { error: "Cannot delete loan with existing repayments" },
+        { 
+          error: "Cannot delete loan with existing repayments",
+          details: {
+            repaymentCount: existingLoan.repayments.length,
+            repayments: existingLoan.repayments
+          }
+        },
+        { status: 400 }
+      );
+    }
+
+    // Additional safety check - ensure pending amount is 0
+    if (existingLoan.pendingAmount > 0) {
+      console.log('❌ Cannot delete - loan has pending amount:', existingLoan.pendingAmount);
+      return NextResponse.json(
+        { 
+          error: "Cannot delete loan with pending amount",
+          pendingAmount: existingLoan.pendingAmount
+        },
         { status: 400 }
       );
     }
 
     // Delete associated document file if exists
     if (existingLoan.documentUrl) {
+      console.log('🗑️ Deleting associated document:', existingLoan.documentUrl);
       await deleteOldFile(existingLoan.documentUrl);
     }
 
+    console.log('🚀 Attempting to delete loan from database...');
+    
     await prisma.loan.delete({
       where: { id },
     });
 
+    console.log('✅ Loan successfully deleted:', id);
+
     return NextResponse.json(
-      { success: true, message: "Loan deleted successfully" },
+      { 
+        success: true, 
+        message: "Loan deleted successfully",
+        deletedLoanId: id
+      },
       { status: 200 }
     );
+
   } catch (error) {
-    console.error("Loan deletion error:", error);
+    console.error("💥 Loan deletion error:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    
+    // Handle Prisma specific errors
+    if (error.code === 'P2025') {
+      return NextResponse.json(
+        { error: "Loan not found or already deleted" },
+        { status: 404 }
+      );
+    }
+    
+    // Handle foreign key constraint violations
+    if (error.code === 'P2003') {
+      return NextResponse.json(
+        { error: "Cannot delete loan due to existing related records" },
+        { status: 400 }
+      );
+    }
+    
+    // Handle relation violations
+    if (error.code === 'P2014') {
+      return NextResponse.json(
+        { error: "Cannot delete loan due to relationship constraints" },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: "Failed to delete loan" },
+      { error: "Failed to delete loan: " + error.message },
       { status: 500 }
     );
   }
