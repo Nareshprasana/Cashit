@@ -54,7 +54,7 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const summary = searchParams.get("summary");
     const customerId = searchParams.get("customerId");
-    const debugId = searchParams.get("debugId"); // Add debug endpoint
+    const debugId = searchParams.get("debugId");
 
     // Add debug endpoint to check loan status
     if (debugId) {
@@ -142,7 +142,7 @@ export async function GET(req) {
 
       return {
         id: loan.id,
-        customerId: loan.customerId, // ✅ Add this field
+        customerId: loan.customerId,
         customer: {
           id: loan.customer.id,
           name: loan.customer.customerName,
@@ -151,8 +151,8 @@ export async function GET(req) {
           mobile: loan.customer.mobile,
           photoUrl: loan.customer.photoUrl,
         },
-        amount: Number(loan.amount), // ✅ Use 'amount' for consistency
-        loanAmount: Number(loan.amount), // Keep both for compatibility
+        amount: Number(loan.amount),
+        loanAmount: Number(loan.amount),
         pendingAmount,
         totalPaid,
         rate: loan.rate || 0,
@@ -171,6 +171,15 @@ export async function GET(req) {
     return NextResponse.json(formattedLoans, { status: 200 });
   } catch (error) {
     console.error("Loan fetch error:", error);
+    
+    // Handle Prisma database connection errors
+    if (error.code === 'P5010') {
+      return NextResponse.json(
+        { error: "Database connection failed. Please check if the database server is running." },
+        { status: 503 }
+      );
+    }
+    
     return NextResponse.json(
       { error: "Failed to fetch loans" },
       { status: 500 }
@@ -238,6 +247,7 @@ export async function POST(req) {
       );
     }
 
+    // Check for existing active loan
     const existingActiveLoan = await prisma.loan.findFirst({
       where: {
         customerId: data.customerId,
@@ -297,7 +307,7 @@ export async function POST(req) {
 
     const formattedLoan = {
       id: loan.id,
-      customerId: loan.customerId, // ✅ Add this field
+      customerId: loan.customerId,
       customer: {
         id: loan.customer.id,
         name: loan.customer.customerName,
@@ -331,6 +341,13 @@ export async function POST(req) {
       return NextResponse.json(
         { error: "A loan with similar unique constraints already exists" },
         { status: 409 }
+      );
+    }
+    
+    if (error.code === 'P5010') {
+      return NextResponse.json(
+        { error: "Database connection failed. Cannot create loan." },
+        { status: 503 }
       );
     }
     
@@ -412,7 +429,7 @@ export async function PUT(req) {
 
       const formattedLoan = {
         id: updatedLoan.id,
-        customerId: updatedLoan.customerId, // ✅ Add this field
+        customerId: updatedLoan.customerId,
         customer: {
           id: updatedLoan.customer.id,
           name: updatedLoan.customer.customerName,
@@ -464,6 +481,8 @@ export async function PUT(req) {
         return NextResponse.json({ error: "Tenure must be a positive number" }, { status: 400 });
       }
 
+      // Prepare update data
+      const updateData = {};
       if (data.amount !== undefined) updateData.amount = Number(data.amount);
       if (data.rate !== undefined) updateData.rate = Number(data.rate);
       if (data.tenure !== undefined) updateData.tenure = Number(data.tenure);
@@ -517,7 +536,7 @@ export async function PUT(req) {
 
       const formattedLoan = {
         id: updatedLoan.id,
-        customerId: updatedLoan.customerId, // ✅ Add this field
+        customerId: updatedLoan.customerId,
         customer: {
           id: updatedLoan.customer.id,
           name: updatedLoan.customer.customerName,
@@ -555,6 +574,13 @@ export async function PUT(req) {
       );
     }
     
+    if (error.code === 'P5010') {
+      return NextResponse.json(
+        { error: "Database connection failed. Cannot update loan." },
+        { status: 503 }
+      );
+    }
+    
     if (error.message.includes('Invalid file type') || error.message.includes('File size too large')) {
       return NextResponse.json(
         { error: error.message },
@@ -569,7 +595,7 @@ export async function PUT(req) {
   }
 }
 
-// 🔹 DELETE handler (for deleting a loan) - FIXED WITH DEBUGGING
+// 🔹 DELETE handler (for deleting a loan)
 export async function DELETE(req) {
   try {
     const { searchParams } = new URL(req.url);
@@ -578,7 +604,7 @@ export async function DELETE(req) {
     console.log(`🔍 DELETE request for loan ID: ${id}`);
 
     if (!id) {
-      console.log('❌ No loan ID provided');
+      console.log("❌ No loan ID provided");
       return NextResponse.json(
         { error: "Loan ID is required" },
         { status: 400 }
@@ -586,9 +612,10 @@ export async function DELETE(req) {
     }
 
     // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(id)) {
-      console.log('❌ Invalid UUID format:', id);
+      console.log("❌ Invalid UUID format:", id);
       return NextResponse.json(
         { error: "Invalid loan ID format" },
         { status: 400 }
@@ -596,7 +623,7 @@ export async function DELETE(req) {
     }
 
     console.log(`📊 Searching for loan with ID: ${id}`);
-    
+
     const existingLoan = await prisma.loan.findUnique({
       where: { id },
       include: {
@@ -605,111 +632,129 @@ export async function DELETE(req) {
             id: true,
             amount: true,
             repaymentDate: true,
-          }
+          },
         },
       },
     });
 
     if (!existingLoan) {
-      console.log('❌ Loan not found in database');
+      console.log("❌ Loan not found in database");
       return NextResponse.json(
         { error: "Loan not found" },
         { status: 404 }
       );
     }
 
-    console.log('✅ Loan found:', {
+    console.log("✅ Loan found:", {
       id: existingLoan.id,
       amount: existingLoan.amount,
       pendingAmount: existingLoan.pendingAmount,
+      status: existingLoan.status,
       repaymentCount: existingLoan.repayments?.length,
-      repayments: existingLoan.repayments
     });
 
-    // Check for repayments
-    if (existingLoan.repayments && existingLoan.repayments.length > 0) {
-      console.log('❌ Cannot delete - loan has repayments:', {
-        repaymentCount: existingLoan.repayments.length,
-        repaymentDetails: existingLoan.repayments
+    // 🚫 Block deletion if loan is active
+    if (existingLoan.status?.toLowerCase() === "active") {
+      console.log("❌ Cannot delete - loan is currently active");
+      return NextResponse.json(
+        { error: "Cannot delete active loans" },
+        { status: 400 }
+      );
+    }
+
+    // 🚫 Block deletion if there are paid repayments
+    const activeRepayments = existingLoan.repayments.filter(
+      (r) => Number(r.amount) > 0
+    );
+
+    if (activeRepayments.length > 0) {
+      console.log("❌ Cannot delete - loan has active repayments:", {
+        repaymentCount: activeRepayments.length,
       });
       return NextResponse.json(
-        { 
-          error: "Cannot delete loan with existing repayments",
+        {
+          error: "Cannot delete loan with active repayments",
           details: {
-            repaymentCount: existingLoan.repayments.length,
-            repayments: existingLoan.repayments
-          }
+            repaymentCount: activeRepayments.length,
+          },
         },
         { status: 400 }
       );
     }
 
-    // Additional safety check - ensure pending amount is 0
+    // 🚫 Block deletion if there’s a pending amount
     if (existingLoan.pendingAmount > 0) {
-      console.log('❌ Cannot delete - loan has pending amount:', existingLoan.pendingAmount);
+      console.log("❌ Cannot delete - loan has pending amount:", existingLoan.pendingAmount);
       return NextResponse.json(
-        { 
+        {
           error: "Cannot delete loan with pending amount",
-          pendingAmount: existingLoan.pendingAmount
+          pendingAmount: existingLoan.pendingAmount,
         },
         { status: 400 }
       );
     }
 
-    // Delete associated document file if exists
+    // ✅ Delete unpaid repayment records (if any)
+    if (existingLoan.repayments.length > 0) {
+      console.log("🧹 Deleting unpaid repayment records...");
+      await prisma.repayment.deleteMany({ where: { loanId: id } });
+    }
+
+    // ✅ Delete associated document file if exists
     if (existingLoan.documentUrl) {
-      console.log('🗑️ Deleting associated document:', existingLoan.documentUrl);
+      console.log("🗑️ Deleting associated document:", existingLoan.documentUrl);
       await deleteOldFile(existingLoan.documentUrl);
     }
 
-    console.log('🚀 Attempting to delete loan from database...');
-    
-    await prisma.loan.delete({
-      where: { id },
-    });
+    // ✅ Delete the loan record
+    console.log("🚀 Deleting loan from database...");
+    await prisma.loan.delete({ where: { id } });
 
-    console.log('✅ Loan successfully deleted:', id);
+    console.log("✅ Loan deleted successfully:", id);
 
     return NextResponse.json(
-      { 
-        success: true, 
+      {
+        success: true,
         message: "Loan deleted successfully",
-        deletedLoanId: id
+        deletedLoanId: id,
       },
       { status: 200 }
     );
-
   } catch (error) {
     console.error("💥 Loan deletion error:", {
       message: error.message,
       code: error.code,
-      stack: error.stack
+      stack: error.stack,
     });
-    
-    // Handle Prisma specific errors
-    if (error.code === 'P2025') {
+
+    if (error.code === "P2025") {
       return NextResponse.json(
         { error: "Loan not found or already deleted" },
         { status: 404 }
       );
     }
-    
-    // Handle foreign key constraint violations
-    if (error.code === 'P2003') {
+
+    if (error.code === "P2003") {
       return NextResponse.json(
         { error: "Cannot delete loan due to existing related records" },
         { status: 400 }
       );
     }
-    
-    // Handle relation violations
-    if (error.code === 'P2014') {
+
+    if (error.code === "P2014") {
       return NextResponse.json(
         { error: "Cannot delete loan due to relationship constraints" },
         { status: 400 }
       );
     }
-    
+
+    if (error.code === "P5010") {
+      return NextResponse.json(
+        { error: "Database connection failed. Cannot delete loan." },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Failed to delete loan: " + error.message },
       { status: 500 }
