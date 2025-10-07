@@ -2,29 +2,57 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import QRCode from "qrcode";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { put } from '@vercel/blob';
 
-const uploadDir = path.join(process.cwd(), "public", "uploads");
-const qrDir = path.join(process.cwd(), "public", "qrcodes");
+// Remove these old imports:
+// import { writeFile, mkdir } from "fs/promises";
+// import path from "path";
 
-async function ensureDir(dir) {
-  try {
-    await mkdir(dir, { recursive: true });
-  } catch {}
-}
+// Remove these old directory definitions:
+// const uploadDir = path.join(process.cwd(), "public", "uploads");
+// const qrDir = path.join(process.cwd(), "public", "qrcodes");
 
 async function saveFile(file, prefix) {
   if (!file || typeof file === "string") return null;
+  
   const buffer = Buffer.from(await file.arrayBuffer());
   const ext = String(file.name || "").split(".").pop() || "bin";
   const filename = `${prefix}-${Date.now()}.${ext}`;
-  const filepath = path.join(uploadDir, filename);
-  await writeFile(filepath, buffer);
-  return `/uploads/${filename}`;
+  
+  try {
+    // Upload to Vercel Blob instead of local filesystem
+    const blob = await put(filename, buffer, {
+      access: 'public',
+      // Add random suffix to avoid filename conflicts
+      addRandomSuffix: true,
+    });
+    
+    return blob.url;
+  } catch (error) {
+    console.error(`Error uploading ${prefix} file:`, error);
+    return null;
+  }
 }
 
-// ✅ GET customers (with optional filters) - FIXED to include customers without loans
+async function generateQRCode(customerCode) {
+  try {
+    // Generate QR code as buffer in memory
+    const qrBuffer = await QRCode.toBuffer(customerCode);
+    const filename = `${customerCode}.png`;
+    
+    // Upload QR code directly to Vercel Blob
+    const blob = await put(filename, qrBuffer, {
+      access: 'public',
+    });
+    
+    return blob.url;
+  } catch (error) {
+    console.error("QR generation failed:", error);
+    return null;
+  }
+}
+
+// ✅ GET customers - unchanged (no file operations here)
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
@@ -38,12 +66,10 @@ export async function GET(req) {
       return NextResponse.json({ total }, { status: 200 });
     }
 
-    // Build the where clause dynamically
     const whereClause = {
       ...(areaId ? { areaId } : {}),
     };
 
-    // Only add loan filtering if min or max amount is specified
     if (min || max) {
       whereClause.loans = {
         some: {
@@ -54,7 +80,6 @@ export async function GET(req) {
         },
       };
     }
-    // If no amount filters, we get ALL customers (with and without loans)
 
     const customers = await prisma.customer.findMany({
       where: whereClause,
@@ -62,7 +87,7 @@ export async function GET(req) {
         area: true,
         loans: {
           orderBy: { createdAt: "desc" },
-          take: 1, // Get only the latest loan for calculation
+          take: 1,
           include: {
             repayments: { select: { amount: true, repaymentDate: true } },
           },
@@ -71,7 +96,6 @@ export async function GET(req) {
       orderBy: { createdAt: "desc" },
     });
 
-    // Format the response to handle customers with and without loans
     const formatted = customers.map((customer) => {
       const latestLoan = customer.loans?.[0] || null;
 
@@ -80,7 +104,6 @@ export async function GET(req) {
       let totalPaid = 0;
       let pendingAmount = 0;
 
-      // Only calculate loan details if customer has loans
       if (latestLoan) {
         if (latestLoan?.loanDate && latestLoan?.tenure != null) {
           const loanDate = new Date(latestLoan.loanDate);
@@ -114,7 +137,7 @@ export async function GET(req) {
         totalPaid,
         pendingAmount,
         endDate,
-        hasLoans: customer.loans.length > 0, // Add this field to easily identify customers with loans
+        hasLoans: customer.loans.length > 0,
       };
     });
 
@@ -128,10 +151,11 @@ export async function GET(req) {
   }
 }
 
-// ✅ POST create customer (all fields optional)
+// ✅ POST create customer with Vercel Blob
 export async function POST(req) {
-  await ensureDir(uploadDir);
-  await ensureDir(qrDir);
+  // Remove directory creation - no longer needed
+  // await ensureDir(uploadDir);
+  // await ensureDir(qrDir);
 
   try {
     const formData = await req.formData();
@@ -142,6 +166,7 @@ export async function POST(req) {
     const incomeProof = formData.get("incomeProof");
     const residenceProof = formData.get("residenceProof");
 
+    // Upload files to Vercel Blob
     const photoUrl = await saveFile(photo, "photo");
     const aadharDocumentUrl = await saveFile(aadharDocument, "aadhar");
     const incomeProofUrl = await saveFile(incomeProof, "income");
@@ -150,7 +175,6 @@ export async function POST(req) {
     const dobDate = customer.dob ? new Date(customer.dob) : null;
     const dob = dobDate && !isNaN(dobDate.getTime()) ? dobDate : null;
 
-    // ✅ Create customer with all optional fields
     const newCustomer = await prisma.customer.create({
       data: {
         customerName: customer.customerName || null,
@@ -164,7 +188,7 @@ export async function POST(req) {
         guarantorName: customer.guarantorName || null,
         guarantorAadhar: customer.guarantorAadhar || null,
         customerCode: customer.customerCode || null,
-        areaId: customer.area || null, // optional
+        areaId: customer.area || null,
         photoUrl,
         aadharDocumentUrl,
         incomeProofUrl,
@@ -187,13 +211,10 @@ export async function POST(req) {
       }
     }
 
-    // Generate QR if customerCode exists
+    // Generate QR code using Vercel Blob
     let qrUrl = null;
     if (newCustomer.customerCode) {
-      const filename = `${newCustomer.customerCode}.png`;
-      const qrPath = path.join(qrDir, filename);
-      await QRCode.toFile(qrPath, newCustomer.customerCode);
-      qrUrl = `/qrcodes/${filename}`;
+      qrUrl = await generateQRCode(newCustomer.customerCode);
       await prisma.customer.update({
         where: { id: newCustomer.id },
         data: { qrUrl },
@@ -213,10 +234,11 @@ export async function POST(req) {
   }
 }
 
-// ✅ PUT update customer (all fields optional)
+// ✅ PUT update customer with Vercel Blob
 export async function PUT(req) {
-  await ensureDir(uploadDir);
-  await ensureDir(qrDir);
+  // Remove directory creation
+  // await ensureDir(uploadDir);
+  // await ensureDir(qrDir);
 
   try {
     const formData = await req.formData();
@@ -248,28 +270,32 @@ export async function PUT(req) {
       customerCode: data.customerCode || null,
     };
 
-    if (photo && typeof photo !== "string") updateData.photoUrl = await saveFile(photo, "photo");
-    if (aadharDocument && typeof aadharDocument !== "string") updateData.aadharDocumentUrl = await saveFile(aadharDocument, "aadhar");
-    if (incomeProof && typeof incomeProof !== "string") updateData.incomeProofUrl = await saveFile(incomeProof, "income");
-    if (residenceProof && typeof residenceProof !== "string") updateData.residenceProofUrl = await saveFile(residenceProof, "residence");
+    // Upload new files to Vercel Blob if provided
+    if (photo && typeof photo !== "string") {
+      updateData.photoUrl = await saveFile(photo, "photo");
+    }
+    if (aadharDocument && typeof aadharDocument !== "string") {
+      updateData.aadharDocumentUrl = await saveFile(aadharDocument, "aadhar");
+    }
+    if (incomeProof && typeof incomeProof !== "string") {
+      updateData.incomeProofUrl = await saveFile(incomeProof, "income");
+    }
+    if (residenceProof && typeof residenceProof !== "string") {
+      updateData.residenceProofUrl = await saveFile(residenceProof, "residence");
+    }
 
     const updatedCustomer = await prisma.customer.update({
       where: { id: customerId },
       data: updateData,
     });
 
-    // Regenerate QR if customerCode changed
+    // Regenerate QR code using Vercel Blob if customerCode changed
     if (data.customerCode) {
-      const filename = `${data.customerCode}.png`;
-      const qrPath = path.join(qrDir, filename);
-      await QRCode.toFile(qrPath, data.customerCode);
-
-      const qrUrl = `/qrcodes/${filename}`;
+      const qrUrl = await generateQRCode(data.customerCode);
       await prisma.customer.update({
         where: { id: customerId },
         data: { qrUrl },
       });
-
       updatedCustomer.qrUrl = qrUrl;
     }
 
@@ -283,7 +309,7 @@ export async function PUT(req) {
   }
 }
 
-// ✅ DELETE customer
+// ✅ DELETE customer - unchanged (no file operations here)
 export async function DELETE(req) {
   try {
     const { searchParams } = new URL(req.url);
