@@ -24,7 +24,7 @@ async function saveFile(file, prefix) {
   return `/uploads/${filename}`;
 }
 
-// ✅ GET customers (with optional filters)
+// ✅ GET customers (with optional filters) - FIXED to include customers without loans
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
@@ -38,23 +38,31 @@ export async function GET(req) {
       return NextResponse.json({ total }, { status: 200 });
     }
 
-    const customers = await prisma.customer.findMany({
-      where: {
-        ...(areaId ? { areaId } : {}),
-        loans: {
-          some: {
-            amount: {
-              gte: min ? parseFloat(min) : undefined,
-              lte: max ? parseFloat(max) : undefined,
-            },
+    // Build the where clause dynamically
+    const whereClause = {
+      ...(areaId ? { areaId } : {}),
+    };
+
+    // Only add loan filtering if min or max amount is specified
+    if (min || max) {
+      whereClause.loans = {
+        some: {
+          amount: {
+            ...(min ? { gte: parseFloat(min) } : {}),
+            ...(max ? { lte: parseFloat(max) } : {}),
           },
         },
-      },
+      };
+    }
+    // If no amount filters, we get ALL customers (with and without loans)
+
+    const customers = await prisma.customer.findMany({
+      where: whereClause,
       include: {
         area: true,
         loans: {
           orderBy: { createdAt: "desc" },
-          take: 1,
+          take: 1, // Get only the latest loan for calculation
           include: {
             repayments: { select: { amount: true, repaymentDate: true } },
           },
@@ -63,26 +71,34 @@ export async function GET(req) {
       orderBy: { createdAt: "desc" },
     });
 
+    // Format the response to handle customers with and without loans
     const formatted = customers.map((customer) => {
       const latestLoan = customer.loans?.[0] || null;
 
       let endDate = null;
-      if (latestLoan?.loanDate && latestLoan?.tenure != null) {
-        const loanDate = new Date(latestLoan.loanDate);
-        const tenureMonths = Number(latestLoan.tenure);
-        if (!isNaN(loanDate.getTime()) && !isNaN(tenureMonths)) {
-          const end = new Date(loanDate);
-          end.setMonth(end.getMonth() + tenureMonths);
-          endDate = end;
-        }
-      }
+      let loanAmount = 0;
+      let totalPaid = 0;
+      let pendingAmount = 0;
 
-      const loanAmount = Number(latestLoan?.amount ?? 0);
-      const totalPaid = (latestLoan?.repayments || []).reduce((acc, r) => {
-        const val = typeof r.amount === "number" ? r.amount : Number(r.amount || 0);
-        return acc + (isNaN(val) ? 0 : val);
-      }, 0);
-      const pendingAmount = Math.max(loanAmount - totalPaid, 0);
+      // Only calculate loan details if customer has loans
+      if (latestLoan) {
+        if (latestLoan?.loanDate && latestLoan?.tenure != null) {
+          const loanDate = new Date(latestLoan.loanDate);
+          const tenureMonths = Number(latestLoan.tenure);
+          if (!isNaN(loanDate.getTime()) && !isNaN(tenureMonths)) {
+            const end = new Date(loanDate);
+            end.setMonth(end.getMonth() + tenureMonths);
+            endDate = end;
+          }
+        }
+
+        loanAmount = Number(latestLoan?.amount ?? 0);
+        totalPaid = (latestLoan?.repayments || []).reduce((acc, r) => {
+          const val = typeof r.amount === "number" ? r.amount : Number(r.amount || 0);
+          return acc + (isNaN(val) ? 0 : val);
+        }, 0);
+        pendingAmount = Math.max(loanAmount - totalPaid, 0);
+      }
 
       return {
         id: customer.id,
@@ -98,6 +114,7 @@ export async function GET(req) {
         totalPaid,
         pendingAmount,
         endDate,
+        hasLoans: customer.loans.length > 0, // Add this field to easily identify customers with loans
       };
     });
 

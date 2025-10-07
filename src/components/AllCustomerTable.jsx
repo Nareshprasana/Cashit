@@ -26,6 +26,7 @@ import {
   AlertCircle,
   Trash2,
   Plus,
+  RefreshCw,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -303,93 +304,141 @@ export default function AllCustomerTable() {
     return d;
   };
 
-  useEffect(() => {
-    async function fetchCustomers() {
-      try {
-        setLoading(true);
-        const [customersRes, loansRes] = await Promise.all([
-          fetch("/api/customers"),
-          fetch("/api/loans")
-        ]);
-
-        if (!customersRes.ok) throw new Error("Failed to fetch customer data");
-
-        let customers = await customersRes.json();
-        const loans = loansRes.ok ? await loansRes.json() : [];
-
-        customers = customers.map((c) => ({
-          ...c,
-          endDate: c.endDate
-            ? new Date(c.endDate)
-            : c.loanDate && c.tenure
-            ? calculateEndDate(c.loanDate, c.tenure)
-            : null,
-        }));
-
-        setData(customers);
-        setAvailableAreas([...new Set(customers.map((c) => c.area).filter(Boolean))]);
-
-        const loansByCustomer = {};
-        const toDeleteLoanIds = [];
-        const today = new Date();
-        const MS_PER_DAY = 1000 * 60 * 60 * 24;
-
-        loans.forEach(loan => {
-          const pendingAmount = loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
-          const status = getLoanStatus(loan);
-          const normalizedLoan = {
-            ...loan,
-            documentUrl: loan.documentUrl || null,
-            status: status,
-            amount: loan.amount || loan.loanAmount || 0,
-            pendingAmount: pendingAmount,
-            totalPaid: loan.totalPaid || 0,
-            endDate: loan.endDate || (loan.loanDate && loan.tenure ? calculateEndDate(loan.loanDate, loan.tenure) : null),
-          };
-
-          const end = normalizedLoan.endDate ? new Date(normalizedLoan.endDate) : null;
-          if (end) {
-            const daysSinceEnd = Math.floor((today.getTime() - new Date(end).getTime()) / MS_PER_DAY);
-            if (daysSinceEnd > 30) {
-              if (loan.id) toDeleteLoanIds.push(loan.id);
-              return;
-            }
-          }
-
-          const candidateKeys = [
-            loan.customerId,
-            loan.customer?.id,
-            loan.customer?.customerCode,
-            loan.customer?.customerCode?.toString?.(),
-            loan.customerId?.toString?.(),
-          ].filter(Boolean).map(k => String(k));
-
-          candidateKeys.forEach(key => {
-            if (!loansByCustomer[key]) loansByCustomer[key] = [];
-            loansByCustomer[key].push(normalizedLoan);
-          });
-        });
-
-        if (toDeleteLoanIds.length > 0) {
-          Promise.all(
-            toDeleteLoanIds.map(id =>
-              fetch(`/api/loans?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
-                .then(res => ({ id, ok: res.ok }))
-                .catch(err => ({ id, ok: false, error: err.message }))
-            )
-          ).then(results => console.log('Auto-delete results:', results)).catch(err => console.error('Auto-delete error:', err));
-        }
-        
-        setCustomerLoans(loansByCustomer);
-
-      } catch (e) {
-        console.error("Fetch error:", e);
-        alert("Failed to load customer data. Please refresh the page.");
-      } finally {
-        setLoading(false);
+  // Enhanced getLoansForCustomer function to ensure it always returns an array
+  const getLoansForCustomer = (customer) => {
+    if (!customer || !customer.id) return [];
+    
+    const keyCandidates = [
+      customer.id, 
+      String(customer.id), 
+      String(customer.customerCode), 
+      customer.customerCode?.toString?.()
+    ].filter(Boolean).map(k => String(k));
+    
+    for (const key of keyCandidates) {
+      if (customerLoans[key] && customerLoans[key].length > 0) {
+        return customerLoans[key];
       }
     }
-    fetchCustomers();
+    
+    // Return empty array for customers with no loans
+    return [];
+  };
+
+  // Refresh data function
+  const refreshCustomerData = async () => {
+    try {
+      setLoading(true);
+      console.log("Refreshing customer data...");
+      
+      const [customersRes, loansRes] = await Promise.all([
+        fetch("/api/customers?" + Date.now()),
+        fetch("/api/loans?" + Date.now())
+      ]);
+
+      if (!customersRes.ok) throw new Error("Failed to fetch customer data");
+
+      let customers = await customersRes.json();
+      const loans = loansRes.ok ? await loansRes.json() : [];
+
+      // Ensure all customers have basic structure
+      customers = customers.map((c) => ({
+        ...c,
+        loanAmount: c.loanAmount || 0,
+        totalPaid: c.totalPaid || 0,
+        endDate: c.endDate
+          ? new Date(c.endDate)
+          : c.loanDate && c.tenure
+          ? calculateEndDate(c.loanDate, c.tenure)
+          : null,
+      }));
+
+      setData(customers);
+      setAvailableAreas([...new Set(customers.map((c) => c.area).filter(Boolean))]);
+
+      const loansByCustomer = {};
+      const toDeleteLoanIds = [];
+      const today = new Date();
+      const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+      loans.forEach(loan => {
+        const pendingAmount = loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
+        const status = getLoanStatus(loan);
+        const normalizedLoan = {
+          ...loan,
+          documentUrl: loan.documentUrl || null,
+          status: status,
+          amount: loan.amount || loan.loanAmount || 0,
+          pendingAmount: pendingAmount,
+          totalPaid: loan.totalPaid || 0,
+          endDate: loan.endDate || (loan.loanDate && loan.tenure ? calculateEndDate(loan.loanDate, loan.tenure) : null),
+        };
+
+        const end = normalizedLoan.endDate ? new Date(normalizedLoan.endDate) : null;
+        if (end) {
+          const daysSinceEnd = Math.floor((today.getTime() - new Date(end).getTime()) / MS_PER_DAY);
+          if (daysSinceEnd > 30) {
+            if (loan.id) toDeleteLoanIds.push(loan.id);
+            return;
+          }
+        }
+
+        const candidateKeys = [
+          loan.customerId,
+          loan.customer?.id,
+          loan.customer?.customerCode,
+          loan.customer?.customerCode?.toString?.(),
+          loan.customerId?.toString?.(),
+        ].filter(Boolean).map(k => String(k));
+
+        candidateKeys.forEach(key => {
+          if (!loansByCustomer[key]) loansByCustomer[key] = [];
+          loansByCustomer[key].push(normalizedLoan);
+        });
+      });
+
+      // Ensure every customer has an entry in loansByCustomer (even if empty)
+      customers.forEach(customer => {
+        const customerKey = String(customer.id);
+        if (!loansByCustomer[customerKey]) {
+          loansByCustomer[customerKey] = [];
+        }
+      });
+
+      if (toDeleteLoanIds.length > 0) {
+        Promise.all(
+          toDeleteLoanIds.map(id =>
+            fetch(`/api/loans?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+              .then(res => ({ id, ok: res.ok }))
+              .catch(err => ({ id, ok: false, error: err.message }))
+          )
+        ).then(results => console.log('Auto-delete results:', results)).catch(err => console.error('Auto-delete error:', err));
+      }
+      
+      setCustomerLoans(loansByCustomer);
+      console.log("Customer data refreshed successfully");
+
+    } catch (e) {
+      console.error("Refresh error:", e);
+      alert("Failed to refresh customer data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial data fetch
+  useEffect(() => {
+    refreshCustomerData();
+  }, []);
+
+  // Auto-refresh when component comes into focus
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshCustomerData();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   useEffect(() => {
@@ -415,7 +464,7 @@ export default function AllCustomerTable() {
         setRepayments([]);
       });
 
-    const customerLoansList = customerLoans[selectedCustomer.id] || [];
+    const customerLoansList = getLoansForCustomer(selectedCustomer);
     const currentLoan = getCurrentLoan(customerLoansList);
     setSelectedLoan(currentLoan || null);
   }, [selectedCustomer, customerLoans]);
@@ -708,7 +757,7 @@ export default function AllCustomerTable() {
       }));
 
       if (selectedLoan?.id === loanToDelete.id) {
-        const customerLoansList = customerLoans[selectedCustomer.id] || [];
+        const customerLoansList = getLoansForCustomer(selectedCustomer);
         const currentLoan = getCurrentLoan(customerLoansList.filter(l => l.id !== loanToDelete.id));
         setSelectedLoan(currentLoan || null);
       }
@@ -747,6 +796,7 @@ export default function AllCustomerTable() {
     setCreateLoanOpen(true);
   };
 
+  // Updated columns with fixed status display
   const columns = [
     {
       accessorKey: "photoUrl",
@@ -813,7 +863,17 @@ export default function AllCustomerTable() {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => {
-        const customerLoansList = customerLoans[row.original.id] || [];
+        const customerLoansList = getLoansForCustomer(row.original);
+        
+        // Handle customers with no loans
+        if (customerLoansList.length === 0) {
+          return (
+            <Badge variant="outline" className="text-gray-600">
+              No Loans
+            </Badge>
+          );
+        }
+
         const hasActiveLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'ACTIVE');
         const hasOverdueLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'OVERDUE');
         const hasCompletedLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'COMPLETED');
@@ -936,73 +996,46 @@ export default function AllCustomerTable() {
     },
   ];
 
+  // Fixed filteredData logic to include all customers
   const filteredData = useMemo(() => {
-    return data.filter((c) => {
+    return data.filter((customer) => {
+      // Basic search filter
       const globalMatch = !globalFilter ||
-        c.name?.toLowerCase().includes(globalFilter.toLowerCase()) ||
-        c.customerCode?.toLowerCase().includes(globalFilter.toLowerCase()) ||
-        c.aadhar?.includes(globalFilter);
+        customer.name?.toLowerCase().includes(globalFilter.toLowerCase()) ||
+        customer.customerCode?.toLowerCase().includes(globalFilter.toLowerCase()) ||
+        customer.aadhar?.includes(globalFilter);
 
-      const getLoansForCustomer = (cust) => {
-        const keyCandidates = [cust.id, String(cust.id), String(cust.customerCode), cust.customerCode?.toString?.()].filter(Boolean).map(k => String(k));
-        for (const key of keyCandidates) {
-          if (customerLoans[key] && customerLoans[key].length) return customerLoans[key];
-        }
-        const allLoans = Object.values(customerLoans).flat();
-        return allLoans.filter(loan => {
-          if (!loan) return false;
-          if (loan.customerId && String(loan.customerId) === String(cust.id)) return true;
-          if (loan.customer?.id && String(loan.customer.id) === String(cust.id)) return true;
-          if (loan.customer?.customerCode && String(loan.customer.customerCode) === String(cust.customerCode)) return true;
-          return false;
-        });
-      };
+      const customerLoansList = getLoansForCustomer(customer);
 
-      const customerLoansList = getLoansForCustomer(c) || [];
-
-      const loanIsOverdue = (loan) => {
-        const pending = loan.pendingAmount ?? ((loan.amount || 0) - (loan.totalPaid || 0));
-        let end = loan.endDate ? new Date(loan.endDate) : (loan.loanDate && loan.tenure ? calculateEndDate(loan.loanDate, loan.tenure) : null);
-        if (!end && c.endDate) end = new Date(c.endDate);
-        if (!end) return false;
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        return Number(pending) > 0 && end < today;
-      };
-
-      const loanIsActive = (loan) => {
-        const pending = loan.pendingAmount ?? ((loan.amount || 0) - (loan.totalPaid || 0));
-        return Number(pending) > 0 && !loanIsOverdue(loan);
-      };
-
-      const loanIsCompleted = (loan) => {
-        const pending = loan.pendingAmount ?? ((loan.amount || 0) - (loan.totalPaid || 0));
-        return Number(pending) <= 0;
-      };
-
-      const hasOverdueLoan = customerLoansList.some(loanIsOverdue);
-      const hasActiveLoan = customerLoansList.some(loanIsActive);
-      const hasCompletedLoan = customerLoansList.some(loanIsCompleted);
-
+      // Enhanced status filtering that properly handles customers with no loans
       let statusMatch = true;
       if (statusFilter) {
-        const sf = String(statusFilter).toLowerCase();
-        if (sf === 'active') statusMatch = hasActiveLoan;
-        else if (sf === 'overdue') statusMatch = hasOverdueLoan;
-        else if (sf === 'completed') statusMatch = hasCompletedLoan;
-        else if (sf === 'closed') statusMatch = customerLoansList.length === 0 || (!hasActiveLoan && !hasOverdueLoan && hasCompletedLoan);
-        else statusMatch = true;
+        const statusFilterLower = statusFilter.toLowerCase();
+        
+        if (statusFilterLower === 'active') {
+          statusMatch = customerLoansList.some(loan => getLoanStatus(loan) === 'ACTIVE');
+        } else if (statusFilterLower === 'overdue') {
+          statusMatch = customerLoansList.some(loan => getLoanStatus(loan) === 'OVERDUE');
+        } else if (statusFilterLower === 'completed') {
+          statusMatch = customerLoansList.some(loan => getLoanStatus(loan) === 'COMPLETED');
+        } else if (statusFilterLower === 'closed') {
+          statusMatch = customerLoansList.length === 0 || customerLoansList.every(loan => getLoanStatus(loan) === 'COMPLETED');
+        } else if (statusFilterLower === 'no-loans') {
+          statusMatch = customerLoansList.length === 0;
+        } else if (statusFilterLower === 'has-loans') {
+          statusMatch = customerLoansList.length > 0;
+        }
+        // If no specific status filter matches, show all (statusMatch remains true)
       }
 
-      const areaMatch = !areaFilter || c.area === areaFilter;
+      const areaMatch = !areaFilter || customer.area === areaFilter;
 
-      const end = c.endDate ? new Date(c.endDate) : null;
+      const end = customer.endDate ? new Date(customer.endDate) : null;
       const startDateMatch = !startEndDate || (end && end >= new Date(startEndDate));
       const endDateMatch = !endEndDate || (end && end <= new Date(endEndDate));
 
-      const result = globalMatch && statusMatch && areaMatch && startDateMatch && endDateMatch;
-      
-      return result;
+      // Now returns true for customers without loans when no status filter is applied
+      return globalMatch && statusMatch && areaMatch && startDateMatch && endDateMatch;
     });
   }, [data, globalFilter, statusFilter, areaFilter, startEndDate, endEndDate, customerLoans]);
 
@@ -1020,7 +1053,7 @@ export default function AllCustomerTable() {
     const customerDocs = ["aadharDocumentUrl", "incomeProofUrl", "residenceProofUrl", "qrUrl", "photoUrl"];
     const customerDocCount = customerDocs.filter((f) => selectedCustomer[f]).length;
     
-    const customerLoansList = customerLoans[selectedCustomer.id] || [];
+    const customerLoansList = getLoansForCustomer(selectedCustomer);
     const currentLoan = getCurrentLoan(customerLoansList);
     const loanDocCount = currentLoan?.documentUrl ? 1 : 0;
     
@@ -1109,7 +1142,28 @@ export default function AllCustomerTable() {
             <CreditCard className="h-4 w-4" />
             {filteredData.length} filtered
           </Badge>
-          <Button onClick={() => router.push("/dashboard/addNewCustomer")} className="ml-4">
+          
+          {/* Refresh Button */}
+          <Button 
+            variant="outline" 
+            onClick={refreshCustomerData}
+            disabled={loading}
+            className="flex items-center gap-1"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          
+          <Button 
+            onClick={async () => {
+              router.push("/dashboard/addNewCustomer");
+              // Auto-refresh after a delay when returning from add customer page
+              setTimeout(() => {
+                refreshCustomerData();
+              }, 1000);
+            }} 
+            className="ml-4"
+          >
             <Plus className="h-4 w-4 mr-2" />
             Add Customer
           </Button>
@@ -1171,11 +1225,12 @@ export default function AllCustomerTable() {
                     onChange={(e) => setStatusFilter(e.target.value)} 
                     className="w-full rounded border p-2 text-sm"
                   >
-                    <option value="">All</option>
-                    <option value="active">Active</option>
-                    <option value="overdue">Overdue</option>
-                    <option value="completed">Completed</option>
-                    <option value="closed">Closed</option>
+                    <option value="">All Customers</option>
+                    <option value="active">Active Loans</option>
+                    <option value="overdue">Overdue Loans</option>
+                    <option value="completed">Completed Loans</option>
+                    <option value="no-loans">No Loans</option>
+                    <option value="has-loans">Has Loans</option>
                   </select>
                 </div>
 
@@ -1277,6 +1332,7 @@ export default function AllCustomerTable() {
         </div>
       )}
 
+      {/* Rest of the dialogs and components remain exactly the same */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -1327,6 +1383,7 @@ export default function AllCustomerTable() {
             <p className="text-center py-8 text-gray-500">No customer selected.</p>
           ) : (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+              {/* Customer details content remains exactly the same */}
               <div className="space-y-6 lg:col-span-1">
                 <Card>
                   <CardContent className="pt-6">
@@ -1473,13 +1530,13 @@ export default function AllCustomerTable() {
                       </CardContent>
                     </Card>
 
-                    {(customerLoans[selectedCustomer.id]?.length > 0) && (
+                    {(getLoansForCustomer(selectedCustomer)?.length > 0) && (
                       <Card>
                         <CardHeader>
                           <CardTitle className="text-lg">All Loans</CardTitle>
                           <CardDescription>
                             {(() => {
-                              const customerLoansList = customerLoans[selectedCustomer.id] || [];
+                              const customerLoansList = getLoansForCustomer(selectedCustomer);
                               const total = customerLoansList.length;
                               const activeCount = customerLoansList.filter(loan => getLoanStatus(loan) === 'ACTIVE').length;
                               const completedCount = customerLoansList.filter(loan => getLoanStatus(loan) === 'COMPLETED').length;
@@ -1499,7 +1556,7 @@ export default function AllCustomerTable() {
                         <CardContent>
                           <div className="space-y-4">
                             {(() => {
-                              const customerLoansList = customerLoans[selectedCustomer.id] || [];
+                              const customerLoansList = getLoansForCustomer(selectedCustomer);
                               const sortedLoans = [...customerLoansList].sort((a, b) => 
                                 new Date(b.loanDate || 0) - new Date(a.loanDate || 0)
                               );
@@ -1726,7 +1783,7 @@ export default function AllCustomerTable() {
                               ))}
                               
                               {(() => {
-                                const customerLoansList = customerLoans[selectedCustomer.id] || [];
+                                const customerLoansList = getLoansForCustomer(selectedCustomer);
                                 const currentLoan = getCurrentLoan(customerLoansList);
                                 
                                 if (!currentLoan) {
