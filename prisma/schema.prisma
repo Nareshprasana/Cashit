@@ -1,11 +1,11 @@
 // schema.prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("cashit_PRISMA_DATABASE_URL") // <-- must match your Vercel env var
-}
-
 generator client {
   provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("cashit_PRISMA_DATABASE_URL")
 }
 
 // ---------------------------
@@ -18,7 +18,7 @@ model User {
   username  String?  @unique
   password  String
   name      String
-  role      Role     // ✅ no default here
+  role      Role
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -41,7 +41,7 @@ model Area {
   pincode   String
   createdAt DateTime   @default(now())
 
-  customers Customer[] // One-to-many: Area → Customers
+  customers Customer[]
 }
 
 model Customer {
@@ -51,7 +51,7 @@ model Customer {
   parentName         String?
   mobile             String?
   dob                DateTime?
-  aadhar             String?
+  aadhar             String?    // This is correctly defined as optional
   gender             String?
   address            String?
   guarantorName      String?
@@ -62,12 +62,11 @@ model Customer {
   aadharDocumentUrl  String?
   incomeProofUrl     String?
   residenceProofUrl  String?
-  qrUrl              String?          // ✅ QR code URL
+  qrUrl              String?
   createdAt          DateTime @default(now())
   
-
   area      Area?    @relation(fields: [areaId], references: [id], onDelete: Cascade)
-  loans     Loan[]   // One-to-many: Customer → Loans
+  loans     Loan[]
 }
 
 enum LoanStatus {
@@ -76,12 +75,11 @@ enum LoanStatus {
   NEVER_OPENED
 }
 
-
 model Loan {
   id             String     @id @default(uuid())
   customerId     String
   area           String
-  amount         Int      // 👈 this is what Prisma expects
+  amount         Int
   rate           Float
   tenure         Int
   loanDate       DateTime
