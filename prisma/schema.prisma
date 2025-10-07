@@ -46,26 +46,27 @@ model Area {
 
 model Customer {
   id                 String   @id @default(uuid())
-  customerName       String
+  customerName       String?
   spouseName         String?
   parentName         String?
-  mobile             String
-  dob                DateTime
-  aadhar             String
-  gender             String
-  address            String
+  mobile             String?
+  dob                DateTime?
+  aadhar             String?
+  gender             String?
+  address            String?
   guarantorName      String?
   guarantorAadhar    String?
-  areaId             String
-  customerCode       String   @unique
+  areaId             String?
+  customerCode       String?  @unique
   photoUrl           String?
   aadharDocumentUrl  String?
   incomeProofUrl     String?
   residenceProofUrl  String?
   qrUrl              String?          // ✅ QR code URL
   createdAt          DateTime @default(now())
+  
 
-  area      Area     @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  area      Area?    @relation(fields: [areaId], references: [id], onDelete: Cascade)
   loans     Loan[]   // One-to-many: Customer → Loans
 }
 

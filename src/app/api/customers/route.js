@@ -66,7 +66,6 @@ export async function GET(req) {
     const formatted = customers.map((customer) => {
       const latestLoan = customer.loans?.[0] || null;
 
-      // ✅ Calculate endDate using loanDate + tenure
       let endDate = null;
       if (latestLoan?.loanDate && latestLoan?.tenure != null) {
         const loanDate = new Date(latestLoan.loanDate);
@@ -112,7 +111,7 @@ export async function GET(req) {
   }
 }
 
-// ✅ POST create customer (with file uploads + QR + optional loan)
+// ✅ POST create customer (all fields optional)
 export async function POST(req) {
   await ensureDir(uploadDir);
   await ensureDir(qrDir);
@@ -134,28 +133,21 @@ export async function POST(req) {
     const dobDate = customer.dob ? new Date(customer.dob) : null;
     const dob = dobDate && !isNaN(dobDate.getTime()) ? dobDate : null;
 
-    if (!customer.area || typeof customer.area !== "string" || customer.area.trim() === "") {
-      return NextResponse.json(
-        { success: false, error: "area is required and must be a valid string" },
-        { status: 400 }
-      );
-    }
-
-    // ✅ Create customer
+    // ✅ Create customer with all optional fields
     const newCustomer = await prisma.customer.create({
       data: {
-        customerName: customer.customerName,
+        customerName: customer.customerName || null,
         spouseName: customer.spouseName || null,
         parentName: customer.parentName || null,
-        mobile: customer.mobile,
+        mobile: customer.mobile || null,
         dob,
-        aadhar: customer.aadhar,
-        gender: customer.gender,
-        address: customer.address,
+        aadhar: customer.aadhar || null,
+        gender: customer.gender || null,
+        address: customer.address || null,
         guarantorName: customer.guarantorName || null,
         guarantorAadhar: customer.guarantorAadhar || null,
         customerCode: customer.customerCode || null,
-        areaId: customer.area,
+        areaId: customer.area || null, // optional
         photoUrl,
         aadharDocumentUrl,
         incomeProofUrl,
@@ -163,7 +155,7 @@ export async function POST(req) {
       },
     });
 
-    // ✅ Optional: create initial loan if provided
+    // Optional: create initial loan if provided
     if (customer.loanAmount && customer.loanDate && customer.tenure) {
       const loanDateObj = new Date(customer.loanDate);
       if (!isNaN(loanDateObj.getTime())) {
@@ -178,16 +170,18 @@ export async function POST(req) {
       }
     }
 
-    // Generate QR and save URL
-    const filename = `${newCustomer.customerCode}.png`;
-    const qrPath = path.join(qrDir, filename);
-    await QRCode.toFile(qrPath, newCustomer.customerCode);
-
-    const qrUrl = `/qrcodes/${filename}`;
-    await prisma.customer.update({
-      where: { id: newCustomer.id },
-      data: { qrUrl },
-    });
+    // Generate QR if customerCode exists
+    let qrUrl = null;
+    if (newCustomer.customerCode) {
+      const filename = `${newCustomer.customerCode}.png`;
+      const qrPath = path.join(qrDir, filename);
+      await QRCode.toFile(qrPath, newCustomer.customerCode);
+      qrUrl = `/qrcodes/${filename}`;
+      await prisma.customer.update({
+        where: { id: newCustomer.id },
+        data: { qrUrl },
+      });
+    }
 
     return NextResponse.json(
       { success: true, customer: { ...newCustomer, qrUrl } },
@@ -202,7 +196,7 @@ export async function POST(req) {
   }
 }
 
-// ✅ PUT update customer (with optional file updates + QR regen if code changes)
+// ✅ PUT update customer (all fields optional)
 export async function PUT(req) {
   await ensureDir(uploadDir);
   await ensureDir(qrDir);
@@ -223,17 +217,17 @@ export async function PUT(req) {
     const residenceProof = formData.get("residenceProof");
 
     const updateData = {
-      customerName: data.customerName,
+      customerName: data.customerName || null,
       spouseName: data.spouseName || null,
       parentName: data.parentName || null,
-      mobile: data.mobile,
+      mobile: data.mobile || null,
       dob: data.dob ? new Date(data.dob) : null,
-      aadhar: data.aadhar,
-      gender: data.gender,
-      address: data.address,
+      aadhar: data.aadhar || null,
+      gender: data.gender || null,
+      address: data.address || null,
       guarantorName: data.guarantorName || null,
       guarantorAadhar: data.guarantorAadhar || null,
-      areaId: data.area,
+      areaId: data.area || null,
       customerCode: data.customerCode || null,
     };
 
@@ -247,7 +241,7 @@ export async function PUT(req) {
       data: updateData,
     });
 
-    // ✅ Regenerate QR if customerCode changed
+    // Regenerate QR if customerCode changed
     if (data.customerCode) {
       const filename = `${data.customerCode}.png`;
       const qrPath = path.join(qrDir, filename);
