@@ -974,10 +974,10 @@ export default function AllCustomerTable() {
                 <Eye className="h-4 w-4 mr-2" />
                 View Details
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push(`/customers/edit?id=${customer.id}`)}>
+              {/* <DropdownMenuItem onClick={() => router.push(`/customers/edit?id=${customer.id}`)}>
                 <Edit className="h-4 w-4 mr-2" />
                 Edit Customer
-              </DropdownMenuItem>
+              </DropdownMenuItem> */}
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 className="text-red-600"
