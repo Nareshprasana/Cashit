@@ -4,14 +4,6 @@ import prisma from "@/lib/prisma";
 import QRCode from "qrcode";
 import { put } from '@vercel/blob';
 
-// Remove these old imports:
-// import { writeFile, mkdir } from "fs/promises";
-// import path from "path";
-
-// Remove these old directory definitions:
-// const uploadDir = path.join(process.cwd(), "public", "uploads");
-// const qrDir = path.join(process.cwd(), "public", "qrcodes");
-
 async function saveFile(file, prefix) {
   if (!file || typeof file === "string") return null;
   
@@ -25,6 +17,8 @@ async function saveFile(file, prefix) {
       access: 'public',
       // Add random suffix to avoid filename conflicts
       addRandomSuffix: true,
+      // 🔧 FIX: Add contentLength header to resolve Vercel Blob error
+      contentLength: buffer.length,
     });
     
     return blob.url;
@@ -43,6 +37,8 @@ async function generateQRCode(customerCode) {
     // Upload QR code directly to Vercel Blob
     const blob = await put(filename, qrBuffer, {
       access: 'public',
+      // 🔧 FIX: Add contentLength header to resolve Vercel Blob error
+      contentLength: qrBuffer.length,
     });
     
     return blob.url;
@@ -153,10 +149,6 @@ export async function GET(req) {
 
 // ✅ POST create customer with Vercel Blob
 export async function POST(req) {
-  // Remove directory creation - no longer needed
-  // await ensureDir(uploadDir);
-  // await ensureDir(qrDir);
-
   try {
     const formData = await req.formData();
     const customer = Object.fromEntries(formData.entries());
@@ -172,6 +164,7 @@ export async function POST(req) {
     const incomeProofUrl = await saveFile(incomeProof, "income");
     const residenceProofUrl = await saveFile(residenceProof, "residence");
 
+    // 🔧 FIX: Properly handle dob date validation
     const dobDate = customer.dob ? new Date(customer.dob) : null;
     const dob = dobDate && !isNaN(dobDate.getTime()) ? dobDate : null;
 
@@ -236,31 +229,44 @@ export async function POST(req) {
 
 // ✅ PUT update customer with Vercel Blob
 export async function PUT(req) {
-  // Remove directory creation
-  // await ensureDir(uploadDir);
-  // await ensureDir(qrDir);
-
   try {
     const formData = await req.formData();
     const data = Object.fromEntries(formData.entries());
 
+    console.log("📝 Update data received:", data); // Debug log
+
+    // 🔧 FIX: Proper ID validation and parsing
     if (!data.id) {
       return NextResponse.json({ success: false, error: "Customer ID is required" }, { status: 400 });
     }
 
+    // Parse ID and validate it's a proper number
     const customerId = parseInt(data.id, 10);
+    if (isNaN(customerId)) {
+      console.error("❌ Invalid customer ID:", data.id);
+      return NextResponse.json({ 
+        success: false, 
+        error: `Invalid customer ID: ${data.id}. Must be a valid number.` 
+      }, { status: 400 });
+    }
+
+    console.log("🔧 Parsed customer ID:", customerId); // Debug log
 
     const photo = formData.get("photo");
     const aadharDocument = formData.get("aadharDocument");
     const incomeProof = formData.get("incomeProof");
     const residenceProof = formData.get("residenceProof");
 
+    // 🔧 FIX: Properly handle dob to prevent null values
+    const dobDate = data.dob ? new Date(data.dob) : null;
+    const dob = dobDate && !isNaN(dobDate.getTime()) ? dobDate : undefined;
+
     const updateData = {
       customerName: data.customerName || null,
       spouseName: data.spouseName || null,
       parentName: data.parentName || null,
       mobile: data.mobile || null,
-      dob: data.dob ? new Date(data.dob) : null,
+      dob, // This will be undefined if invalid, preserving existing value
       aadhar: data.aadhar || null,
       gender: data.gender || null,
       address: data.address || null,
@@ -284,13 +290,25 @@ export async function PUT(req) {
       updateData.residenceProofUrl = await saveFile(residenceProof, "residence");
     }
 
+    // 🔧 FIX: Check if customer exists before updating
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { id: customerId },
+    });
+
+    if (!existingCustomer) {
+      return NextResponse.json({ 
+        success: false, 
+        error: `Customer with ID ${customerId} not found` 
+      }, { status: 404 });
+    }
+
     const updatedCustomer = await prisma.customer.update({
       where: { id: customerId },
       data: updateData,
     });
 
     // Regenerate QR code using Vercel Blob if customerCode changed
-    if (data.customerCode) {
+    if (data.customerCode && data.customerCode !== existingCustomer.customerCode) {
       const qrUrl = await generateQRCode(data.customerCode);
       await prisma.customer.update({
         where: { id: customerId },
@@ -319,7 +337,16 @@ export async function DELETE(req) {
       return NextResponse.json({ success: false, error: "Customer ID is required" }, { status: 400 });
     }
 
-    await prisma.customer.delete({ where: { id: parseInt(id, 10) } });
+    // 🔧 FIX: Validate ID is a proper number for DELETE too
+    const customerId = parseInt(id, 10);
+    if (isNaN(customerId)) {
+      return NextResponse.json({ 
+        success: false, 
+        error: `Invalid customer ID: ${id}. Must be a valid number.` 
+      }, { status: 400 });
+    }
+
+    await prisma.customer.delete({ where: { id: customerId } });
 
     return NextResponse.json({ success: true, message: "Customer deleted successfully" }, { status: 200 });
   } catch (error) {
