@@ -1,7 +1,20 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Search, Filter, Download, Plus, Eye, Pencil, Trash2, X, Save, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Loader2,
+  Search,
+  Filter,
+  Download,
+  Plus,
+  Eye,
+  Pencil,
+  Trash2,
+  X,
+  Save,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 export default function ExpenseForm() {
   const [form, setForm] = useState({
@@ -74,6 +87,7 @@ export default function ExpenseForm() {
         date: "",
         notes: "",
       });
+      await fetchExpenses(); // Refresh the list
     } catch (err) {
       console.error(err);
       alert("Error saving expense");
@@ -84,38 +98,45 @@ export default function ExpenseForm() {
 
   async function handleUpdate(id) {
     try {
-      const res = await fetch(`/api/expense?id=${id}`, {
+      const res = await fetch(`/api/expense/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editForm),
       });
-      
-      if (!res.ok) throw new Error("Failed to update expense");
-      
-      setExpenses(expenses.map(exp => 
-        exp.id === id ? { ...exp, ...editForm } : exp
-      ));
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to update expense");
+      }
+
+      const updatedExpense = await res.json();
+      setExpenses(
+        expenses.map((exp) => (exp.id === id ? updatedExpense : exp))
+      );
       setEditingId(null);
       setEditForm({});
     } catch (err) {
       console.error(err);
-      alert("Error updating expense");
+      alert(`Error updating expense: ${err.message}`);
     }
   }
 
   async function handleDelete(id) {
     try {
-      const res = await fetch(`/api/expense?id=${id}`, {
+      const res = await fetch(`/api/expense/${id}`, {
         method: "DELETE",
       });
-      
-      if (!res.ok) throw new Error("Failed to delete expense");
-      
-      setExpenses(expenses.filter(exp => exp.id !== id));
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to delete expense");
+      }
+
+      setExpenses(expenses.filter((exp) => exp.id !== id));
       setDeleteConfirm(null);
     } catch (err) {
       console.error(err);
-      alert("Error deleting expense");
+      alert(`Error deleting expense: ${err.message}`);
     }
   }
 
@@ -125,7 +146,9 @@ export default function ExpenseForm() {
       invoiceNumber: expense.invoiceNumber,
       title: expense.title,
       amount: expense.amount,
-      date: expense.date,
+      date: expense.date
+        ? new Date(expense.date).toISOString().split("T")[0]
+        : "",
       notes: expense.notes || "",
     });
   }
@@ -137,7 +160,7 @@ export default function ExpenseForm() {
 
   function handleExport() {
     if (!expenses.length) return;
-    const csvEscape = (v = "") => `"{String(v).replace(/"/g, '""')}"`;
+    const csvEscape = (v = "") => `"${String(v).replace(/"/g, '""')}"`;
     const csvContent =
       "data:text/csv;charset=utf-8," +
       [
@@ -183,7 +206,10 @@ export default function ExpenseForm() {
   // Pagination
   const totalPages = Math.ceil(filteredExpenses.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedExpenses = filteredExpenses.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedExpenses = filteredExpenses.slice(
+    startIndex,
+    startIndex + itemsPerPage
+  );
 
   const totalAmount = filteredExpenses.reduce(
     (sum, exp) => sum + Number(exp.amount || 0),
@@ -196,7 +222,10 @@ export default function ExpenseForm() {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Expense Tracker</h1>
         {expenses.length > 0 && (
-          <Button onClick={handleExport} className="bg-green-600 hover:bg-green-700">
+          <Button
+            onClick={handleExport}
+            className="bg-green-600 hover:bg-green-700"
+          >
             <Download className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
@@ -207,14 +236,18 @@ export default function ExpenseForm() {
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center mb-6">
           <div className="h-8 w-1 bg-blue-600 rounded-full mr-3"></div>
-          <h2 className="text-xl font-semibold text-gray-800">Add New Expense</h2>
+          <h2 className="text-xl font-semibold text-gray-800">
+            Add New Expense
+          </h2>
         </div>
         <form
           onSubmit={handleSubmit}
           className="grid grid-cols-1 md:grid-cols-2 gap-5"
         >
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Invoice Number</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Invoice Number
+            </label>
             <input
               type="text"
               name="invoiceNumber"
@@ -226,7 +259,9 @@ export default function ExpenseForm() {
             />
           </div>
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Title</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Title
+            </label>
             <input
               type="text"
               name="title"
@@ -238,7 +273,9 @@ export default function ExpenseForm() {
             />
           </div>
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Amount</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Amount
+            </label>
             <input
               type="number"
               name="amount"
@@ -251,7 +288,9 @@ export default function ExpenseForm() {
             />
           </div>
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Date</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Date
+            </label>
             <input
               type="date"
               name="date"
@@ -262,7 +301,9 @@ export default function ExpenseForm() {
             />
           </div>
           <div className="md:col-span-2 space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Notes</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Notes
+            </label>
             <textarea
               name="notes"
               value={form.notes}
@@ -273,8 +314,8 @@ export default function ExpenseForm() {
             />
           </div>
           <div className="md:col-span-2 flex justify-end pt-2">
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={loading}
               className="bg-blue-600 hover:bg-blue-700 min-w-[140px]"
             >
@@ -301,9 +342,11 @@ export default function ExpenseForm() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex items-center">
               <div className="h-8 w-1 bg-blue-600 rounded-full mr-3"></div>
-              <h2 className="text-xl font-semibold text-gray-800">Expense History</h2>
+              <h2 className="text-xl font-semibold text-gray-800">
+                Expense History
+              </h2>
             </div>
-            
+
             <div className="flex gap-3 w-full sm:w-auto">
               <div className="relative flex-1 sm:flex-initial">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -315,9 +358,9 @@ export default function ExpenseForm() {
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                 />
               </div>
-              
-              <Button 
-                variant="outline" 
+
+              <Button
+                variant="outline"
                 onClick={() => setShowFilters(!showFilters)}
                 className="border-gray-300"
               >
@@ -330,10 +373,14 @@ export default function ExpenseForm() {
           {/* Expandable Filters */}
           {showFilters && (
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Advanced Filters</h3>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">
+                Advanced Filters
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
-                  <label className="block text-xs font-medium text-gray-600">Invoice Number</label>
+                  <label className="block text-xs font-medium text-gray-600">
+                    Invoice Number
+                  </label>
                   <input
                     type="text"
                     placeholder="Filter by invoice"
@@ -343,7 +390,9 @@ export default function ExpenseForm() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-xs font-medium text-gray-600">Date From</label>
+                  <label className="block text-xs font-medium text-gray-600">
+                    Date From
+                  </label>
                   <input
                     type="date"
                     value={filterStartDate}
@@ -352,7 +401,9 @@ export default function ExpenseForm() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-xs font-medium text-gray-600">Date To</label>
+                  <label className="block text-xs font-medium text-gray-600">
+                    Date To
+                  </label>
                   <input
                     type="date"
                     value={filterEndDate}
@@ -361,7 +412,9 @@ export default function ExpenseForm() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-xs font-medium text-gray-600">Min Amount</label>
+                  <label className="block text-xs font-medium text-gray-600">
+                    Min Amount
+                  </label>
                   <input
                     type="number"
                     placeholder="Min amount"
@@ -378,10 +431,15 @@ export default function ExpenseForm() {
           {/* Results summary */}
           <div className="flex justify-between items-center">
             <p className="text-sm text-gray-600">
-              Showing <span className="font-medium">{filteredExpenses.length}</span> of <span className="font-medium">{expenses.length}</span> expenses
+              Showing{" "}
+              <span className="font-medium">{filteredExpenses.length}</span> of{" "}
+              <span className="font-medium">{expenses.length}</span> expenses
             </p>
             <p className="text-sm text-gray-600">
-              Total: <span className="font-medium text-blue-600">{totalAmount.toFixed(2)}</span>
+              Total:{" "}
+              <span className="font-medium text-blue-600">
+                {totalAmount.toFixed(2)}
+              </span>
             </p>
           </div>
 
@@ -403,25 +461,27 @@ export default function ExpenseForm() {
                 <option value="50">50</option>
               </select>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              
+
               <span className="text-sm text-gray-600">
                 Page {currentPage} of {totalPages}
               </span>
-              
+
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                }
                 disabled={currentPage === totalPages}
               >
                 <ChevronRight className="h-4 w-4" />
@@ -434,12 +494,24 @@ export default function ExpenseForm() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice #</th>
-                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                  <th className="p-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
-                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Invoice #
+                  </th>
+                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Title
+                  </th>
+                  <th className="p-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Notes
+                  </th>
+                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -516,15 +588,23 @@ export default function ExpenseForm() {
                         </>
                       ) : (
                         <>
-                          <td className="p-3 text-sm font-medium text-gray-900">{exp.invoiceNumber}</td>
-                          <td className="p-3 text-sm text-gray-700">{exp.title}</td>
+                          <td className="p-3 text-sm font-medium text-gray-900">
+                            {exp.invoiceNumber}
+                          </td>
+                          <td className="p-3 text-sm text-gray-700">
+                            {exp.title}
+                          </td>
                           <td className="p-3 text-sm text-right font-medium text-blue-600">
                             {Number(exp.amount).toFixed(2)}
                           </td>
                           <td className="p-3 text-sm text-gray-700">
-                            {exp.date ? new Date(exp.date).toLocaleDateString() : ""}
+                            {exp.date
+                              ? new Date(exp.date).toLocaleDateString()
+                              : ""}
                           </td>
-                          <td className="p-3 text-sm text-gray-600 max-w-xs truncate">{exp.notes}</td>
+                          <td className="p-3 text-sm text-gray-600 max-w-xs truncate">
+                            {exp.notes}
+                          </td>
                           <td className="p-3">
                             <div className="flex gap-2">
                               <Button
@@ -560,7 +640,10 @@ export default function ExpenseForm() {
               {paginatedExpenses.length > 0 && (
                 <tfoot className="bg-blue-50 border-t border-gray-200">
                   <tr>
-                    <td className="p-3 text-sm font-medium text-right" colSpan={2}>
+                    <td
+                      className="p-3 text-sm font-medium text-right"
+                      colSpan={2}
+                    >
                       Total:
                     </td>
                     <td className="p-3 text-sm font-medium text-right text-blue-600">
@@ -579,13 +662,15 @@ export default function ExpenseForm() {
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Delete</h3>
-            <p className="text-gray-600 mb-6">Are you sure you want to delete this expense? This action cannot be undone.</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              Confirm Delete
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete this expense? This action cannot
+              be undone.
+            </p>
             <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setDeleteConfirm(null)}
-              >
+              <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
                 Cancel
               </Button>
               <Button

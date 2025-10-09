@@ -7,17 +7,25 @@ import { put } from '@vercel/blob';
 async function saveFile(file, prefix) {
   if (!file || typeof file === "string") return null;
   
+  // 🔧 Check for empty files before processing
+  if (file.size === 0) {
+    console.log(`Skipping empty ${prefix} file`);
+    return null;
+  }
+  
   const buffer = Buffer.from(await file.arrayBuffer());
   const ext = String(file.name || "").split(".").pop() || "bin";
   const filename = `${prefix}-${Date.now()}.${ext}`;
   
   try {
-    // Upload to Vercel Blob instead of local filesystem
+    // 🔧 Check if Blob token is available
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error('BLOB_READ_WRITE_TOKEN environment variable is not set');
+    }
+    
     const blob = await put(filename, buffer, {
       access: 'public',
-      // Add random suffix to avoid filename conflicts
       addRandomSuffix: true,
-      // 🔧 FIX: Add contentLength header to resolve Vercel Blob error
       contentLength: buffer.length,
     });
     
@@ -30,14 +38,16 @@ async function saveFile(file, prefix) {
 
 async function generateQRCode(customerCode) {
   try {
-    // Generate QR code as buffer in memory
     const qrBuffer = await QRCode.toBuffer(customerCode);
     const filename = `${customerCode}.png`;
     
-    // Upload QR code directly to Vercel Blob
+    // 🔧 Check if Blob token is available
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error('BLOB_READ_WRITE_TOKEN environment variable is not set');
+    }
+    
     const blob = await put(filename, qrBuffer, {
       access: 'public',
-      // 🔧 FIX: Add contentLength header to resolve Vercel Blob error
       contentLength: qrBuffer.length,
     });
     
@@ -48,7 +58,7 @@ async function generateQRCode(customerCode) {
   }
 }
 
-// ✅ GET customers - unchanged (no file operations here)
+// ✅ GET customers - unchanged
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
@@ -126,10 +136,18 @@ export async function GET(req) {
         aadhar: customer.aadhar,
         photoUrl: customer.photoUrl,
         mobile: customer.mobile,
+        dob: customer.dob,
+        gender: customer.gender,
+        spouseName: customer.spouseName || "",
+        parentName: customer.parentName || "",
+        guarantorName: customer.guarantorName || "",
+        guarantorAadhar: customer.guarantorAadhar || "",
         address: customer.address || "",
         areaId: customer.area?.id ?? null,
         area: customer.area?.areaName ?? null,
         loanAmount,
+        loanDate: latestLoan?.loanDate || null,
+        tenure: latestLoan?.tenure || null,
         totalPaid,
         pendingAmount,
         endDate,
@@ -164,7 +182,6 @@ export async function POST(req) {
     const incomeProofUrl = await saveFile(incomeProof, "income");
     const residenceProofUrl = await saveFile(residenceProof, "residence");
 
-    // 🔧 FIX: Properly handle dob date validation
     const dobDate = customer.dob ? new Date(customer.dob) : null;
     const dob = dobDate && !isNaN(dobDate.getTime()) ? dobDate : null;
 
@@ -233,31 +250,44 @@ export async function PUT(req) {
     const formData = await req.formData();
     const data = Object.fromEntries(formData.entries());
 
-    console.log("📝 Update data received:", data); // Debug log
+    console.log("📝 Update data received:", data);
 
-    // 🔧 FIX: Proper ID validation and parsing
+    // 🔧 Check if Blob token is available at the start
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.error("❌ BLOB_READ_WRITE_TOKEN environment variable is not set");
+      return NextResponse.json(
+        { success: false, error: "Server configuration error: Blob token missing" },
+        { status: 500 }
+      );
+    }
+
     if (!data.id) {
       return NextResponse.json({ success: false, error: "Customer ID is required" }, { status: 400 });
     }
 
-    // Parse ID and validate it's a proper number
-    const customerId = parseInt(data.id, 10);
-    if (isNaN(customerId)) {
-      console.error("❌ Invalid customer ID:", data.id);
-      return NextResponse.json({ 
-        success: false, 
-        error: `Invalid customer ID: ${data.id}. Must be a valid number.` 
-      }, { status: 400 });
-    }
+    const customerId = data.id;
 
-    console.log("🔧 Parsed customer ID:", customerId); // Debug log
+    console.log("🔧 Using customer ID:", customerId);
 
     const photo = formData.get("photo");
     const aadharDocument = formData.get("aadharDocument");
     const incomeProof = formData.get("incomeProof");
     const residenceProof = formData.get("residenceProof");
 
-    // 🔧 FIX: Properly handle dob to prevent null values
+    // 🔧 Validate area exists before proceeding
+    if (data.area) {
+      const areaExists = await prisma.area.findUnique({
+        where: { id: data.area },
+      });
+
+      if (!areaExists) {
+        return NextResponse.json(
+          { success: false, error: `Area '${data.area}' does not exist. Please provide a valid area.` },
+          { status: 400 }
+        );
+      }
+    }
+
     const dobDate = data.dob ? new Date(data.dob) : null;
     const dob = dobDate && !isNaN(dobDate.getTime()) ? dobDate : undefined;
 
@@ -266,7 +296,7 @@ export async function PUT(req) {
       spouseName: data.spouseName || null,
       parentName: data.parentName || null,
       mobile: data.mobile || null,
-      dob, // This will be undefined if invalid, preserving existing value
+      dob,
       aadhar: data.aadhar || null,
       gender: data.gender || null,
       address: data.address || null,
@@ -277,20 +307,20 @@ export async function PUT(req) {
     };
 
     // Upload new files to Vercel Blob if provided
-    if (photo && typeof photo !== "string") {
+    if (photo && typeof photo !== "string" && photo.size > 0) {
       updateData.photoUrl = await saveFile(photo, "photo");
     }
-    if (aadharDocument && typeof aadharDocument !== "string") {
+    if (aadharDocument && typeof aadharDocument !== "string" && aadharDocument.size > 0) {
       updateData.aadharDocumentUrl = await saveFile(aadharDocument, "aadhar");
     }
-    if (incomeProof && typeof incomeProof !== "string") {
+    if (incomeProof && typeof incomeProof !== "string" && incomeProof.size > 0) {
       updateData.incomeProofUrl = await saveFile(incomeProof, "income");
     }
-    if (residenceProof && typeof residenceProof !== "string") {
+    if (residenceProof && typeof residenceProof !== "string" && residenceProof.size > 0) {
       updateData.residenceProofUrl = await saveFile(residenceProof, "residence");
     }
 
-    // 🔧 FIX: Check if customer exists before updating
+    // Check if customer exists before updating
     const existingCustomer = await prisma.customer.findUnique({
       where: { id: customerId },
     });
@@ -320,6 +350,15 @@ export async function PUT(req) {
     return NextResponse.json({ success: true, customer: updatedCustomer }, { status: 200 });
   } catch (error) {
     console.error("❌ PUT /api/customers error:", error);
+    
+    // 🔧 Handle specific Prisma errors
+    if (error.code === 'P2003') {
+      return NextResponse.json(
+        { success: false, error: "Database constraint violation. Please check if the referenced area exists." },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
       { success: false, error: error?.message || "Failed to update customer" },
       { status: 500 }
@@ -327,7 +366,7 @@ export async function PUT(req) {
   }
 }
 
-// ✅ DELETE customer - unchanged (no file operations here)
+// ✅ DELETE customer
 export async function DELETE(req) {
   try {
     const { searchParams } = new URL(req.url);
@@ -337,14 +376,7 @@ export async function DELETE(req) {
       return NextResponse.json({ success: false, error: "Customer ID is required" }, { status: 400 });
     }
 
-    // 🔧 FIX: Validate ID is a proper number for DELETE too
-    const customerId = parseInt(id, 10);
-    if (isNaN(customerId)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: `Invalid customer ID: ${id}. Must be a valid number.` 
-      }, { status: 400 });
-    }
+    const customerId = id;
 
     await prisma.customer.delete({ where: { id: customerId } });
 

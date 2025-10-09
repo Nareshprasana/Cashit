@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-// ✅ Get all expenses
-export async function GET() {
+// Get all expenses
+export async function GET(req) {
   try {
     const expenses = await prisma.expense.findMany({
       orderBy: { date: "desc" },
@@ -14,7 +14,7 @@ export async function GET() {
   }
 }
 
-// ✅ Create new expense
+// Create new expense
 export async function POST(req) {
   try {
     const body = await req.json();
@@ -25,7 +25,7 @@ export async function POST(req) {
 
     const expense = await prisma.expense.create({
       data: {
-        invoiceNumber: body.invoiceNumber, // <-- FIX added
+        invoiceNumber: body.invoiceNumber,
         title: body.title,
         amount: parseFloat(body.amount),
         date: new Date(body.date),

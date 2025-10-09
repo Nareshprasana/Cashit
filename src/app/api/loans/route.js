@@ -2,13 +2,18 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { writeFile, unlink } from "fs/promises";
 import path from "path";
+import { put, del } from '@vercel/blob';
+
+// Configuration
+const USE_VERCEL_BLOB = process.env.USE_VERCEL_BLOB === 'true';
+const BLOB_READ_WRITE_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 
 // Function to calculate interest amount
 const calculateInterestAmount = (loanAmount, rate, tenure) => {
   return (loanAmount * rate * tenure) / 100;
 };
 
-// Enhanced file handling with validation
+// Enhanced file handling with Vercel Blob support
 const saveFile = async (file) => {
   // Validate file type
   const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -22,26 +27,44 @@ const saveFile = async (file) => {
     throw new Error('File size too large. Maximum size is 5MB.');
   }
 
-  const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
-  
   // Sanitize filename
   const originalName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
   const fileName = `${Date.now()}-${originalName}`;
-  const filePath = path.join(process.cwd(), "public/uploads", fileName);
-  
-  await writeFile(filePath, buffer);
-  return `/uploads/${fileName}`;
+
+  if (USE_VERCEL_BLOB && BLOB_READ_WRITE_TOKEN) {
+    // Upload to Vercel Blob
+    const bytes = await file.arrayBuffer();
+    const blob = await put(fileName, bytes, {
+      access: 'public',
+      token: BLOB_READ_WRITE_TOKEN,
+    });
+    return blob.url;
+  } else {
+    // Local file system storage (fallback)
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    const filePath = path.join(process.cwd(), "public/uploads", fileName);
+    await writeFile(filePath, buffer);
+    return `/uploads/${fileName}`;
+  }
 };
 
-// Delete old file if exists
+// Delete old file if exists (supports both local and Vercel Blob)
 const deleteOldFile = async (fileUrl) => {
   if (!fileUrl) return;
   
   try {
-    const fileName = fileUrl.split('/').pop();
-    const filePath = path.join(process.cwd(), "public/uploads", fileName);
-    await unlink(filePath);
+    if (fileUrl.includes('blob.vercel-storage.com')) {
+      // Delete from Vercel Blob
+      await del(fileUrl, {
+        token: BLOB_READ_WRITE_TOKEN,
+      });
+    } else {
+      // Delete from local file system
+      const fileName = fileUrl.split('/').pop();
+      const filePath = path.join(process.cwd(), "public/uploads", fileName);
+      await unlink(filePath);
+    }
   } catch (error) {
     console.error('Error deleting old file:', error);
     // Don't throw error for file deletion failures
@@ -165,6 +188,8 @@ export async function GET(req) {
         documentUrl: loan.documentUrl,
         interestAmount: loan.interestAmount || 0,
         area: loan.area,
+        // Add storage info for debugging
+        storageType: loan.documentUrl?.includes('blob.vercel-storage.com') ? 'vercel-blob' : 'local',
       };
     });
 
@@ -330,6 +355,7 @@ export async function POST(req) {
       documentUrl: loan.documentUrl,
       interestAmount: loan.interestAmount || 0,
       area: loan.area,
+      storageType: loan.documentUrl?.includes('blob.vercel-storage.com') ? 'vercel-blob' : 'local',
     };
 
     return NextResponse.json({ success: true, loan: formattedLoan }, { status: 201 });
@@ -355,6 +381,14 @@ export async function POST(req) {
       return NextResponse.json(
         { error: error.message },
         { status: 400 }
+      );
+    }
+    
+    // Handle Vercel Blob errors
+    if (error.message.includes('Vercel Blob')) {
+      return NextResponse.json(
+        { error: "File upload failed. Please try again." },
+        { status: 500 }
       );
     }
     
@@ -452,6 +486,7 @@ export async function PUT(req) {
         documentUrl: updatedLoan.documentUrl,
         interestAmount: updatedLoan.interestAmount || 0,
         area: updatedLoan.area,
+        storageType: updatedLoan.documentUrl?.includes('blob.vercel-storage.com') ? 'vercel-blob' : 'local',
       };
 
       return NextResponse.json({ success: true, loan: formattedLoan }, { status: 200 });
@@ -559,6 +594,7 @@ export async function PUT(req) {
         documentUrl: updatedLoan.documentUrl,
         interestAmount: updatedLoan.interestAmount || 0,
         area: updatedLoan.area,
+        storageType: updatedLoan.documentUrl?.includes('blob.vercel-storage.com') ? 'vercel-blob' : 'local',
       };
 
       return NextResponse.json({ success: true, loan: formattedLoan }, { status: 200 });
@@ -585,6 +621,14 @@ export async function PUT(req) {
       return NextResponse.json(
         { error: error.message },
         { status: 400 }
+      );
+    }
+    
+    // Handle Vercel Blob errors
+    if (error.message.includes('Vercel Blob')) {
+      return NextResponse.json(
+        { error: "File upload failed. Please try again." },
+        { status: 500 }
       );
     }
     
@@ -651,52 +695,12 @@ export async function DELETE(req) {
       pendingAmount: existingLoan.pendingAmount,
       status: existingLoan.status,
       repaymentCount: existingLoan.repayments?.length,
+      documentUrl: existingLoan.documentUrl,
     });
 
-    // 🚫 Block deletion if loan is active
-    if (existingLoan.status?.toLowerCase() === "active") {
-      console.log("❌ Cannot delete - loan is currently active");
-      return NextResponse.json(
-        { error: "Cannot delete active loans" },
-        { status: 400 }
-      );
-    }
-
-    // 🚫 Block deletion if there are paid repayments
-    const activeRepayments = existingLoan.repayments.filter(
-      (r) => Number(r.amount) > 0
-    );
-
-    if (activeRepayments.length > 0) {
-      console.log("❌ Cannot delete - loan has active repayments:", {
-        repaymentCount: activeRepayments.length,
-      });
-      return NextResponse.json(
-        {
-          error: "Cannot delete loan with active repayments",
-          details: {
-            repaymentCount: activeRepayments.length,
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    // 🚫 Block deletion if there’s a pending amount
-    if (existingLoan.pendingAmount > 0) {
-      console.log("❌ Cannot delete - loan has pending amount:", existingLoan.pendingAmount);
-      return NextResponse.json(
-        {
-          error: "Cannot delete loan with pending amount",
-          pendingAmount: existingLoan.pendingAmount,
-        },
-        { status: 400 }
-      );
-    }
-
-    // ✅ Delete unpaid repayment records (if any)
+    // ✅ Delete ALL repayment records (both paid and unpaid)
     if (existingLoan.repayments.length > 0) {
-      console.log("🧹 Deleting unpaid repayment records...");
+      console.log("🧹 Deleting all repayment records...");
       await prisma.repayment.deleteMany({ where: { loanId: id } });
     }
 

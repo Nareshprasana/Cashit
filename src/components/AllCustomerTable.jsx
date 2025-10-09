@@ -116,18 +116,14 @@ const ProgressBar = ({ value, className = "" }) => (
 const LoanCard = ({ loan, index, status, onEdit, onDelete, onUpload }) => {
   const getStatusBadge = (status) => {
     const statusConfig = {
-      'ACTIVE': { className: 'bg-green-100 text-green-800', label: 'Active' },
-      'CLOSED': { className: 'bg-gray-100 text-gray-800', label: 'Closed' },
-      'OVERDUE': { className: 'bg-red-100 text-red-800', label: 'Overdue' },
-      'COMPLETED': { className: 'bg-blue-100 text-blue-800', label: 'Completed' }
+      ACTIVE: { className: "bg-green-100 text-green-800", label: "Active" },
+      CLOSED: { className: "bg-gray-100 text-gray-800", label: "Closed" },
+      OVERDUE: { className: "bg-red-100 text-red-800", label: "Overdue" },
+      COMPLETED: { className: "bg-blue-100 text-blue-800", label: "Completed" },
     };
-    
+
     const config = statusConfig[status] || statusConfig.ACTIVE;
-    return (
-      <Badge className={config.className}>
-        {config.label}
-      </Badge>
-    );
+    return <Badge className={config.className}>{config.label}</Badge>;
   };
 
   const calculatePendingAmount = (loan) => {
@@ -135,10 +131,15 @@ const LoanCard = ({ loan, index, status, onEdit, onDelete, onUpload }) => {
   };
 
   const pendingAmount = calculatePendingAmount(loan);
-  const isClosed = pendingAmount <= 0 || status === 'CLOSED' || status === 'COMPLETED';
+  const isClosed =
+    pendingAmount <= 0 || status === "CLOSED" || status === "COMPLETED";
 
   return (
-    <div className={`border rounded-lg p-4 ${isClosed ? 'bg-gray-50' : 'bg-white'}`}>
+    <div
+      className={`border rounded-lg p-4 ${
+        isClosed ? "bg-gray-50" : "bg-white"
+      }`}
+    >
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-2">
           <h4 className="font-medium">Loan #{index + 1}</h4>
@@ -158,10 +159,10 @@ const LoanCard = ({ loan, index, status, onEdit, onDelete, onUpload }) => {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onUpload(loan)}>
                 <Upload className="h-4 w-4 mr-2" />
-                {loan.documentUrl ? 'Update Document' : 'Upload Document'}
+                {loan.documentUrl ? "Update Document" : "Upload Document"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 className="text-red-600"
                 onClick={() => onDelete(loan)}
               >
@@ -174,23 +175,65 @@ const LoanCard = ({ loan, index, status, onEdit, onDelete, onUpload }) => {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
         {[
-          { label: "Amount", value: `₹${Number(loan.amount || 0).toLocaleString('en-IN')}` },
+          {
+            label: "Amount",
+            value: `₹${Number(loan.amount || 0).toLocaleString("en-IN")}`,
+          },
           { label: "Rate", value: `${loan.rate}%` },
           { label: "Tenure", value: `${loan.tenure} months` },
-          { label: "Loan Date", value: loan.loanDate ? new Date(loan.loanDate).toLocaleDateString() : "N/A" },
-          { label: "End Date", value: loan.endDate ? new Date(loan.endDate).toLocaleDateString() : "N/A" },
-          { label: "Total Paid", value: `₹${Number(loan.totalPaid || 0).toLocaleString('en-IN')}`, className: "text-green-600" },
-          { 
-            label: "Pending", 
-            value: `₹${Number(pendingAmount).toLocaleString('en-IN')}`, 
-            className: isClosed ? "text-gray-600" : "text-red-600" 
+          {
+            label: "Loan Date",
+            value: loan.loanDate
+              ? new Date(loan.loanDate).toLocaleDateString()
+              : "N/A",
           },
-          ...(loan.interestAmount !== undefined ? [{ label: "Interest", value: `₹${Number(loan.interestAmount || 0).toLocaleString('en-IN')}` }] : []),
-          ...(loan.documentUrl ? [{ label: "Document", value: "Uploaded", className: "text-green-600" }] : [{ label: "Document", value: "Not Uploaded", className: "text-gray-600" }]),
+          {
+            label: "End Date",
+            value: loan.endDate
+              ? new Date(loan.endDate).toLocaleDateString()
+              : "N/A",
+          },
+          {
+            label: "Total Paid",
+            value: `₹${Number(loan.totalPaid || 0).toLocaleString("en-IN")}`,
+            className: "text-green-600",
+          },
+          {
+            label: "Pending",
+            value: `₹${Number(pendingAmount).toLocaleString("en-IN")}`,
+            className: isClosed ? "text-gray-600" : "text-red-600",
+          },
+          ...(loan.interestAmount !== undefined
+            ? [
+                {
+                  label: "Interest",
+                  value: `₹${Number(loan.interestAmount || 0).toLocaleString(
+                    "en-IN"
+                  )}`,
+                },
+              ]
+            : []),
+          ...(loan.documentUrl
+            ? [
+                {
+                  label: "Document",
+                  value: "Uploaded",
+                  className: "text-green-600",
+                },
+              ]
+            : [
+                {
+                  label: "Document",
+                  value: "Not Uploaded",
+                  className: "text-gray-600",
+                },
+              ]),
         ].map((item, idx) => (
           <div key={idx}>
             <Label className="text-xs text-gray-500">{item.label}</Label>
-            <div className={`font-medium ${item.className || ''}`}>{item.value}</div>
+            <div className={`font-medium ${item.className || ""}`}>
+              {item.value}
+            </div>
           </div>
         ))}
       </div>
@@ -199,12 +242,21 @@ const LoanCard = ({ loan, index, status, onEdit, onDelete, onUpload }) => {
           <Label className="text-xs text-gray-500">Loan Agreement</Label>
           <div className="flex gap-2 mt-1">
             <Button variant="outline" size="sm" asChild>
-              <a href={loan.documentUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+              <a
+                href={loan.documentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1"
+              >
                 <Eye className="h-3 w-3" /> View
               </a>
             </Button>
             <Button variant="outline" size="sm" asChild>
-              <a href={loan.documentUrl} download className="flex items-center gap-1">
+              <a
+                href={loan.documentUrl}
+                download
+                className="flex items-center gap-1"
+              >
                 <Download className="h-3 w-3" /> Download
               </a>
             </Button>
@@ -216,22 +268,26 @@ const LoanCard = ({ loan, index, status, onEdit, onDelete, onUpload }) => {
 };
 
 const getLoanStatus = (loan) => {
-  if (loan.status === 'CLOSED' || loan.status === 'ACTIVE' || loan.status === 'OVERDUE' || loan.status === 'COMPLETED') {
+  if (
+    loan.status === "CLOSED" ||
+    loan.status === "ACTIVE" ||
+    loan.status === "OVERDUE" ||
+    loan.status === "COMPLETED"
+  ) {
     return loan.status;
   }
-  
-  const pendingAmount = loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
+
+  const pendingAmount =
+    loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
   const now = new Date();
   const endDate = loan.endDate ? new Date(loan.endDate) : null;
-  
+
   if (pendingAmount <= 0) {
-    return 'COMPLETED';
-  } 
-  else if (endDate && endDate < now) {
-    return 'OVERDUE';
-  } 
-  else {
-    return 'ACTIVE';
+    return "COMPLETED";
+  } else if (endDate && endDate < now) {
+    return "OVERDUE";
+  } else {
+    return "ACTIVE";
   }
 };
 
@@ -239,26 +295,336 @@ const getCurrentLoan = (customerLoansList) => {
   if (!customerLoansList || customerLoansList.length === 0) {
     return null;
   }
-  
-  const sortedLoans = [...customerLoansList].sort((a, b) => 
-    new Date(b.loanDate || 0) - new Date(a.loanDate || 0)
+
+  const sortedLoans = [...customerLoansList].sort(
+    (a, b) => new Date(b.loanDate || 0) - new Date(a.loanDate || 0)
   );
-  
-  return sortedLoans.find(loan => getLoanStatus(loan) === 'ACTIVE') || 
-         sortedLoans.find(loan => getLoanStatus(loan) === 'OVERDUE') || 
-         sortedLoans[0];
+
+  return (
+    sortedLoans.find((loan) => getLoanStatus(loan) === "ACTIVE") ||
+    sortedLoans.find((loan) => getLoanStatus(loan) === "OVERDUE") ||
+    sortedLoans[0]
+  );
+};
+
+// Fixed Edit Customer Form Component
+const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
+  const [formData, setFormData] = useState({
+    customerName: customer?.name || "",
+    mobile: customer?.mobile || "",
+    customerCode: customer?.customerCode || "",
+    aadhar: customer?.aadhar || "",
+    area: customer?.areaId || "",
+    address: customer?.address || "",
+    dob: customer?.dob
+      ? new Date(customer.dob).toISOString().split("T")[0]
+      : "",
+    gender: customer?.gender || "",
+    spouseName: customer?.spouseName || "",
+    parentName: customer?.parentName || "",
+    guarantorName: customer?.guarantorName || "",
+    guarantorAadhar: customer?.guarantorAadhar || "",
+    loanAmount: customer?.loanAmount || "",
+    loanDate: customer?.loanDate
+      ? new Date(customer.loanDate).toISOString().split("T")[0]
+      : "",
+    tenure: customer?.tenure || "",
+  });
+
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(customer?.photoUrl || "");
+  const [loading, setLoading] = useState(false);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPhotoFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const submitData = new FormData();
+      submitData.append("id", customer.id);
+
+      // Append all form data
+      Object.keys(formData).forEach((key) => {
+        if (formData[key] !== undefined && formData[key] !== null) {
+          submitData.append(key, formData[key]);
+        }
+      });
+
+      // Append photo file if selected
+      if (photoFile) {
+        submitData.append("photo", photoFile);
+      }
+
+      const res = await fetch("/api/customers", {
+        method: "PUT",
+        body: submitData,
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to update customer");
+      }
+
+      const { customer: updatedCustomer } = await res.json();
+      onSave(updatedCustomer);
+    } catch (error) {
+      console.error("Update error:", error);
+      alert(`Failed to update customer: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="customerName">Customer Name *</Label>
+          <Input
+            id="customerName"
+            name="customerName"
+            value={formData.customerName}
+            onChange={handleInputChange}
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="mobile">Mobile</Label>
+          <Input
+            id="mobile"
+            name="mobile"
+            value={formData.mobile}
+            onChange={handleInputChange}
+            maxLength={10}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="customerCode">Customer Code</Label>
+          <Input
+            id="customerCode"
+            name="customerCode"
+            value={formData.customerCode}
+            onChange={handleInputChange}
+            disabled
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="aadhar">Aadhar Number</Label>
+          <Input
+            id="aadhar"
+            name="aadhar"
+            value={formData.aadhar}
+            onChange={handleInputChange}
+            maxLength={12}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="area">Area</Label>
+          <select
+            id="area"
+            name="area"
+            value={formData.area}
+            onChange={handleInputChange}
+            className="w-full rounded border p-2"
+            disabled
+          >
+            <option value="">Select Area</option>
+            {areas.map((area) => (
+              <option key={area.id} value={area.id}>
+                {area.areaName}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="dob">Date of Birth</Label>
+          <Input
+            id="dob"
+            name="dob"
+            type="date"
+            value={formData.dob}
+            onChange={handleInputChange}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="gender">Gender</Label>
+          <select
+            id="gender"
+            name="gender"
+            value={formData.gender}
+            onChange={handleInputChange}
+            className="w-full rounded border p-2"
+          >
+            <option value="">Select Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="spouseName">Spouse Name</Label>
+          <Input
+            id="spouseName"
+            name="spouseName"
+            value={formData.spouseName}
+            onChange={handleInputChange}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="parentName">Parent Name</Label>
+          <Input
+            id="parentName"
+            name="parentName"
+            value={formData.parentName}
+            onChange={handleInputChange}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="guarantorName">Guarantor Name</Label>
+          <Input
+            id="guarantorName"
+            name="guarantorName"
+            value={formData.guarantorName}
+            onChange={handleInputChange}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="guarantorAadhar">Guarantor Aadhar</Label>
+          <Input
+            id="guarantorAadhar"
+            name="guarantorAadhar"
+            value={formData.guarantorAadhar}
+            onChange={handleInputChange}
+            maxLength={12}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="address">Address</Label>
+        <Textarea
+          id="address"
+          name="address"
+          value={formData.address}
+          onChange={handleInputChange}
+          rows={3}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="loanAmount">Loan Amount</Label>
+          <Input
+            id="loanAmount"
+            name="loanAmount"
+            type="number"
+            step="0.01"
+            value={formData.loanAmount}
+            onChange={handleInputChange}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="loanDate">Loan Date</Label>
+          <Input
+            id="loanDate"
+            name="loanDate"
+            type="date"
+            value={formData.loanDate}
+            onChange={handleInputChange}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="tenure">Tenure (months)</Label>
+          <Input
+            id="tenure"
+            name="tenure"
+            type="number"
+            value={formData.tenure}
+            onChange={handleInputChange}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="photo">Profile Photo</Label>
+          <Input
+            id="photo"
+            name="photo"
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoChange}
+          />
+          {photoPreview && (
+            <div className="mt-2">
+              <img
+                src={photoPreview}
+                alt="Preview"
+                className="h-16 w-16 rounded-full object-cover border"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 pt-4">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={loading}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Save Changes
+        </Button>
+      </div>
+    </form>
+  );
 };
 
 export default function AllCustomerTable() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  // const [refreshing, setRefreshing] = useState(false);
   const [customerLoans, setCustomerLoans] = useState({});
+  const [areas, setAreas] = useState([]);
 
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [areaFilter, setAreaFilter] = useState("");
   const [startEndDate, setStartEndDate] = useState("");
   const [endEndDate, setEndEndDate] = useState("");
+  const [startLoanDate, setStartLoanDate] = useState(""); // NEW: Start loan date filter
+  const [endLoanDate, setEndLoanDate] = useState(""); // NEW: End loan date filter
   const [availableAreas, setAvailableAreas] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
   const [areaOpen, setAreaOpen] = useState(false);
@@ -271,7 +637,7 @@ export default function AllCustomerTable() {
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [repayments, setRepayments] = useState([]);
-  
+
   const [deletingId, setDeletingId] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -291,7 +657,7 @@ export default function AllCustomerTable() {
     amount: "",
     rate: "",
     tenure: "",
-    loanDate: new Date().toISOString().split('T')[0],
+    loanDate: new Date().toISOString().split("T")[0],
     area: "",
   });
 
@@ -307,40 +673,41 @@ export default function AllCustomerTable() {
   // Enhanced getLoansForCustomer function to ensure it always returns an array
   const getLoansForCustomer = (customer) => {
     if (!customer || !customer.id) return [];
-    
+
     const keyCandidates = [
-      customer.id, 
-      String(customer.id), 
-      String(customer.customerCode), 
-      customer.customerCode?.toString?.()
-    ].filter(Boolean).map(k => String(k));
-    
+      customer.id,
+      String(customer.id),
+      String(customer.customerCode),
+      customer.customerCode?.toString?.(),
+    ]
+      .filter(Boolean)
+      .map((k) => String(k));
+
     for (const key of keyCandidates) {
       if (customerLoans[key] && customerLoans[key].length > 0) {
         return customerLoans[key];
       }
     }
-    
+
     // Return empty array for customers with no loans
     return [];
   };
 
-  // Refresh data function
+// Refresh data function
   const refreshCustomerData = async () => {
     try {
       setLoading(true);
       console.log("Refreshing customer data...");
-      
-      const [customersRes, loansRes] = await Promise.all([
+      const [customersRes, loansRes, areasRes] = await Promise.all([
         fetch("/api/customers?" + Date.now()),
-        fetch("/api/loans?" + Date.now())
+        fetch("/api/loans?" + Date.now()),
+        fetch("/api/area?" + Date.now()),
       ]);
-
       if (!customersRes.ok) throw new Error("Failed to fetch customer data");
-
       let customers = await customersRes.json();
       const loans = loansRes.ok ? await loansRes.json() : [];
-
+      const areasData = areasRes.ok ? await areasRes.json() : [];
+      setAreas(areasData);
       // Ensure all customers have basic structure
       customers = customers.map((c) => ({
         ...c,
@@ -352,17 +719,17 @@ export default function AllCustomerTable() {
           ? calculateEndDate(c.loanDate, c.tenure)
           : null,
       }));
-
       setData(customers);
-      setAvailableAreas([...new Set(customers.map((c) => c.area).filter(Boolean))]);
-
+      setAvailableAreas([
+        ...new Set(customers.map((c) => c.area).filter(Boolean)),
+      ]);
       const loansByCustomer = {};
       const toDeleteLoanIds = [];
       const today = new Date();
       const MS_PER_DAY = 1000 * 60 * 60 * 24;
-
-      loans.forEach(loan => {
-        const pendingAmount = loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
+      loans.forEach((loan) => {
+        const pendingAmount =
+          loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
         const status = getLoanStatus(loan);
         const normalizedLoan = {
           ...loan,
@@ -371,53 +738,60 @@ export default function AllCustomerTable() {
           amount: loan.amount || loan.loanAmount || 0,
           pendingAmount: pendingAmount,
           totalPaid: loan.totalPaid || 0,
-          endDate: loan.endDate || (loan.loanDate && loan.tenure ? calculateEndDate(loan.loanDate, loan.tenure) : null),
+          endDate:
+            loan.endDate ||
+            (loan.loanDate && loan.tenure
+              ? calculateEndDate(loan.loanDate, loan.tenure)
+              : null),
         };
-
-        const end = normalizedLoan.endDate ? new Date(normalizedLoan.endDate) : null;
+        const end = normalizedLoan.endDate
+          ? new Date(normalizedLoan.endDate)
+          : null;
         if (end) {
-          const daysSinceEnd = Math.floor((today.getTime() - new Date(end).getTime()) / MS_PER_DAY);
+          const daysSinceEnd = Math.floor(
+            (today.getTime() - new Date(end).getTime()) / MS_PER_DAY
+          );
           if (daysSinceEnd > 30) {
             if (loan.id) toDeleteLoanIds.push(loan.id);
             return;
           }
         }
-
         const candidateKeys = [
           loan.customerId,
           loan.customer?.id,
           loan.customer?.customerCode,
           loan.customer?.customerCode?.toString?.(),
           loan.customerId?.toString?.(),
-        ].filter(Boolean).map(k => String(k));
-
-        candidateKeys.forEach(key => {
+        ]
+          .filter(Boolean)
+          .map((k) => String(k));
+        candidateKeys.forEach((key) => {
           if (!loansByCustomer[key]) loansByCustomer[key] = [];
           loansByCustomer[key].push(normalizedLoan);
         });
       });
-
       // Ensure every customer has an entry in loansByCustomer (even if empty)
-      customers.forEach(customer => {
+      customers.forEach((customer) => {
         const customerKey = String(customer.id);
         if (!loansByCustomer[customerKey]) {
           loansByCustomer[customerKey] = [];
         }
       });
-
       if (toDeleteLoanIds.length > 0) {
         Promise.all(
-          toDeleteLoanIds.map(id =>
-            fetch(`/api/loans?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
-              .then(res => ({ id, ok: res.ok }))
-              .catch(err => ({ id, ok: false, error: err.message }))
+          toDeleteLoanIds.map((id) =>
+            fetch(`/api/loans?id=${encodeURIComponent(id)}`, {
+              method: "DELETE",
+            })
+              .then((res) => ({ id, ok: res.ok }))
+              .catch((err) => ({ id, ok: false, error: err.message }))
           )
-        ).then(results => console.log('Auto-delete results:', results)).catch(err => console.error('Auto-delete error:', err));
+        )
+          .then((results) => console.log("Auto-delete results:", results))
+          .catch((err) => console.error("Auto-delete error:", err));
       }
-      
       setCustomerLoans(loansByCustomer);
       console.log("Customer data refreshed successfully");
-
     } catch (e) {
       console.error("Refresh error:", e);
       alert("Failed to refresh customer data");
@@ -425,20 +799,9 @@ export default function AllCustomerTable() {
       setLoading(false);
     }
   };
-
   // Initial data fetch
   useEffect(() => {
     refreshCustomerData();
-  }, []);
-
-  // Auto-refresh when component comes into focus
-  useEffect(() => {
-    const handleFocus = () => {
-      refreshCustomerData();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   useEffect(() => {
@@ -519,15 +882,15 @@ export default function AllCustomerTable() {
 
   const handleDownloadStatement = () => {
     if (!selectedCustomer) return;
-    
+
     const headers = ["Date", "Amount", "Note", "Status"];
     const rows = repayments.map((r) => [
       r.date ? new Date(r.date).toISOString().split("T")[0] : "",
       Number(r.amount ?? 0),
       r.note ?? "",
-      r.status ?? "completed"
+      r.status ?? "completed",
     ]);
-    
+
     const csv = [headers, ...rows]
       .map((row) =>
         row
@@ -545,7 +908,9 @@ export default function AllCustomerTable() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Statement_${selectedCustomer.name?.replace(/[^a-z0-9]/gi, "_") ?? "customer"}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `Statement_${
+      selectedCustomer.name?.replace(/[^a-z0-9]/gi, "_") ?? "customer"
+    }_${new Date().toISOString().split("T")[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -568,21 +933,25 @@ export default function AllCustomerTable() {
     fd.append("documentField", documentToUpdate);
 
     try {
-      const res = await fetch("/api/customers", { 
-        method: "PUT", 
-        body: fd 
+      const res = await fetch("/api/customers", {
+        method: "PUT",
+        body: fd,
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || "Upload failed");
       }
-      
+
       const { customer } = await res.json();
-      
-      setData((prev) => prev.map((c) => (c.id === customer.id ? { ...c, ...customer } : c)));
-      setSelectedCustomer((prev) => prev?.id === customer.id ? { ...prev, ...customer } : prev);
-      
+
+      setData((prev) =>
+        prev.map((c) => (c.id === customer.id ? { ...c, ...customer } : c))
+      );
+      setSelectedCustomer((prev) =>
+        prev?.id === customer.id ? { ...prev, ...customer } : prev
+      );
+
       alert("Document updated successfully!");
       setDocumentToUpdate(null);
       setSelectedFile(null);
@@ -605,27 +974,27 @@ export default function AllCustomerTable() {
     fd.append("documentField", "documentUrl");
 
     try {
-      const res = await fetch("/api/loans", { 
-        method: "PUT", 
-        body: fd 
+      const res = await fetch("/api/loans", {
+        method: "PUT",
+        body: fd,
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || "Loan document upload failed");
       }
-      
+
       const { loan } = await res.json();
 
-      setCustomerLoans(prev => ({
+      setCustomerLoans((prev) => ({
         ...prev,
-        [selectedCustomer.id]: (prev[selectedCustomer.id] || []).map(l => 
+        [selectedCustomer.id]: (prev[selectedCustomer.id] || []).map((l) =>
           l.id === loan.id ? { ...l, documentUrl: loan.documentUrl } : l
-        )
+        ),
       }));
 
       if (selectedLoan?.id === loan.id) {
-        setSelectedLoan(prev => ({ ...prev, documentUrl: loan.documentUrl }));
+        setSelectedLoan((prev) => ({ ...prev, documentUrl: loan.documentUrl }));
       }
 
       alert("Loan document updated successfully!");
@@ -667,9 +1036,9 @@ export default function AllCustomerTable() {
 
       const { loan } = await res.json();
 
-      setCustomerLoans(prev => ({
+      setCustomerLoans((prev) => ({
         ...prev,
-        [selectedCustomer.id]: [...(prev[selectedCustomer.id] || []), loan]
+        [selectedCustomer.id]: [...(prev[selectedCustomer.id] || []), loan],
       }));
 
       setSelectedLoan(loan);
@@ -678,7 +1047,7 @@ export default function AllCustomerTable() {
         amount: "",
         rate: "",
         tenure: "",
-        loanDate: new Date().toISOString().split('T')[0],
+        loanDate: new Date().toISOString().split("T")[0],
         area: "",
       });
       setCreateLoanOpen(false);
@@ -719,11 +1088,11 @@ export default function AllCustomerTable() {
 
       const { loan } = await res.json();
 
-      setCustomerLoans(prev => ({
+      setCustomerLoans((prev) => ({
         ...prev,
-        [selectedCustomer.id]: (prev[selectedCustomer.id] || []).map(l => 
+        [selectedCustomer.id]: (prev[selectedCustomer.id] || []).map((l) =>
           l.id === loan.id ? loan : l
-        )
+        ),
       }));
 
       setSelectedLoan(loan);
@@ -751,14 +1120,18 @@ export default function AllCustomerTable() {
         throw new Error(errorData.error || "Failed to delete loan");
       }
 
-      setCustomerLoans(prev => ({
+      setCustomerLoans((prev) => ({
         ...prev,
-        [selectedCustomer.id]: (prev[selectedCustomer.id] || []).filter(l => l.id !== loanToDelete.id)
+        [selectedCustomer.id]: (prev[selectedCustomer.id] || []).filter(
+          (l) => l.id !== loanToDelete.id
+        ),
       }));
 
       if (selectedLoan?.id === loanToDelete.id) {
         const customerLoansList = getLoansForCustomer(selectedCustomer);
-        const currentLoan = getCurrentLoan(customerLoansList.filter(l => l.id !== loanToDelete.id));
+        const currentLoan = getCurrentLoan(
+          customerLoansList.filter((l) => l.id !== loanToDelete.id)
+        );
         setSelectedLoan(currentLoan || null);
       }
 
@@ -779,7 +1152,9 @@ export default function AllCustomerTable() {
       amount: loan.amount?.toString() || "",
       rate: loan.rate?.toString() || "",
       tenure: loan.tenure?.toString() || "",
-      loanDate: loan.loanDate ? new Date(loan.loanDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      loanDate: loan.loanDate
+        ? new Date(loan.loanDate).toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0],
       area: loan.area || selectedCustomer?.area || "",
     });
     setEditLoanOpen(true);
@@ -790,10 +1165,26 @@ export default function AllCustomerTable() {
       amount: "",
       rate: "",
       tenure: "",
-      loanDate: new Date().toISOString().split('T')[0],
+      loanDate: new Date().toISOString().split("T")[0],
       area: selectedCustomer?.area || "",
     });
     setCreateLoanOpen(true);
+  };
+
+  // Handle customer update success
+  const handleCustomerUpdateSuccess = (updatedCustomer) => {
+    setData((prev) =>
+      prev.map((c) =>
+        c.id === updatedCustomer.id ? { ...c, ...updatedCustomer } : c
+      )
+    );
+    setSelectedCustomer((prev) =>
+      prev && prev.id === updatedCustomer.id
+        ? { ...prev, ...updatedCustomer }
+        : prev
+    );
+    setEditOpen(false);
+    alert("Customer updated successfully!");
   };
 
   // Updated columns with fixed status display
@@ -804,10 +1195,10 @@ export default function AllCustomerTable() {
       cell: ({ row }) => {
         const url = row.original.photoUrl;
         return url ? (
-          <img 
-            src={url} 
-            alt="Customer" 
-            className="h-10 w-10 rounded-full object-cover border shadow-sm" 
+          <img
+            src={url}
+            alt="Customer"
+            className="h-10 w-10 rounded-full object-cover border shadow-sm"
           />
         ) : (
           <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center border">
@@ -828,7 +1219,10 @@ export default function AllCustomerTable() {
     {
       accessorKey: "name",
       header: ({ column }) => (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
           Name <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
@@ -847,7 +1241,11 @@ export default function AllCustomerTable() {
     {
       accessorKey: "aadhar",
       header: "Aadhar",
-      cell: ({ row }) => <span className="font-mono text-sm">{row.original.aadhar || "N/A"}</span>,
+      cell: ({ row }) => (
+        <span className="font-mono text-sm">
+          {row.original.aadhar || "N/A"}
+        </span>
+      ),
     },
     {
       accessorKey: "area",
@@ -864,7 +1262,7 @@ export default function AllCustomerTable() {
       header: "Status",
       cell: ({ row }) => {
         const customerLoansList = getLoansForCustomer(row.original);
-        
+
         // Handle customers with no loans
         if (customerLoansList.length === 0) {
           return (
@@ -874,10 +1272,16 @@ export default function AllCustomerTable() {
           );
         }
 
-        const hasActiveLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'ACTIVE');
-        const hasOverdueLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'OVERDUE');
-        const hasCompletedLoan = customerLoansList.some(loan => getLoanStatus(loan) === 'COMPLETED');
-        
+        const hasActiveLoan = customerLoansList.some(
+          (loan) => getLoanStatus(loan) === "ACTIVE"
+        );
+        const hasOverdueLoan = customerLoansList.some(
+          (loan) => getLoanStatus(loan) === "OVERDUE"
+        );
+        const hasCompletedLoan = customerLoansList.some(
+          (loan) => getLoanStatus(loan) === "COMPLETED"
+        );
+
         if (hasOverdueLoan) {
           return (
             <Badge variant="destructive" className="flex items-center gap-1">
@@ -913,7 +1317,7 @@ export default function AllCustomerTable() {
       header: () => <div className="text-right">Loan Amount</div>,
       cell: ({ row }) => (
         <div className="text-right font-medium">
-          ₹{Number(row.original.loanAmount ?? 0).toLocaleString('en-IN')}
+          ₹{Number(row.original.loanAmount ?? 0).toLocaleString("en-IN")}
         </div>
       ),
     },
@@ -940,7 +1344,9 @@ export default function AllCustomerTable() {
       accessorKey: "overdueDays",
       header: "Overdue",
       cell: ({ row }) => {
-        const end = row.original.endDate ? new Date(row.original.endDate) : null;
+        const end = row.original.endDate
+          ? new Date(row.original.endDate)
+          : null;
         if (!end) return "N/A";
         const diff = Math.floor((Date.now() - end) / (1000 * 60 * 60 * 24));
         return diff > 0 ? (
@@ -967,19 +1373,17 @@ export default function AllCustomerTable() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => {
-                setSelectedCustomer(customer);
-                setDialogOpen(true);
-              }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  setSelectedCustomer(customer);
+                  setDialogOpen(true);
+                }}
+              >
                 <Eye className="h-4 w-4 mr-2" />
                 View Details
               </DropdownMenuItem>
-              {/* <DropdownMenuItem onClick={() => router.push(`/customers/edit?id=${customer.id}`)}>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit Customer
-              </DropdownMenuItem> */}
               <DropdownMenuSeparator />
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 className="text-red-600"
                 onClick={() => {
                   setSelectedCustomer(customer);
@@ -1000,9 +1404,12 @@ export default function AllCustomerTable() {
   const filteredData = useMemo(() => {
     return data.filter((customer) => {
       // Basic search filter
-      const globalMatch = !globalFilter ||
+      const globalMatch =
+        !globalFilter ||
         customer.name?.toLowerCase().includes(globalFilter.toLowerCase()) ||
-        customer.customerCode?.toLowerCase().includes(globalFilter.toLowerCase()) ||
+        customer.customerCode
+          ?.toLowerCase()
+          .includes(globalFilter.toLowerCase()) ||
         customer.aadhar?.includes(globalFilter);
 
       const customerLoansList = getLoansForCustomer(customer);
@@ -1011,18 +1418,28 @@ export default function AllCustomerTable() {
       let statusMatch = true;
       if (statusFilter) {
         const statusFilterLower = statusFilter.toLowerCase();
-        
-        if (statusFilterLower === 'active') {
-          statusMatch = customerLoansList.some(loan => getLoanStatus(loan) === 'ACTIVE');
-        } else if (statusFilterLower === 'overdue') {
-          statusMatch = customerLoansList.some(loan => getLoanStatus(loan) === 'OVERDUE');
-        } else if (statusFilterLower === 'completed') {
-          statusMatch = customerLoansList.some(loan => getLoanStatus(loan) === 'COMPLETED');
-        } else if (statusFilterLower === 'closed') {
-          statusMatch = customerLoansList.length === 0 || customerLoansList.every(loan => getLoanStatus(loan) === 'COMPLETED');
-        } else if (statusFilterLower === 'no-loans') {
+
+        if (statusFilterLower === "active") {
+          statusMatch = customerLoansList.some(
+            (loan) => getLoanStatus(loan) === "ACTIVE"
+          );
+        } else if (statusFilterLower === "overdue") {
+          statusMatch = customerLoansList.some(
+            (loan) => getLoanStatus(loan) === "OVERDUE"
+          );
+        } else if (statusFilterLower === "completed") {
+          statusMatch = customerLoansList.some(
+            (loan) => getLoanStatus(loan) === "COMPLETED"
+          );
+        } else if (statusFilterLower === "closed") {
+          statusMatch =
+            customerLoansList.length === 0 ||
+            customerLoansList.every(
+              (loan) => getLoanStatus(loan) === "COMPLETED"
+            );
+        } else if (statusFilterLower === "no-loans") {
           statusMatch = customerLoansList.length === 0;
-        } else if (statusFilterLower === 'has-loans') {
+        } else if (statusFilterLower === "has-loans") {
           statusMatch = customerLoansList.length > 0;
         }
         // If no specific status filter matches, show all (statusMatch remains true)
@@ -1031,13 +1448,37 @@ export default function AllCustomerTable() {
       const areaMatch = !areaFilter || customer.area === areaFilter;
 
       const end = customer.endDate ? new Date(customer.endDate) : null;
-      const startDateMatch = !startEndDate || (end && end >= new Date(startEndDate));
+      const startDateMatch =
+        !startEndDate || (end && end >= new Date(startEndDate));
       const endDateMatch = !endEndDate || (end && end <= new Date(endEndDate));
 
+      // NEW: Loan date range filtering
+      const customerLoanDate = customer.loanDate ? new Date(customer.loanDate) : null;
+      const loanDateMatch = 
+        (!startLoanDate || (customerLoanDate && customerLoanDate >= new Date(startLoanDate))) &&
+        (!endLoanDate || (customerLoanDate && customerLoanDate <= new Date(endLoanDate)));
+
       // Now returns true for customers without loans when no status filter is applied
-      return globalMatch && statusMatch && areaMatch && startDateMatch && endDateMatch;
+      return (
+        globalMatch &&
+        statusMatch &&
+        areaMatch &&
+        startDateMatch &&
+        endDateMatch &&
+        loanDateMatch // NEW: Include loan date filter
+      );
     });
-  }, [data, globalFilter, statusFilter, areaFilter, startEndDate, endEndDate, customerLoans]);
+  }, [
+    data,
+    globalFilter,
+    statusFilter,
+    areaFilter,
+    startEndDate,
+    endEndDate,
+    startLoanDate, // NEW: Add to dependencies
+    endLoanDate,   // NEW: Add to dependencies
+    customerLoans,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
   const paginatedData = useMemo(() => {
@@ -1049,29 +1490,43 @@ export default function AllCustomerTable() {
 
   const numberOfDocuments = useMemo(() => {
     if (!selectedCustomer) return 0;
-    
-    const customerDocs = ["aadharDocumentUrl", "incomeProofUrl", "residenceProofUrl", "qrUrl", "photoUrl"];
-    const customerDocCount = customerDocs.filter((f) => selectedCustomer[f]).length;
-    
+
+    const customerDocs = [
+      "aadharDocumentUrl",
+      "incomeProofUrl",
+      "residenceProofUrl",
+      "qrUrl",
+      "photoUrl",
+    ];
+    const customerDocCount = customerDocs.filter(
+      (f) => selectedCustomer[f]
+    ).length;
+
     const customerLoansList = getLoansForCustomer(selectedCustomer);
     const currentLoan = getCurrentLoan(customerLoansList);
     const loanDocCount = currentLoan?.documentUrl ? 1 : 0;
-    
+
     return customerDocCount + loanDocCount;
   }, [selectedCustomer, customerLoans]);
 
   const renderPageWindow = () => {
     const max = 5;
-    const start = Math.max(1, Math.min(currentPage - Math.floor(max / 2), totalPages - max + 1));
+    const start = Math.max(
+      1,
+      Math.min(currentPage - Math.floor(max / 2), totalPages - max + 1)
+    );
     const end = Math.min(totalPages, start + max - 1);
     const items = [];
 
     if (start > 1) {
       items.push(
         <PaginationItem key={1}>
-          <PaginationLink 
-            href="#" 
-            onClick={(e) => { e.preventDefault(); setCurrentPage(1); }} 
+          <PaginationLink
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              setCurrentPage(1);
+            }}
             isActive={currentPage === 1}
           >
             1
@@ -1079,16 +1534,23 @@ export default function AllCustomerTable() {
         </PaginationItem>
       );
       if (start > 2) {
-        items.push(<PaginationItem key="start-ellipsis"><PaginationEllipsis /></PaginationItem>);
+        items.push(
+          <PaginationItem key="start-ellipsis">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
       }
     }
 
     for (let p = start; p <= end; p++) {
       items.push(
         <PaginationItem key={p}>
-          <PaginationLink 
-            href="#" 
-            onClick={(e) => { e.preventDefault(); setCurrentPage(p); }} 
+          <PaginationLink
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              setCurrentPage(p);
+            }}
             isActive={currentPage === p}
           >
             {p}
@@ -1099,13 +1561,20 @@ export default function AllCustomerTable() {
 
     if (end < totalPages) {
       if (end < totalPages - 1) {
-        items.push(<PaginationItem key="end-ellipsis"><PaginationEllipsis /></PaginationItem>);
+        items.push(
+          <PaginationItem key="end-ellipsis">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
       }
       items.push(
         <PaginationItem key={totalPages}>
-          <PaginationLink 
-            href="#" 
-            onClick={(e) => { e.preventDefault(); setCurrentPage(totalPages); }} 
+          <PaginationLink
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              setCurrentPage(totalPages);
+            }}
             isActive={currentPage === totalPages}
           >
             {totalPages}
@@ -1128,10 +1597,15 @@ export default function AllCustomerTable() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Header Section */}
       <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Customer Management</h1>
-          <p className="text-gray-600 mt-1">View, filter, and edit customer details.</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Customer Management
+          </h1>
+          <p className="text-gray-600 mt-1">
+            View, filter, and edit customer details.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="flex items-center gap-1">
@@ -1142,26 +1616,26 @@ export default function AllCustomerTable() {
             <CreditCard className="h-4 w-4" />
             {filteredData.length} filtered
           </Badge>
-          
           {/* Refresh Button */}
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={refreshCustomerData}
             disabled={loading}
             className="flex items-center gap-1"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          
-          <Button 
-            onClick={async () => {
+          {/* UPDATE the "Add Customer" button in your JSX: */}
+          <Button
+            onClick={() => {
+              // Store current timestamp before navigation
+              sessionStorage.setItem(
+                "lastAddCustomerTime",
+                Date.now().toString()
+              );
               router.push("/dashboard/addNewCustomer");
-              // Auto-refresh after a delay when returning from add customer page
-              setTimeout(() => {
-                refreshCustomerData();
-              }, 1000);
-            }} 
+            }}
             className="ml-4"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -1170,6 +1644,7 @@ export default function AllCustomerTable() {
         </div>
       </div>
 
+      {/* Filters Card */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
@@ -1178,25 +1653,37 @@ export default function AllCustomerTable() {
               <CardTitle className="text-lg">Filters</CardTitle>
             </div>
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setShowFilters(!showFilters)} 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
                 className="flex items-center gap-1"
               >
-                {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
+                {showFilters ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <Filter className="h-4 w-4" />
+                )}
                 {showFilters ? "Hide" : "Show"} Filters
               </Button>
-              {(globalFilter || statusFilter || areaFilter || startEndDate || endEndDate) && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => { 
-                    setGlobalFilter(""); 
-                    setStatusFilter(""); 
-                    setAreaFilter(""); 
-                    setStartEndDate(""); 
-                    setEndEndDate(""); 
+              {(globalFilter ||
+                statusFilter ||
+                areaFilter ||
+                startEndDate ||
+                endEndDate ||
+                startLoanDate || // NEW: Add to clear condition
+                endLoanDate) && ( // NEW: Add to clear condition
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setGlobalFilter("");
+                    setStatusFilter("");
+                    setAreaFilter("");
+                    setStartEndDate("");
+                    setEndEndDate("");
+                    setStartLoanDate(""); // NEW: Clear loan date filters
+                    setEndLoanDate("");   // NEW: Clear loan date filters
                   }}
                 >
                   Clear All
@@ -1209,20 +1696,20 @@ export default function AllCustomerTable() {
           <div className="space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input 
-                placeholder="Search by name, ID, or Aadhar…" 
-                value={globalFilter} 
-                onChange={(e) => setGlobalFilter(e.target.value)} 
-                className="pl-10" 
+              <Input
+                placeholder="Search by name, ID, or Aadhar…"
+                value={globalFilter}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                className="pl-10"
               />
             </div>
             {showFilters && (
               <div className="grid gap-4 pt-4 border-t md:grid-cols-3">
                 <div className="space-y-2">
                   <Label className="text-sm">Status</Label>
-                  <select 
-                    value={statusFilter} 
-                    onChange={(e) => setStatusFilter(e.target.value)} 
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
                     className="w-full rounded border p-2 text-sm"
                   >
                     <option value="">All Customers</option>
@@ -1238,7 +1725,12 @@ export default function AllCustomerTable() {
                   <Label className="text-sm">Area</Label>
                   <Popover open={areaOpen} onOpenChange={setAreaOpen}>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" role="combobox" aria-expanded={areaOpen} className="w-full justify-between text-sm">
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={areaOpen}
+                        className="w-full justify-between text-sm"
+                      >
                         {areaFilter || "All Areas"}
                         <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
                       </Button>
@@ -1249,11 +1741,22 @@ export default function AllCustomerTable() {
                         <CommandList>
                           <CommandEmpty>No area found.</CommandEmpty>
                           <CommandGroup>
-                            <CommandItem onSelect={() => { setAreaFilter(""); setAreaOpen(false); }}>
+                            <CommandItem
+                              onSelect={() => {
+                                setAreaFilter("");
+                                setAreaOpen(false);
+                              }}
+                            >
                               All Areas
                             </CommandItem>
                             {availableAreas.map((a) => (
-                              <CommandItem key={a} onSelect={() => { setAreaFilter(a); setAreaOpen(false); }}>
+                              <CommandItem
+                                key={a}
+                                onSelect={() => {
+                                  setAreaFilter(a);
+                                  setAreaOpen(false);
+                                }}
+                              >
                                 {a}
                               </CommandItem>
                             ))}
@@ -1267,15 +1770,34 @@ export default function AllCustomerTable() {
                 <div className="space-y-2">
                   <Label className="text-sm">End Date Range</Label>
                   <div className="grid grid-cols-2 gap-2">
-                    <Input 
-                      type="date" 
-                      value={startEndDate} 
-                      onChange={(e) => setStartEndDate(e.target.value)} 
+                    <Input
+                      type="date"
+                      value={startEndDate}
+                      onChange={(e) => setStartEndDate(e.target.value)}
                     />
-                    <Input 
-                      type="date" 
-                      value={endEndDate} 
-                      onChange={(e) => setEndEndDate(e.target.value)} 
+                    <Input
+                      type="date"
+                      value={endEndDate}
+                      onChange={(e) => setEndEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* NEW: Loan Date Range Filter */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Loan Date Range</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      type="date"
+                      value={startLoanDate}
+                      onChange={(e) => setStartLoanDate(e.target.value)}
+                      placeholder="From date"
+                    />
+                    <Input
+                      type="date"
+                      value={endLoanDate}
+                      onChange={(e) => setEndLoanDate(e.target.value)}
+                      placeholder="To date"
                     />
                   </div>
                 </div>
@@ -1285,46 +1807,72 @@ export default function AllCustomerTable() {
         </CardContent>
       </Card>
 
+      {/* Table Info and Pagination Controls */}
       <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <p className="text-sm text-gray-600">
-          Showing <span className="font-medium">{paginatedData.length}</span> of <span className="font-medium">{filteredData.length}</span> customers (Total: {data.length})
+          Showing <span className="font-medium">{paginatedData.length}</span> of{" "}
+          <span className="font-medium">{filteredData.length}</span> customers
+          (Total: {data.length})
         </p>
         <div className="flex items-center gap-2">
           <Label className="text-sm">Rows per page:</Label>
-          <select 
-            className="rounded border p-1 text-sm" 
-            value={rowsPerPage} 
-            onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+          <select
+            className="rounded border p-1 text-sm"
+            value={rowsPerPage}
+            onChange={(e) => {
+              setRowsPerPage(Number(e.target.value));
+              setCurrentPage(1);
+            }}
           >
-            {[5, 10, 20, 50].map((n) => (<option key={n} value={n}>{n}</option>))}
+            {[5, 10, 20, 50].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
           </select>
         </div>
       </div>
 
+      {/* Data Table */}
       <Card>
         <CardContent className="p-0">
           <DataTable columns={columns} data={paginatedData} />
         </CardContent>
       </Card>
 
+      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-600">Page {currentPage} of {totalPages}</p>
+          <p className="text-sm text-gray-600">
+            Page {currentPage} of {totalPages}
+          </p>
           <Pagination>
             <PaginationContent>
               <PaginationItem>
-                <PaginationPrevious 
-                  href="#" 
-                  onClick={(e) => { e.preventDefault(); setCurrentPage((p) => Math.max(1, p - 1)); }} 
-                  className={currentPage === 1 ? "pointer-events-none opacity-50" : ""} 
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setCurrentPage((p) => Math.max(1, p - 1));
+                  }}
+                  className={
+                    currentPage === 1 ? "pointer-events-none opacity-50" : ""
+                  }
                 />
               </PaginationItem>
               {renderPageWindow()}
               <PaginationItem>
-                <PaginationNext 
-                  href="#" 
-                  onClick={(e) => { e.preventDefault(); setCurrentPage((p) => Math.min(totalPages, p + 1)); }} 
-                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""} 
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setCurrentPage((p) => Math.min(totalPages, p + 1));
+                  }}
+                  className={
+                    currentPage === totalPages
+                      ? "pointer-events-none opacity-50"
+                      : ""
+                  }
                 />
               </PaginationItem>
             </PaginationContent>
@@ -1332,14 +1880,16 @@ export default function AllCustomerTable() {
         </div>
       )}
 
-      {/* Rest of the dialogs and components remain exactly the same */}
+      {/* Customer Details Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex justify-between items-start gap-3">
               <div>
                 <DialogTitle className="text-2xl">Customer Details</DialogTitle>
-                <DialogDescription>Full profile for {selectedCustomer?.name}</DialogDescription>
+                <DialogDescription>
+                  Full profile for {selectedCustomer?.name}
+                </DialogDescription>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1358,7 +1908,7 @@ export default function AllCustomerTable() {
                     <Plus className="h-4 w-4 mr-2" />
                     Create New Loan
                   </DropdownMenuItem>
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     onClick={() => {
                       router.push(`/loans?customerId=${selectedCustomer.id}`);
                     }}
@@ -1367,8 +1917,8 @@ export default function AllCustomerTable() {
                     Manage Loans
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    className="text-red-600" 
+                  <DropdownMenuItem
+                    className="text-red-600"
                     onClick={() => setDeleteOpen(true)}
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
@@ -1380,19 +1930,21 @@ export default function AllCustomerTable() {
           </DialogHeader>
 
           {!selectedCustomer ? (
-            <p className="text-center py-8 text-gray-500">No customer selected.</p>
+            <p className="text-center py-8 text-gray-500">
+              No customer selected.
+            </p>
           ) : (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-              {/* Customer details content remains exactly the same */}
+              {/* Left Sidebar - Customer Profile */}
               <div className="space-y-6 lg:col-span-1">
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex flex-col items-center gap-4">
                       {selectedCustomer.photoUrl ? (
-                        <img 
-                          src={selectedCustomer.photoUrl} 
-                          alt="customer" 
-                          className="h-24 w-24 rounded-full object-cover border-4 border-gray-100 shadow-sm" 
+                        <img
+                          src={selectedCustomer.photoUrl}
+                          alt="customer"
+                          className="h-24 w-24 rounded-full object-cover border-4 border-gray-100 shadow-sm"
                         />
                       ) : (
                         <div className="h-24 w-24 rounded-full bg-gray-100 flex items-center justify-center border-4 border-gray-100">
@@ -1400,8 +1952,12 @@ export default function AllCustomerTable() {
                         </div>
                       )}
                       <div className="text-center">
-                        <div className="font-bold text-lg">{selectedCustomer.name}</div>
-                        <div className="text-sm text-gray-600 mt-1">{selectedCustomer.customerCode || "N/A"}</div>
+                        <div className="font-bold text-lg">
+                          {selectedCustomer.name}
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          {selectedCustomer.customerCode || "N/A"}
+                        </div>
                       </div>
                       {qrCodeUrl ? (
                         <div className="p-2 bg-white border rounded-lg shadow-sm">
@@ -1417,41 +1973,47 @@ export default function AllCustomerTable() {
                 </Card>
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
+                    <CardTitle className="text-sm font-medium">
+                      Quick Actions
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start" 
-                      onClick={() => navigator.clipboard.writeText(selectedCustomer.customerCode ?? "")}
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() =>
+                        navigator.clipboard.writeText(
+                          selectedCustomer.customerCode ?? ""
+                        )
+                      }
                     >
                       <FileText className="h-4 w-4 mr-2" /> Copy Customer ID
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start" 
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
                       onClick={() => setEditOpen(true)}
                     >
                       <Edit className="h-4 w-4 mr-2" /> Edit Profile
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start" 
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
                       onClick={initializeCreateLoan}
                     >
                       <Plus className="h-4 w-4 mr-2" /> Create Loan
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start" 
-                      onClick={handleDownloadQRCode} 
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={handleDownloadQRCode}
                       disabled={!qrCodeUrl}
                     >
                       <Download className="h-4 w-4 mr-2" /> Download QR Code
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start" 
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
                       onClick={handleDownloadStatement}
                     >
                       <Download className="h-4 w-4 mr-2" /> Download Statement
@@ -1460,36 +2022,88 @@ export default function AllCustomerTable() {
                 </Card>
               </div>
 
+              {/* Main Content Area */}
               <div className="lg:col-span-3 space-y-6">
                 <Tabs defaultValue="details">
                   <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="details">Details</TabsTrigger>
-                    <TabsTrigger value="repayments">Repayments ({numberOfRepayments})</TabsTrigger>
-                    <TabsTrigger value="documents">Documents ({numberOfDocuments})</TabsTrigger>
+                    <TabsTrigger value="repayments">
+                      Repayments ({numberOfRepayments})
+                    </TabsTrigger>
+                    <TabsTrigger value="documents">
+                      Documents ({numberOfDocuments})
+                    </TabsTrigger>
                   </TabsList>
 
+                  {/* Details Tab */}
                   <TabsContent value="details" className="space-y-4">
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">Personal Information</CardTitle>
+                        <CardTitle className="text-lg">
+                          Personal Information
+                        </CardTitle>
                       </CardHeader>
                       <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         {[
-                          { label: "Mobile", value: selectedCustomer.mobile, icon: Phone },
+                          {
+                            label: "Mobile",
+                            value: selectedCustomer.mobile,
+                            icon: Phone,
+                          },
                           { label: "Aadhar", value: selectedCustomer.aadhar },
-                          { label: "Area", value: selectedCustomer.area, icon: MapPin },
-                          { label: "Address", value: selectedCustomer.address, span: true },
-                          { label: "DOB", value: selectedCustomer.dob ? new Date(selectedCustomer.dob).toLocaleDateString() : "N/A" },
+                          {
+                            label: "Area",
+                            value: selectedCustomer.area,
+                            icon: MapPin,
+                          },
+                          {
+                            label: "Address",
+                            value: selectedCustomer.address,
+                            span: true,
+                          },
+                          {
+                            label: "DOB",
+                            value: selectedCustomer.dob
+                              ? new Date(
+                                  selectedCustomer.dob
+                                ).toLocaleDateString()
+                              : "N/A",
+                          },
                           { label: "Gender", value: selectedCustomer.gender },
-                          { label: "Spouse Name", value: selectedCustomer.spouseName },
-                          { label: "Parent Name", value: selectedCustomer.parentName },
-                          { label: "Guarantor", value: selectedCustomer.guarantorName },
-                          { label: "Guarantor Aadhar", value: selectedCustomer.guarantorAadhar },
+                          {
+                            label: "Spouse Name",
+                            value: selectedCustomer.spouseName,
+                          },
+                          {
+                            label: "Parent Name",
+                            value: selectedCustomer.parentName,
+                          },
+                          {
+                            label: "Guarantor",
+                            value: selectedCustomer.guarantorName,
+                          },
+                          {
+                            label: "Guarantor Aadhar",
+                            value: selectedCustomer.guarantorAadhar,
+                          },
                         ].map((item, index) => (
-                          <div key={index} className={`space-y-1 ${item.span ? 'md:col-span-2' : ''}`}>
-                            <Label className="text-sm text-gray-500">{item.label}</Label>
-                            <div className={`font-medium ${item.icon ? 'flex items-center' : ''}`}>
-                              {item.icon && <item.icon className="h-4 w-4 mr-2 text-gray-500" />}
+                          <div
+                            key={index}
+                            className={`space-y-1 ${
+                              item.span ? "md:col-span-2" : ""
+                            }`}
+                          >
+                            <Label className="text-sm text-gray-500">
+                              {item.label}
+                            </Label>
+                            <div
+                              className={`font-medium ${
+                                item.icon ? "flex items-center" : ""
+                              }`}
+                            >
+                              {item.icon && (
+                                <item.icon className="h-4 w-4 mr-2 text-gray-500" />
+                              )}
                               {item.value ?? "N/A"}
                             </div>
                           </div>
@@ -1499,22 +2113,71 @@ export default function AllCustomerTable() {
 
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">Loan Information</CardTitle>
+                        <CardTitle className="text-lg">
+                          Loan Information
+                        </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                           {[
-                            { label: "Loan Amount", value: `₹${Number(selectedCustomer.loanAmount || 0).toLocaleString('en-IN')}`, icon: DollarSign },
-                            { label: "Total Paid", value: `₹${Number(selectedCustomer.totalPaid || 0).toLocaleString('en-IN')}`, className: "text-green-600", icon: DollarSign },
-                            { label: "Pending Amount", value: `₹${Number((selectedCustomer.loanAmount || 0) - (selectedCustomer.totalPaid || 0)).toLocaleString('en-IN')}`, className: "text-red-600", icon: DollarSign },
-                            { label: "Loan Date", value: selectedCustomer.loanDate ? new Date(selectedCustomer.loanDate).toLocaleDateString() : "N/A" },
-                            { label: "Tenure (months)", value: selectedCustomer.tenure },
-                            { label: "End Date", value: selectedCustomer.endDate ? new Date(selectedCustomer.endDate).toLocaleDateString() : "N/A", icon: Calendar },
+                            {
+                              label: "Loan Amount",
+                              value: `₹${Number(
+                                selectedCustomer.loanAmount || 0
+                              ).toLocaleString("en-IN")}`,
+                              icon: DollarSign,
+                            },
+                            {
+                              label: "Total Paid",
+                              value: `₹${Number(
+                                selectedCustomer.totalPaid || 0
+                              ).toLocaleString("en-IN")}`,
+                              className: "text-green-600",
+                              icon: DollarSign,
+                            },
+                            {
+                              label: "Pending Amount",
+                              value: `₹${Number(
+                                (selectedCustomer.loanAmount || 0) -
+                                  (selectedCustomer.totalPaid || 0)
+                              ).toLocaleString("en-IN")}`,
+                              className: "text-red-600",
+                              icon: DollarSign,
+                            },
+                            {
+                              label: "Loan Date",
+                              value: selectedCustomer.loanDate
+                                ? new Date(
+                                    selectedCustomer.loanDate
+                                  ).toLocaleDateString()
+                                : "N/A",
+                            },
+                            {
+                              label: "Tenure (months)",
+                              value: selectedCustomer.tenure,
+                            },
+                            {
+                              label: "End Date",
+                              value: selectedCustomer.endDate
+                                ? new Date(
+                                    selectedCustomer.endDate
+                                  ).toLocaleDateString()
+                                : "N/A",
+                              icon: Calendar,
+                            },
                           ].map((item, index) => (
                             <div key={index} className="space-y-1">
-                              <Label className="text-sm text-gray-500">{item.label}</Label>
-                              <div className={`flex items-center font-medium text-lg ${item.className || ''}`}>
-                                {item.icon && <item.icon className="h-4 w-4 mr-1 text-gray-500" />}
+                              <Label className="text-sm text-gray-500">
+                                {item.label}
+                              </Label>
+                              <div
+                                className={`flex items-center font-medium text-lg ${
+                                  item.className || ""
+                                }`}
+                              >
+                                {item.icon && (
+                                  <item.icon className="h-4 w-4 mr-1 text-gray-500" />
+                                )}
                                 {item.value ?? "N/A"}
                               </div>
                             </div>
@@ -1523,29 +2186,50 @@ export default function AllCustomerTable() {
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>Repayment Progress</span>
-                            <span>{Math.round(((selectedCustomer.totalPaid || 0) / (selectedCustomer.loanAmount || 1)) * 100)}%</span>
+                            <span>
+                              {Math.round(
+                                ((selectedCustomer.totalPaid || 0) /
+                                  (selectedCustomer.loanAmount || 1)) *
+                                  100
+                              )}
+                              %
+                            </span>
                           </div>
-                          <ProgressBar value={((selectedCustomer.totalPaid || 0) / (selectedCustomer.loanAmount || 1)) * 100} className="h-2" />
+                          <ProgressBar
+                            value={
+                              ((selectedCustomer.totalPaid || 0) /
+                                (selectedCustomer.loanAmount || 1)) *
+                              100
+                            }
+                            className="h-2"
+                          />
                         </div>
                       </CardContent>
                     </Card>
 
-                    {(getLoansForCustomer(selectedCustomer)?.length > 0) && (
+                    {getLoansForCustomer(selectedCustomer)?.length > 0 && (
                       <Card>
                         <CardHeader>
                           <CardTitle className="text-lg">All Loans</CardTitle>
                           <CardDescription>
                             {(() => {
-                              const customerLoansList = getLoansForCustomer(selectedCustomer);
+                              const customerLoansList =
+                                getLoansForCustomer(selectedCustomer);
                               const total = customerLoansList.length;
-                              const activeCount = customerLoansList.filter(loan => getLoanStatus(loan) === 'ACTIVE').length;
-                              const completedCount = customerLoansList.filter(loan => getLoanStatus(loan) === 'COMPLETED').length;
-                              const overdueCount = customerLoansList.filter(loan => getLoanStatus(loan) === 'OVERDUE').length;
+                              const activeCount = customerLoansList.filter(
+                                (loan) => getLoanStatus(loan) === "ACTIVE"
+                              ).length;
+                              const completedCount = customerLoansList.filter(
+                                (loan) => getLoanStatus(loan) === "COMPLETED"
+                              ).length;
+                              const overdueCount = customerLoansList.filter(
+                                (loan) => getLoanStatus(loan) === "OVERDUE"
+                              ).length;
                               return `${total} loan(s) found - Active: ${activeCount}, Completed: ${completedCount}, Overdue: ${overdueCount}`;
                             })()}
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
+                            <Button
+                              variant="outline"
+                              size="sm"
                               className="ml-2"
                               onClick={initializeCreateLoan}
                             >
@@ -1556,23 +2240,34 @@ export default function AllCustomerTable() {
                         <CardContent>
                           <div className="space-y-4">
                             {(() => {
-                              const customerLoansList = getLoansForCustomer(selectedCustomer);
-                              const sortedLoans = [...customerLoansList].sort((a, b) => 
-                                new Date(b.loanDate || 0) - new Date(a.loanDate || 0)
+                              const customerLoansList =
+                                getLoansForCustomer(selectedCustomer);
+                              const sortedLoans = [...customerLoansList].sort(
+                                (a, b) =>
+                                  new Date(b.loanDate || 0) -
+                                  new Date(a.loanDate || 0)
                               );
                               const toShow = sortedLoans.slice(0, 2);
                               return toShow.map((loan, index) => {
-                                const uniqueKey = `${loan.id}-${index}-${Date.now()}`;
-                                
+                                const uniqueKey = `${
+                                  loan.id
+                                }-${index}-${Date.now()}`;
+
                                 return (
-                                  <LoanCard 
+                                  <LoanCard
                                     key={uniqueKey}
-                                    loan={loan} 
-                                    index={index} 
+                                    loan={loan}
+                                    index={index}
                                     status={getLoanStatus(loan)}
                                     onEdit={initializeEditLoan}
-                                    onDelete={(loan) => { setLoanToDelete(loan); setDeleteLoanOpen(true); }}
-                                    onUpload={(loan) => { setSelectedLoan(loan); setDocumentToUpdate("loanAgreement"); }}
+                                    onDelete={(loan) => {
+                                      setLoanToDelete(loan);
+                                      setDeleteLoanOpen(true);
+                                    }}
+                                    onUpload={(loan) => {
+                                      setSelectedLoan(loan);
+                                      setDocumentToUpdate("loanAgreement");
+                                    }}
                                   />
                                 );
                               });
@@ -1583,11 +2278,16 @@ export default function AllCustomerTable() {
                     )}
                   </TabsContent>
 
+                  {/* Repayments Tab */}
                   <TabsContent value="repayments">
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">Repayment History</CardTitle>
-                        <CardDescription>All transactions for {selectedCustomer.name}</CardDescription>
+                        <CardTitle className="text-lg">
+                          Repayment History
+                        </CardTitle>
+                        <CardDescription>
+                          All transactions for {selectedCustomer.name}
+                        </CardDescription>
                       </CardHeader>
                       <CardContent>
                         {repayments.length === 0 ? (
@@ -1600,23 +2300,53 @@ export default function AllCustomerTable() {
                             <table className="w-full text-sm">
                               <thead className="bg-gray-50">
                                 <tr>
-                                  <th className="p-3 text-left font-medium">Date</th>
-                                  <th className="p-3 text-left font-medium">Amount</th>
-                                  <th className="p-3 text-left font-medium">Note</th>
-                                  <th className="p-3 text-left font-medium">Status</th>
+                                  <th className="p-3 text-left font-medium">
+                                    Date
+                                  </th>
+                                  <th className="p-3 text-left font-medium">
+                                    Amount
+                                  </th>
+                                  <th className="p-3 text-left font-medium">
+                                    Note
+                                  </th>
+                                  <th className="p-3 text-left font-medium">
+                                    Status
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y">
                                 {repayments.map((r) => (
                                   <tr key={r.id} className="hover:bg-gray-50">
                                     <td className="p-3">
-                                      {r.dueDate ? new Date(r.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                                      {r.dueDate
+                                        ? new Date(
+                                            r.dueDate
+                                          ).toLocaleDateString("en-IN", {
+                                            day: "2-digit",
+                                            month: "short",
+                                            year: "numeric",
+                                          })
+                                        : "—"}
                                     </td>
-                                    <td className="p-3 font-medium">₹{Number(r.amount || 0).toLocaleString('en-IN')}</td>
-                                    <td className="p-3 text-gray-600">{r.note ?? "—"}</td>
+                                    <td className="p-3 font-medium">
+                                      ₹
+                                      {Number(r.amount || 0).toLocaleString(
+                                        "en-IN"
+                                      )}
+                                    </td>
+                                    <td className="p-3 text-gray-600">
+                                      {r.note ?? "—"}
+                                    </td>
                                     <td className="p-3">
-                                      <Badge variant={r.status === 'PENDING' ? 'destructive' : 'outline'} className="text-xs">
-                                        {r.status || 'COMPLETED'}
+                                      <Badge
+                                        variant={
+                                          r.status === "PENDING"
+                                            ? "destructive"
+                                            : "outline"
+                                        }
+                                        className="text-xs"
+                                      >
+                                        {r.status || "COMPLETED"}
                                       </Badge>
                                     </td>
                                   </tr>
@@ -1629,17 +2359,22 @@ export default function AllCustomerTable() {
                     </Card>
                   </TabsContent>
 
+                  {/* Documents Tab */}
                   <TabsContent value="documents">
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">Customer Documents</CardTitle>
-                        <CardDescription>Document links for {selectedCustomer.name}</CardDescription>
+                        <CardTitle className="text-lg">
+                          Customer Documents
+                        </CardTitle>
+                        <CardDescription>
+                          Document links for {selectedCustomer.name}
+                        </CardDescription>
                       </CardHeader>
                       <CardContent>
                         <div className="flex justify-between items-center mb-4">
                           <div>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               onClick={initializeCreateLoan}
                               className="flex items-center gap-1"
                             >
@@ -1654,15 +2389,26 @@ export default function AllCustomerTable() {
                           <table className="w-full text-sm">
                             <thead className="bg-gray-50">
                               <tr>
-                                <th className="p-3 text-left font-medium">Document Type</th>
-                                <th className="p-3 text-left font-medium">Status</th>
-                                <th className="p-3 text-left font-medium">File Type</th>
-                                <th className="p-3 text-left font-medium">Actions</th>
+                                <th className="p-3 text-left font-medium">
+                                  Document Type
+                                </th>
+                                <th className="p-3 text-left font-medium">
+                                  Status
+                                </th>
+                                <th className="p-3 text-left font-medium">
+                                  File Type
+                                </th>
+                                <th className="p-3 text-left font-medium">
+                                  Actions
+                                </th>
                               </tr>
                             </thead>
                             <tbody className="divide-y">
+                              {/* Profile Photo Row */}
                               <tr className="hover:bg-gray-50">
-                                <td className="p-3 font-medium">Profile Photo</td>
+                                <td className="p-3 font-medium">
+                                  Profile Photo
+                                </td>
                                 <td className="p-3">
                                   {selectedCustomer.photoUrl ? (
                                     <Badge className="bg-green-100 text-green-800">
@@ -1670,45 +2416,77 @@ export default function AllCustomerTable() {
                                       Uploaded
                                     </Badge>
                                   ) : (
-                                    <Badge variant="outline" className="text-gray-600">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-gray-600"
+                                    >
                                       Not Uploaded
                                     </Badge>
                                   )}
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.photoUrl ? (
-                                    <Badge variant="outline" className="text-xs">Image</Badge>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      Image
+                                    </Badge>
                                   ) : (
-                                    <span className="text-sm text-gray-500">-</span>
+                                    <span className="text-sm text-gray-500">
+                                      -
+                                    </span>
                                   )}
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.photoUrl ? (
                                     <div className="flex flex-wrap gap-2">
-                                      <Button variant="outline" size="sm" asChild>
-                                        <a href={selectedCustomer.photoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <a
+                                          href={selectedCustomer.photoUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1"
+                                        >
                                           <Eye className="h-4 w-4" /> View
                                         </a>
                                       </Button>
-                                      <Button variant="outline" size="sm" asChild>
-                                        <a href={selectedCustomer.photoUrl} download className="flex items-center gap-1">
-                                          <Download className="h-4 w-4" /> Download
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <a
+                                          href={selectedCustomer.photoUrl}
+                                          download
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Download className="h-4 w-4" />{" "}
+                                          Download
                                         </a>
                                       </Button>
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        onClick={() => handleDocumentUpdate("photoUrl")} 
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleDocumentUpdate("photoUrl")
+                                        }
                                         className="flex items-center gap-1"
                                       >
                                         <Pencil className="h-4 w-4" /> Modify
                                       </Button>
                                     </div>
                                   ) : (
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm" 
-                                      onClick={() => handleDocumentUpdate("photoUrl")} 
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        handleDocumentUpdate("photoUrl")
+                                      }
                                       className="flex items-center gap-1"
                                     >
                                       <Upload className="h-4 w-4" /> Upload
@@ -1717,13 +2495,25 @@ export default function AllCustomerTable() {
                                 </td>
                               </tr>
 
+                              {/* Document Rows */}
                               {[
-                                { title: "Aadhar Document", field: "aadharDocumentUrl" },
-                                { title: "Income Proof", field: "incomeProofUrl" },
-                                { title: "Residence Proof", field: "residenceProofUrl" },
+                                {
+                                  title: "Aadhar Document",
+                                  field: "aadharDocumentUrl",
+                                },
+                                {
+                                  title: "Income Proof",
+                                  field: "incomeProofUrl",
+                                },
+                                {
+                                  title: "Residence Proof",
+                                  field: "residenceProofUrl",
+                                },
                               ].map((doc, index) => (
                                 <tr key={index} className="hover:bg-gray-50">
-                                  <td className="p-3 font-medium">{doc.title}</td>
+                                  <td className="p-3 font-medium">
+                                    {doc.title}
+                                  </td>
                                   <td className="p-3">
                                     {selectedCustomer[doc.field] ? (
                                       <Badge className="bg-green-100 text-green-800">
@@ -1731,48 +2521,86 @@ export default function AllCustomerTable() {
                                         Uploaded
                                       </Badge>
                                     ) : (
-                                      <Badge variant="outline" className="text-gray-600">
+                                      <Badge
+                                        variant="outline"
+                                        className="text-gray-600"
+                                      >
                                         Not Uploaded
                                       </Badge>
                                     )}
                                   </td>
                                   <td className="p-3">
                                     {selectedCustomer[doc.field] ? (
-                                      <Badge variant="outline" className="text-xs">
-                                        {selectedCustomer[doc.field].toLowerCase().endsWith(".pdf") ? "PDF" : "Document"}
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs"
+                                      >
+                                        {selectedCustomer[doc.field]
+                                          .toLowerCase()
+                                          .endsWith(".pdf")
+                                          ? "PDF"
+                                          : "Document"}
                                       </Badge>
                                     ) : (
-                                      <span className="text-sm text-gray-500">-</span>
+                                      <span className="text-sm text-gray-500">
+                                        -
+                                      </span>
                                     )}
                                   </td>
                                   <td className="p-3">
                                     {selectedCustomer[doc.field] ? (
                                       <div className="flex flex-wrap gap-2">
-                                        <Button variant="outline" size="sm" asChild>
-                                          <a href={selectedCustomer[doc.field]} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          asChild
+                                        >
+                                          <a
+                                            href={selectedCustomer[doc.field]}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1"
+                                          >
                                             <Eye className="h-4 w-4" />
-                                            {selectedCustomer[doc.field].toLowerCase().endsWith(".pdf") ? "View PDF" : "View"}
+                                            {selectedCustomer[doc.field]
+                                              .toLowerCase()
+                                              .endsWith(".pdf")
+                                              ? "View PDF"
+                                              : "View"}
                                           </a>
                                         </Button>
-                                        <Button variant="outline" size="sm" asChild>
-                                          <a href={selectedCustomer[doc.field]} download className="flex items-center gap-1">
-                                            <Download className="h-4 w-4" /> Download
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          asChild
+                                        >
+                                          <a
+                                            href={selectedCustomer[doc.field]}
+                                            download
+                                            className="flex items-center gap-1"
+                                          >
+                                            <Download className="h-4 w-4" />{" "}
+                                            Download
                                           </a>
                                         </Button>
-                                        <Button 
-                                          variant="outline" 
-                                          size="sm" 
-                                          onClick={() => handleDocumentUpdate(doc.field)} 
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            handleDocumentUpdate(doc.field)
+                                          }
                                           className="flex items-center gap-1"
                                         >
                                           <Pencil className="h-4 w-4" /> Modify
                                         </Button>
                                       </div>
                                     ) : (
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        onClick={() => handleDocumentUpdate(doc.field)} 
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          handleDocumentUpdate(doc.field)
+                                        }
                                         className="flex items-center gap-1"
                                       >
                                         <Upload className="h-4 w-4" /> Upload
@@ -1781,29 +2609,42 @@ export default function AllCustomerTable() {
                                   </td>
                                 </tr>
                               ))}
-                              
+
+                              {/* Loan Agreement Row */}
                               {(() => {
-                                const customerLoansList = getLoansForCustomer(selectedCustomer);
-                                const currentLoan = getCurrentLoan(customerLoansList);
-                                
+                                const customerLoansList =
+                                  getLoansForCustomer(selectedCustomer);
+                                const currentLoan =
+                                  getCurrentLoan(customerLoansList);
+
                                 if (!currentLoan) {
                                   return (
                                     <tr className="hover:bg-gray-50">
-                                      <td className="p-3 font-medium">Loan Agreement</td>
-                                      <td className="p-3">
-                                        <Badge variant="outline" className="text-gray-600">No Loans Found</Badge>
+                                      <td className="p-3 font-medium">
+                                        Loan Agreement
                                       </td>
                                       <td className="p-3">
-                                        <span className="text-sm text-gray-500">-</span>
+                                        <Badge
+                                          variant="outline"
+                                          className="text-gray-600"
+                                        >
+                                          No Loans Found
+                                        </Badge>
                                       </td>
                                       <td className="p-3">
-                                        <Button 
-                                          variant="outline" 
-                                          size="sm" 
+                                        <span className="text-sm text-gray-500">
+                                          -
+                                        </span>
+                                      </td>
+                                      <td className="p-3">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
                                           onClick={initializeCreateLoan}
                                           className="flex items-center gap-1"
                                         >
-                                          <Plus className="h-4 w-4" /> Create Loan
+                                          <Plus className="h-4 w-4" /> Create
+                                          Loan
                                         </Button>
                                       </td>
                                     </tr>
@@ -1811,24 +2652,40 @@ export default function AllCustomerTable() {
                                 }
 
                                 const loanStatus = getLoanStatus(currentLoan);
-                                
+
                                 return (
-                                  <tr key={currentLoan.id} className="hover:bg-gray-50">
+                                  <tr
+                                    key={currentLoan.id}
+                                    className="hover:bg-gray-50"
+                                  >
                                     <td className="p-3 font-medium">
                                       <div className="flex items-center gap-2">
                                         Current Loan Agreement
-                                        <Badge className={
-                                          loanStatus === 'ACTIVE' ? 'bg-green-100 text-green-800' :
-                                          loanStatus === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
-                                          loanStatus === 'OVERDUE' ? 'bg-red-100 text-red-800' :
-                                          'bg-gray-100 text-gray-800'
-                                        }>
+                                        <Badge
+                                          className={
+                                            loanStatus === "ACTIVE"
+                                              ? "bg-green-100 text-green-800"
+                                              : loanStatus === "COMPLETED"
+                                              ? "bg-blue-100 text-blue-800"
+                                              : loanStatus === "OVERDUE"
+                                              ? "bg-red-100 text-red-800"
+                                              : "bg-gray-100 text-gray-800"
+                                          }
+                                        >
                                           {loanStatus}
                                         </Badge>
                                       </div>
                                       <div className="text-xs text-gray-500 mt-1">
-                                        Amount: ₹{Number(currentLoan.amount || 0).toLocaleString('en-IN')} | 
-                                        Created: {currentLoan.loanDate ? new Date(currentLoan.loanDate).toLocaleDateString() : 'N/A'}
+                                        Amount: ₹
+                                        {Number(
+                                          currentLoan.amount || 0
+                                        ).toLocaleString("en-IN")}{" "}
+                                        | Created:{" "}
+                                        {currentLoan.loanDate
+                                          ? new Date(
+                                              currentLoan.loanDate
+                                            ).toLocaleDateString()
+                                          : "N/A"}
                                       </div>
                                     </td>
                                     <td className="p-3">
@@ -1838,68 +2695,120 @@ export default function AllCustomerTable() {
                                           Uploaded
                                         </Badge>
                                       ) : (
-                                        <Badge variant="outline" className="text-gray-600">
+                                        <Badge
+                                          variant="outline"
+                                          className="text-gray-600"
+                                        >
                                           Not Uploaded
                                         </Badge>
                                       )}
                                     </td>
                                     <td className="p-3">
                                       {currentLoan.documentUrl ? (
-                                        <Badge variant="outline" className="text-xs">
-                                          {currentLoan.documentUrl.toLowerCase().endsWith(".pdf") ? "PDF" : "Document"}
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs"
+                                        >
+                                          {currentLoan.documentUrl
+                                            .toLowerCase()
+                                            .endsWith(".pdf")
+                                            ? "PDF"
+                                            : "Document"}
                                         </Badge>
                                       ) : (
-                                        <span className="text-sm text-gray-500">-</span>
+                                        <span className="text-sm text-gray-500">
+                                          -
+                                        </span>
                                       )}
                                     </td>
                                     <td className="p-3">
                                       {currentLoan.documentUrl ? (
                                         <div className="flex flex-wrap gap-2">
-                                          <Button variant="outline" size="sm" asChild>
-                                            <a href={currentLoan.documentUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            asChild
+                                          >
+                                            <a
+                                              href={currentLoan.documentUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex items-center gap-1"
+                                            >
                                               <Eye className="h-4 w-4" />
-                                              {currentLoan.documentUrl.toLowerCase().endsWith(".pdf") ? "View PDF" : "View"}
+                                              {/* {currentLoan.documentUrl
+                                                .toLowerCase()
+                                                .endsWith(".pdf, .doc, .docx, jpg, .jpeg, .png, .gif")
+                                                ? "View PDF"
+                                                : "View"} */}
                                             </a>
                                           </Button>
-                                          <Button variant="outline" size="sm" asChild>
-                                            <a href={currentLoan.documentUrl} download className="flex items-center gap-1">
-                                              <Download className="h-4 w-4" /> Download
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            asChild
+                                          >
+                                            <a
+                                              href={currentLoan.documentUrl}
+                                              download
+                                              className="flex items-center gap-1"
+                                            >
+                                              <Download className="h-4 w-4" />{" "}
+                                              Download
                                             </a>
                                           </Button>
-                                          <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            onClick={() => { setSelectedLoan(currentLoan); setDocumentToUpdate("loanAgreement"); }} 
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              setSelectedLoan(currentLoan);
+                                              setDocumentToUpdate(
+                                                "loanAgreement"
+                                              );
+                                            }}
                                             className="flex items-center gap-1"
                                           >
-                                            <Pencil className="h-4 w-4" /> Modify
+                                            <Pencil className="h-4 w-4" />{" "}
+                                            Modify
                                           </Button>
-                                          <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            onClick={() => initializeEditLoan(currentLoan)}
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              initializeEditLoan(currentLoan)
+                                            }
                                             className="flex items-center gap-1"
                                           >
-                                            <Edit className="h-4 w-4" /> Edit Loan
+                                            <Edit className="h-4 w-4" /> Edit
+                                            Loan
                                           </Button>
                                         </div>
                                       ) : (
                                         <div className="flex flex-wrap gap-2">
-                                          <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            onClick={() => { setSelectedLoan(currentLoan); setDocumentToUpdate("loanAgreement"); }} 
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              setSelectedLoan(currentLoan);
+                                              setDocumentToUpdate(
+                                                "loanAgreement"
+                                              );
+                                            }}
                                             className="flex items-center gap-1"
                                           >
-                                            <Upload className="h-4 w-4" /> Upload
+                                            <Upload className="h-4 w-4" />{" "}
+                                            Upload
                                           </Button>
-                                          <Button 
-                                            variant="outline" 
-                                            size="sm" 
-                                            onClick={() => initializeEditLoan(currentLoan)}
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              initializeEditLoan(currentLoan)
+                                            }
                                             className="flex items-center gap-1"
                                           >
-                                            <Edit className="h-4 w-4" /> Edit Loan
+                                            <Edit className="h-4 w-4" /> Edit
+                                            Loan
                                           </Button>
                                         </div>
                                       )}
@@ -1908,6 +2817,7 @@ export default function AllCustomerTable() {
                                 );
                               })()}
 
+                              {/* QR Code Row */}
                               <tr className="hover:bg-gray-50">
                                 <td className="p-3 font-medium">QR Code</td>
                                 <td className="p-3">
@@ -1917,34 +2827,64 @@ export default function AllCustomerTable() {
                                       Uploaded
                                     </Badge>
                                   ) : (
-                                    <Badge variant="outline" className="text-gray-600">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-gray-600"
+                                    >
                                       Not Uploaded
                                     </Badge>
                                   )}
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.qrUrl ? (
-                                    <Badge variant="outline" className="text-xs">Image</Badge>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      Image
+                                    </Badge>
                                   ) : (
-                                    <span className="text-sm text-gray-500">-</span>
+                                    <span className="text-sm text-gray-500">
+                                      -
+                                    </span>
                                   )}
                                 </td>
                                 <td className="p-3">
                                   {selectedCustomer.qrUrl ? (
                                     <div className="flex flex-wrap gap-2">
-                                      <Button variant="outline" size="sm" asChild>
-                                        <a href={selectedCustomer.qrUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <a
+                                          href={selectedCustomer.qrUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1"
+                                        >
                                           <Eye className="h-4 w-4" /> View
                                         </a>
                                       </Button>
-                                      <Button variant="outline" size="sm" asChild>
-                                        <a href={selectedCustomer.qrUrl} download className="flex items-center gap-1">
-                                          <Download className="h-4 w-4" /> Download
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <a
+                                          href={selectedCustomer.qrUrl}
+                                          download
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Download className="h-4 w-4" />{" "}
+                                          Download
                                         </a>
                                       </Button>
                                     </div>
                                   ) : (
-                                    <span className="text-sm text-gray-500">N/A</span>
+                                    <span className="text-sm text-gray-500">
+                                      N/A
+                                    </span>
                                   )}
                                 </td>
                               </tr>
@@ -1954,62 +2894,109 @@ export default function AllCustomerTable() {
                       </CardContent>
                     </Card>
 
-                    <Dialog open={!!documentToUpdate} onOpenChange={() => setDocumentToUpdate(null)}>
+                    {/* Document Upload Dialog */}
+                    <Dialog
+                      open={!!documentToUpdate}
+                      onOpenChange={() => setDocumentToUpdate(null)}
+                    >
                       <DialogContent className="sm:max-w-md">
                         <DialogHeader>
                           <DialogTitle>
-                            {documentToUpdate === "loanAgreement" 
-                              ? selectedLoan?.documentUrl ? "Modify Loan Agreement" : "Upload Loan Agreement"
+                            {documentToUpdate === "loanAgreement"
+                              ? selectedLoan?.documentUrl
+                                ? "Modify Loan Agreement"
+                                : "Upload Loan Agreement"
                               : documentToUpdate === "photoUrl"
-                              ? selectedCustomer?.photoUrl ? "Modify Profile Photo" : "Upload Profile Photo"
-                              : selectedCustomer?.[documentToUpdate] ? "Modify Document" : "Upload Document"
-                            }
+                              ? selectedCustomer?.photoUrl
+                                ? "Modify Profile Photo"
+                                : "Upload Profile Photo"
+                              : selectedCustomer?.[documentToUpdate]
+                              ? "Modify Document"
+                              : "Upload Document"}
                           </DialogTitle>
                           <DialogDescription>
-                            {documentToUpdate === "photoUrl" ? "Upload a new profile picture" :
-                             documentToUpdate === "loanAgreement" ? "Upload loan agreement document" :
-                             `Upload a new ${documentToUpdate?.replace("Url", "")}`}
+                            {documentToUpdate === "photoUrl"
+                              ? "Upload a new profile picture"
+                              : documentToUpdate === "loanAgreement"
+                              ? "Upload loan agreement document"
+                              : `Upload a new ${documentToUpdate?.replace(
+                                  "Url",
+                                  ""
+                                )}`}
                           </DialogDescription>
                         </DialogHeader>
-                        <form onSubmit={documentToUpdate === "loanAgreement" ? handleLoanDocumentUpdate : handleDocumentSubmit} className="space-y-4">
+                        <form
+                          onSubmit={
+                            documentToUpdate === "loanAgreement"
+                              ? handleLoanDocumentUpdate
+                              : handleDocumentSubmit
+                          }
+                          className="space-y-4"
+                        >
                           <div className="space-y-2">
                             <Label htmlFor="doc-file">File</Label>
-                            <Input 
-                              id="doc-file" 
-                              type="file" 
-                              accept={documentToUpdate === "photoUrl" ? "image/*" : "image/*,.pdf"} 
-                              onChange={(e) => setSelectedFile(e.target.files[0])} 
-                              required 
+                            <Input
+                              id="doc-file"
+                              type="file"
+                              accept={
+                                documentToUpdate === "photoUrl"
+                                  ? "image/*"
+                                  : "image/*,.pdf"
+                              }
+                              onChange={(e) =>
+                                setSelectedFile(e.target.files[0])
+                              }
+                              required
                             />
                             <p className="text-xs text-gray-500">
-                              {documentToUpdate === "photoUrl" ? "JPG / PNG / GIF" : "JPG / PNG / GIF / PDF"}
+                              {documentToUpdate === "photoUrl"
+                                ? "JPG / PNG / GIF"
+                                : "JPG / PNG / GIF / PDF / DOCX / DOC"}
                             </p>
                           </div>
 
-                          {(documentToUpdate === "loanAgreement" ? selectedLoan?.documentUrl : 
-                            documentToUpdate === "photoUrl" ? selectedCustomer?.photoUrl : 
-                            selectedCustomer?.[documentToUpdate]) && (
+                          {(documentToUpdate === "loanAgreement"
+                            ? selectedLoan?.documentUrl
+                            : documentToUpdate === "photoUrl"
+                            ? selectedCustomer?.photoUrl
+                            : selectedCustomer?.[documentToUpdate]) && (
                             <div className="space-y-2">
                               <Label>Current Document</Label>
                               <div className="p-2 border rounded-md bg-gray-50">
-                                {documentToUpdate === "photoUrl" || 
-                                (documentToUpdate === "loanAgreement" && selectedLoan?.documentUrl?.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)) ||
-                                (documentToUpdate !== "loanAgreement" && selectedCustomer[documentToUpdate]?.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)) ? (
+                                {documentToUpdate === "photoUrl" ||
+                                (documentToUpdate === "loanAgreement" &&
+                                  selectedLoan?.documentUrl
+                                    ?.toLowerCase()
+                                    .match(/\.(jpg|jpeg|png|gif|pdf|docx|doc)$/)) ||
+                                (documentToUpdate !== "loanAgreement" &&
+                                  selectedCustomer[documentToUpdate]
+                                    ?.toLowerCase()
+                                    .match(/\.(jpg|jpeg|png|gif|pdf|docx|doc)$/)) ? (
                                   <img
-                                    src={documentToUpdate === "loanAgreement" ? selectedLoan.documentUrl : 
-                                         documentToUpdate === "photoUrl" ? selectedCustomer.photoUrl : 
-                                         selectedCustomer[documentToUpdate]}
+                                    src={
+                                      documentToUpdate === "loanAgreement"
+                                        ? selectedLoan.documentUrl
+                                        : documentToUpdate === "photoUrl"
+                                        ? selectedCustomer.photoUrl
+                                        : selectedCustomer[documentToUpdate]
+                                    }
                                     alt="current"
                                     className="h-32 object-contain mx-auto rounded"
                                   />
                                 ) : (
                                   <div className="text-center py-8">
                                     <FileText className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-                                    <p className="text-sm text-gray-500">PDF Document</p>
+                                    <p className="text-sm text-gray-500">
+                                      PDF Document
+                                    </p>
                                     <a
-                                      href={documentToUpdate === "loanAgreement" ? selectedLoan.documentUrl : 
-                                            documentToUpdate === "photoUrl" ? selectedCustomer.photoUrl : 
-                                            selectedCustomer[documentToUpdate]}
+                                      href={
+                                        documentToUpdate === "loanAgreement"
+                                          ? selectedLoan.documentUrl
+                                          : documentToUpdate === "photoUrl"
+                                          ? selectedCustomer.photoUrl
+                                          : selectedCustomer[documentToUpdate]
+                                      }
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="text-blue-600 hover:underline text-sm"
@@ -2023,17 +3010,31 @@ export default function AllCustomerTable() {
                           )}
 
                           <div className="flex justify-end gap-2">
-                            <Button type="button" variant="outline" onClick={() => setDocumentToUpdate(null)}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setDocumentToUpdate(null)}
+                            >
                               Cancel
                             </Button>
-                            <Button type="submit" disabled={uploadingDocument || !selectedFile}>
-                              {uploadingDocument && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                              {documentToUpdate === "loanAgreement" 
-                                ? selectedLoan?.documentUrl ? "Update" : "Upload"
+                            <Button
+                              type="submit"
+                              disabled={uploadingDocument || !selectedFile}
+                            >
+                              {uploadingDocument && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              )}
+                              {documentToUpdate === "loanAgreement"
+                                ? selectedLoan?.documentUrl
+                                  ? "Update"
+                                  : "Upload"
                                 : documentToUpdate === "photoUrl"
-                                ? selectedCustomer?.photoUrl ? "Update" : "Upload"
-                                : selectedCustomer?.[documentToUpdate] ? "Update" : "Upload"
-                              }
+                                ? selectedCustomer?.photoUrl
+                                  ? "Update"
+                                  : "Upload"
+                                : selectedCustomer?.[documentToUpdate]
+                                ? "Update"
+                                : "Upload"}
                             </Button>
                           </div>
                         </form>
@@ -2047,6 +3048,7 @@ export default function AllCustomerTable() {
         </DialogContent>
       </Dialog>
 
+      {/* Create Loan Dialog */}
       <Dialog open={createLoanOpen} onOpenChange={setCreateLoanOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2065,7 +3067,12 @@ export default function AllCustomerTable() {
                   step="0.01"
                   placeholder="0.00"
                   value={loanFormData.amount}
-                  onChange={(e) => setLoanFormData(prev => ({ ...prev, amount: e.target.value }))}
+                  onChange={(e) =>
+                    setLoanFormData((prev) => ({
+                      ...prev,
+                      amount: e.target.value,
+                    }))
+                  }
                   required
                 />
               </div>
@@ -2077,7 +3084,12 @@ export default function AllCustomerTable() {
                   step="0.01"
                   placeholder="0.00"
                   value={loanFormData.rate}
-                  onChange={(e) => setLoanFormData(prev => ({ ...prev, rate: e.target.value }))}
+                  onChange={(e) =>
+                    setLoanFormData((prev) => ({
+                      ...prev,
+                      rate: e.target.value,
+                    }))
+                  }
                   required
                 />
               </div>
@@ -2088,7 +3100,12 @@ export default function AllCustomerTable() {
                   type="number"
                   placeholder="12"
                   value={loanFormData.tenure}
-                  onChange={(e) => setLoanFormData(prev => ({ ...prev, tenure: e.target.value }))}
+                  onChange={(e) =>
+                    setLoanFormData((prev) => ({
+                      ...prev,
+                      tenure: e.target.value,
+                    }))
+                  }
                   required
                 />
               </div>
@@ -2098,7 +3115,12 @@ export default function AllCustomerTable() {
                   id="loanDate"
                   type="date"
                   value={loanFormData.loanDate}
-                  onChange={(e) => setLoanFormData(prev => ({ ...prev, loanDate: e.target.value }))}
+                  onChange={(e) =>
+                    setLoanFormData((prev) => ({
+                      ...prev,
+                      loanDate: e.target.value,
+                    }))
+                  }
                   required
                 />
               </div>
@@ -2109,16 +3131,27 @@ export default function AllCustomerTable() {
                   type="text"
                   placeholder="Enter area"
                   value={loanFormData.area}
-                  onChange={(e) => setLoanFormData(prev => ({ ...prev, area: e.target.value }))}
+                  onChange={(e) =>
+                    setLoanFormData((prev) => ({
+                      ...prev,
+                      area: e.target.value,
+                    }))
+                  }
                 />
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setCreateLoanOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateLoanOpen(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={creatingLoan}>
-                {creatingLoan && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {creatingLoan && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
                 Create Loan
               </Button>
             </div>
@@ -2126,6 +3159,7 @@ export default function AllCustomerTable() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Loan Dialog */}
       <Dialog open={editLoanOpen} onOpenChange={setEditLoanOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2144,7 +3178,12 @@ export default function AllCustomerTable() {
                   step="0.01"
                   placeholder="0.00"
                   value={loanFormData.amount}
-                  onChange={(e) => setLoanFormData(prev => ({ ...prev, amount: e.target.value }))}
+                  onChange={(e) =>
+                    setLoanFormData((prev) => ({
+                      ...prev,
+                      amount: e.target.value,
+                    }))
+                  }
                   required
                 />
               </div>
@@ -2156,7 +3195,12 @@ export default function AllCustomerTable() {
                   step="0.01"
                   placeholder="0.00"
                   value={loanFormData.rate}
-                  onChange={(e) => setLoanFormData(prev => ({ ...prev, rate: e.target.value }))}
+                  onChange={(e) =>
+                    setLoanFormData((prev) => ({
+                      ...prev,
+                      rate: e.target.value,
+                    }))
+                  }
                   required
                 />
               </div>
@@ -2167,7 +3211,12 @@ export default function AllCustomerTable() {
                   type="number"
                   placeholder="12"
                   value={loanFormData.tenure}
-                  onChange={(e) => setLoanFormData(prev => ({ ...prev, tenure: e.target.value }))}
+                  onChange={(e) =>
+                    setLoanFormData((prev) => ({
+                      ...prev,
+                      tenure: e.target.value,
+                    }))
+                  }
                   required
                 />
               </div>
@@ -2177,7 +3226,12 @@ export default function AllCustomerTable() {
                   id="edit-loanDate"
                   type="date"
                   value={loanFormData.loanDate}
-                  onChange={(e) => setLoanFormData(prev => ({ ...prev, loanDate: e.target.value }))}
+                  onChange={(e) =>
+                    setLoanFormData((prev) => ({
+                      ...prev,
+                      loanDate: e.target.value,
+                    }))
+                  }
                   required
                 />
               </div>
@@ -2188,16 +3242,27 @@ export default function AllCustomerTable() {
                   type="text"
                   placeholder="Enter area"
                   value={loanFormData.area}
-                  onChange={(e) => setLoanFormData(prev => ({ ...prev, area: e.target.value }))}
+                  onChange={(e) =>
+                    setLoanFormData((prev) => ({
+                      ...prev,
+                      area: e.target.value,
+                    }))
+                  }
                 />
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setEditLoanOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditLoanOpen(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={updatingLoan}>
-                {updatingLoan && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {updatingLoan && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
                 Update Loan
               </Button>
             </div>
@@ -2205,20 +3270,23 @@ export default function AllCustomerTable() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Loan Alert */}
       <AlertDialog open={deleteLoanOpen} onOpenChange={setDeleteLoanOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this loan?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the loan agreement
+              This action cannot be undone. This will permanently delete the
+              loan agreement
               {loanToDelete?.documentUrl && " and its associated document"}.
-              {loanToDelete?.status === 'ACTIVE' && " This loan is currently active."}
+              {loanToDelete?.status === "ACTIVE" &&
+                " This loan is currently active."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              className="bg-red-600 hover:bg-red-700" 
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
               onClick={handleDeleteLoan}
             >
               {deletingLoan ? (
@@ -2234,134 +3302,41 @@ export default function AllCustomerTable() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Fixed Edit Customer Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Customer</DialogTitle>
-            <DialogDescription>Update any field of the selected customer.</DialogDescription>
+            <DialogDescription>
+              Update any field of the selected customer.
+            </DialogDescription>
           </DialogHeader>
-          <form onSubmit={async (e) => {
-            e.preventDefault();
-            if (!selectedCustomer) return;
-            const form = e.currentTarget;
-            const fd = new FormData(form);
-            fd.set("id", selectedCustomer.id);
-            const photoFile = form.querySelector('input[name="photo"]')?.files[0];
-            if (photoFile) fd.set("photo", photoFile);
-            try {
-              const res = await fetch("/api/customers", { method: "PUT", body: fd });
-              if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.error || "Update failed");
-              }
-              const { customer } = await res.json();
-              setData((prev) => prev.map((c) => c.id === customer.id ? { ...c, ...customer } : c));
-              setSelectedCustomer((prev) => prev && prev.id === customer.id ? { ...prev, ...customer } : prev);
-              setEditOpen(false);
-              alert("Customer updated successfully!");
-            } catch (err) {
-              console.error("Update error:", err);
-              alert(err.message);
-            }
-          }} className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              {[
-                { label: "Full Name *", name: "customerName", type: "text", required: true },
-                { label: "Mobile", name: "mobile", type: "text" },
-                { label: "Customer Code", name: "customerCode", type: "text" },
-                { label: "Aadhar Number", name: "aadhar", type: "text" },
-                { label: "Area", name: "area", type: "text" },
-                { label: "Address", name: "address", type: "textarea", rows: 2 },
-                { label: "Date of Birth", name: "dob", type: "date" },
-                { label: "Gender", name: "gender", type: "select", options: ["", "Male", "Female", "Other"] },
-                { label: "Spouse Name", name: "spouseName", type: "text" },
-                { label: "Parent Name", name: "parentName", type: "text" },
-                { label: "Guarantor Name", name: "guarantorName", type: "text" },
-                { label: "Guarantor Aadhar", name: "guarantorAadhar", type: "text" },
-              ].map((field, index) => (
-                <div key={index} className={`space-y-2 ${field.type === 'textarea' ? 'md:col-span-2' : ''}`}>
-                  <Label>{field.label}</Label>
-                  {field.type === 'textarea' ? (
-                    <Textarea 
-                      name={field.name} 
-                      defaultValue={selectedCustomer?.[field.name]} 
-                      rows={field.rows} 
-                    />
-                  ) : field.type === 'select' ? (
-                    <select 
-                      name={field.name} 
-                      defaultValue={selectedCustomer?.[field.name] ?? ""} 
-                      className="w-full rounded border p-2"
-                    >
-                      {field.options.map((option, idx) => (
-                        <option key={idx} value={option}>{option || "Select …"}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <Input 
-                      name={field.name} 
-                      type={field.type} 
-                      defaultValue={field.type === 'date' && selectedCustomer?.[field.name] ? new Date(selectedCustomer[field.name]).toISOString().split("T")[0] : selectedCustomer?.[field.name]} 
-                      required={field.required} 
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="border-t pt-4">
-              <h3 className="text-lg font-medium mb-3">Loan Details</h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Loan Amount</Label>
-                  <Input name="loanAmount" type="number" step="0.01" defaultValue={selectedCustomer?.loanAmount ?? ""} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Loan Date</Label>
-                  <Input name="loanDate" type="date" defaultValue={selectedCustomer?.loanDate ? new Date(selectedCustomer.loanDate).toISOString().split("T")[0] : ""} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Tenure (months)</Label>
-                  <Input name="tenure" type="number" defaultValue={selectedCustomer?.tenure ?? ""} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Total Paid (read-only)</Label>
-                  <Input value={Number(selectedCustomer?.totalPaid ?? 0).toLocaleString('en-IN')} readOnly />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Profile Photo (optional)</Label>
-                  <Input name="photo" type="file" accept="image/*" />
-                  {selectedCustomer?.photoUrl && (
-                    <div className="mt-2">
-                      <img src={selectedCustomer.photoUrl} alt="current" className="h-16 w-16 rounded-full object-cover border" />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                Save Changes
-              </Button>
-            </div>
-          </form>
+
+          {selectedCustomer && (
+            <EditCustomerForm
+              customer={selectedCustomer}
+              areas={areas}
+              onSave={handleCustomerUpdateSuccess}
+              onCancel={() => setEditOpen(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
+      {/* Delete Customer Alert */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this customer?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. All associated repayments, loans, and documents will be permanently removed.
+              This action cannot be undone. All associated repayments, loans,
+              and documents will be permanently removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              className="bg-red-600 hover:bg-red-700" 
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
               onClick={async () => {
                 if (!selectedCustomer) return;
                 await handleDelete(selectedCustomer.id);
@@ -2380,7 +3355,8 @@ export default function AllCustomerTable() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>  
+    </div>
   );
 }
+
 export { AllCustomerTable };
