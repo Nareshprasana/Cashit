@@ -1,33 +1,35 @@
-/* -----------------------------------------------------------------
-   LoanTable.jsx - Fixed Hydration & Overdue Display with Working API
------------------------------------------------------------------ */
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
-import {
-  Search,
-  Filter,
-  X,
-  Eye,
-  Calendar,
-  DollarSign,
-  User,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Percent,
-  Pencil,
-  Trash2,
-  Plus,
-  ChevronDown,
-  ChevronUp,
-  AlertCircle,
-  Upload,
-  FileText,
-  Download,
-  Save,
-  FileEdit,
-} from "lucide-react";
+
+// React Icons imports
+import { 
+  FaSearch,
+  FaFilter,
+  FaTimes,
+  FaEye,
+  FaCalendar,
+  FaDollarSign,
+  FaUser,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaClock,
+  FaPercent,
+  FaEdit,
+  FaTrash,
+  FaPlus,
+  FaChevronDown,
+  FaChevronUp,
+  FaExclamationCircle,
+  FaUpload,
+  FaFile,
+  FaDownload,
+  FaSave,
+  FaFileAlt,
+  FaEllipsisV
+} from 'react-icons/fa';
+
+import { MdSettings } from 'react-icons/md';
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +41,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import {
   Pagination,
@@ -96,19 +107,19 @@ const StatusBadge = ({ status, pendingAmount }) => {
     case "ACTIVE":
       return (
         <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-          <Clock className="h-3 w-3 mr-1" /> Active
+          <FaClock className="h-3 w-3 mr-1" /> Active
         </Badge>
       );
     case "CLOSED":
       return (
         <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-          <CheckCircle className="h-3 w-3 mr-1" /> Completed
+          <FaCheckCircle className="h-3 w-3 mr-1" /> Completed
         </Badge>
       );
     case "NEVER_OPENED":
       return (
         <Badge variant="outline" className="text-gray-600">
-          <XCircle className="h-3 w-3 mr-1" /> Never Opened
+          <FaTimesCircle className="h-3 w-3 mr-1" /> Never Opened
         </Badge>
       );
     default:
@@ -121,14 +132,14 @@ const OverdueBadge = ({ isOverdue, overdueDays }) => {
   if (isOverdue) {
     return (
       <Badge variant="destructive" className="flex items-center gap-1">
-        <AlertCircle className="h-3 w-3" />
+        <FaExclamationCircle className="h-3 w-3" />
         Overdue {overdueDays} days
       </Badge>
     );
   }
   return (
     <Badge variant="secondary" className="flex items-center gap-1">
-      <CheckCircle className="h-3 w-3 text-green-600" />
+      <FaCheckCircle className="h-3 w-3 text-green-600" />
       On Time
     </Badge>
   );
@@ -139,13 +150,13 @@ const DocumentBadge = ({ documentUrl }) => {
   if (documentUrl) {
     return (
       <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-        <FileText className="h-3 w-3 mr-1" /> Document
+        <FaFile className="h-3 w-3 mr-1" /> Document
       </Badge>
     );
   }
   return (
     <Badge variant="outline" className="text-gray-500">
-      <FileText className="h-3 w-3 mr-1" /> No Document
+      <FaFile className="h-3 w-3 mr-1" /> No Document
     </Badge>
   );
 };
@@ -187,15 +198,15 @@ const calculateOverdueDays = (loanDate, tenure) => {
 };
 
 /* -------------------------------------------------
-   LoanTable Component with Fixed API Integration
+   LoanTable Component with React Icons
 ------------------------------------------------- */
 const LoanTable = ({
   loans = [],
   loading,
   selectedCustomerCode,
-  onLoanUpdate, // Add this prop for state updates
-  onLoanDelete, // Add this prop for delete operations
-  onLoanCreate, // Add this prop for create operations
+  onLoanUpdate,
+  onLoanDelete,
+  onLoanCreate,
 }) => {
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -224,7 +235,7 @@ const LoanTable = ({
     tenure: "",
     loanDate: new Date().toISOString().split("T")[0],
     status: "ACTIVE",
-    customerId: "", // Add customerId for API calls
+    customerId: "",
   });
 
   /* ------------ DOCUMENT STATE ------------ */
@@ -328,7 +339,6 @@ const LoanTable = ({
           rate: Number(form.rate),
           tenure: Number(form.tenure),
           loanDate: form.loanDate,
-          // Add other fields that your backend expects
         };
 
         response = await fetch("/api/loans", {
@@ -341,12 +351,12 @@ const LoanTable = ({
       } else {
         // CREATE new loan
         const loanData = {
-          customerId: form.customerId, // You need to get this from somewhere
+          customerId: form.customerId,
           amount: Number(form.loanAmount),
           rate: Number(form.rate),
           tenure: Number(form.tenure),
           loanDate: form.loanDate,
-          area: form.area || "", // Add if you have area field
+          area: form.area || "",
         };
 
         response = await fetch("/api/loans", {
@@ -455,11 +465,9 @@ const LoanTable = ({
       formData.append("file", documentFile);
       formData.append("loanId", editingLoan.id);
 
-      // Use the correct PUT endpoint for document upload
       const response = await fetch("/api/loans", {
         method: "PUT",
         body: formData,
-        // Don't set Content-Type header for FormData
       });
 
       if (response.ok) {
@@ -494,10 +502,8 @@ const LoanTable = ({
     
     // Handle both Vercel Blob URLs and local paths
     if (documentUrl.startsWith('/uploads/')) {
-      // Convert local path to full URL for Vercel deployment
       documentUrl = `${window.location.origin}${documentUrl}`;
     }
-    // If it's already a full URL (Vercel Blob), use it directly
     
     window.open(documentUrl, "_blank");
   };
@@ -511,20 +517,16 @@ const LoanTable = ({
     try {
       let documentUrl = loan.documentUrl;
       
-      // Handle both Vercel Blob URLs and local paths
       if (documentUrl.startsWith('/uploads/')) {
-        // Convert local path to full URL for Vercel deployment
         documentUrl = `${window.location.origin}${documentUrl}`;
       }
       
-      // For Vercel Blob, create a download link
       const response = await fetch(documentUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       
-      // Get file extension from URL or content type
       const fileExtension = loan.documentUrl.split('.').pop() || 'pdf';
       a.download = `loan-document-${loan.customer?.customerCode || loan.customer?.code}-${Date.now()}.${fileExtension}`;
       
@@ -545,7 +547,6 @@ const LoanTable = ({
     }
 
     try {
-      // Use PUT request with null documentUrl to remove the document
       const response = await fetch("/api/loans", {
         method: "PUT",
         headers: {
@@ -561,7 +562,6 @@ const LoanTable = ({
         const result = await response.json();
         toast.success("Document removed successfully!");
         
-        // Update parent component state
         if (onLoanUpdate && result.loan) {
           onLoanUpdate(result.loan);
         }
@@ -590,7 +590,6 @@ const LoanTable = ({
         const result = await response.json();
         toast.success("Loan deleted successfully!");
         
-        // Update parent component state
         if (onLoanDelete) {
           onLoanDelete(loan.id);
         }
@@ -625,7 +624,7 @@ const LoanTable = ({
     return sortDirection === "asc" ? aValue - bValue : bValue - aValue;
   });
 
-  /* ------------------- COMPLETELY SEPARATED FILTERING LOGIC ------------------- */
+  /* ------------------- FILTERING LOGIC ------------------- */
   const filteredLoans = useMemo(() => {
     return sortedLoans.filter((loan) => {
       // Customer code filter
@@ -693,11 +692,11 @@ const LoanTable = ({
 
   const SortIcon = ({ field }) =>
     sortField !== field ? (
-      <ChevronDown className="h-4 w-4 opacity-50" />
+      <FaChevronDown className="h-4 w-4 opacity-50" />
     ) : sortDirection === "asc" ? (
-      <ChevronUp className="h-4 w-4" />
+      <FaChevronUp className="h-4 w-4" />
     ) : (
-      <ChevronDown className="h-4 w-4" />
+      <FaChevronDown className="h-4 w-4" />
     );
 
   /* ------------------- PAGINATION RENDER ------------------- */
@@ -816,7 +815,7 @@ const LoanTable = ({
             onClick={() => openEditDialog()} 
             className="bg-blue-600 hover:bg-blue-700"
           >
-            <Plus className="h-4 w-4 mr-2" />
+            <FaPlus className="h-4 w-4 mr-2" />
             New Loan
           </Button>
         </ClientOnly>
@@ -827,7 +826,7 @@ const LoanTable = ({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Loans</CardTitle>
-            <DollarSign className="h-4 w-4 text-gray-500" />
+            <FaDollarSign className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalLoans}</div>
@@ -838,7 +837,7 @@ const LoanTable = ({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Loans</CardTitle>
-            <Clock className="h-4 w-4 text-blue-500" />
+            <FaClock className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.activeLoans}</div>
@@ -849,7 +848,7 @@ const LoanTable = ({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Amount</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-500" />
+            <FaDollarSign className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₹{stats.totalLoanAmount.toLocaleString()}</div>
@@ -860,7 +859,7 @@ const LoanTable = ({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">With Documents</CardTitle>
-            <FileText className="h-4 w-4 text-orange-500" />
+            <FaFile className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.loansWithDocuments}</div>
@@ -881,9 +880,9 @@ const LoanTable = ({
                   onClick={() => setShowFilters(!showFilters)}
                   className="flex items-center gap-2"
                 >
-                  <Filter className="h-4 w-4" />
+                  <FaFilter className="h-4 w-4" />
                   Filters
-                  {showFilters && <X className="h-4 w-4" />}
+                  {showFilters && <FaTimes className="h-4 w-4" />}
                 </Button>
               </ClientOnly>
             </div>
@@ -893,7 +892,7 @@ const LoanTable = ({
         <CardContent>
           {/* ----- Global Search ----- */}
           <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
               placeholder="Search by name, code, or Aadhar..."
               value={globalFilter}
@@ -943,13 +942,13 @@ const LoanTable = ({
                       <SelectItem value="ALL">All</SelectItem>
                       <SelectItem value="OVERDUE">
                         <div className="flex items-center gap-2">
-                          <AlertCircle className="h-4 w-4 text-red-500" />
+                          <FaExclamationCircle className="h-4 w-4 text-red-500" />
                           Overdue
                         </div>
                       </SelectItem>
                       <SelectItem value="ON_TIME">
                         <div className="flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <FaCheckCircle className="h-4 w-4 text-green-500" />
                           On Time
                         </div>
                       </SelectItem>
@@ -1005,7 +1004,7 @@ const LoanTable = ({
               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-blue-600" />
+                    <FaFilter className="h-4 w-4 text-blue-600" />
                     <span className="text-sm text-blue-800">
                       Showing loans for customer: <strong>{selectedCustomerCode}</strong>
                     </span>
@@ -1016,7 +1015,7 @@ const LoanTable = ({
                     onClick={() => window.location.reload()}
                     className="h-6 text-blue-600 hover:text-blue-800"
                   >
-                    <X className="h-3 w-3" />
+                    <FaTimes className="h-3 w-3" />
                   </Button>
                 </div>
               </div>
@@ -1071,7 +1070,7 @@ const LoanTable = ({
                     onClick={() => handleSort("loanDate")}
                   >
                     <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
+                      <FaCalendar className="h-4 w-4" />
                       Date <SortIcon field="loanDate" />
                     </div>
                   </TableHead>
@@ -1114,20 +1113,20 @@ const LoanTable = ({
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-gray-400" />
+                          <FaUser className="h-4 w-4 text-gray-400" />
                           {loan.customer?.name}
                         </div>
                       </TableCell>
                       <TableCell>{loan.customer?.aadhar}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <DollarSign className="h-3 w-3 text-gray-400" />
+                          <FaDollarSign className="h-3 w-3 text-gray-400" />
                           {loan.loanAmount?.toLocaleString()}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <DollarSign className="h-3 w-3 text-gray-400" />
+                          <FaDollarSign className="h-3 w-3 text-gray-400" />
                           {loan.pendingAmount?.toLocaleString()}
                         </div>
                       </TableCell>
@@ -1156,72 +1155,67 @@ const LoanTable = ({
                         <DocumentBadge documentUrl={loan.documentUrl} />
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {/* Document Actions */}
-                          {loan.documentUrl ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleViewDocument(loan)}
-                                className="h-8 w-8 text-green-600 hover:text-green-800"
-                                title="View Document"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDownloadDocument(loan)}
-                                className="h-8 w-8 text-blue-600 hover:text-blue-800"
-                                title="Download Document"
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleRemoveDocument(loan)}
-                                className="h-8 w-8 text-red-600 hover:text-red-800"
-                                title="Remove Document"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEditDialog(loan)}
-                              className="h-8 w-8 text-orange-600 hover:text-orange-800"
-                              title="Upload Document"
-                            >
-                              <Upload className="h-4 w-4" />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <FaEllipsisV className="h-4 w-4 text-gray-600" />
                             </Button>
-                          )}
-                          
-                          {/* Edit Loan */}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(loan)}
-                            className="h-8 w-8 text-blue-600 hover:text-blue-800"
-                            title="Edit Loan"
-                          >
-                            <FileEdit className="h-4 w-4" />
-                          </Button>
-                          
-                          {/* Delete Loan */}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleQuickDelete(loan)}
-                            className="h-8 w-8 text-red-600 hover:text-red-800"
-                            title="Delete Loan"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            {loan.documentUrl ? (
+                              <>
+                                <DropdownMenuItem 
+                                  onClick={() => handleViewDocument(loan)}
+                                  className="flex items-center gap-2 text-green-600"
+                                >
+                                  <FaEye className="h-4 w-4" />
+                                  View Document
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleDownloadDocument(loan)}
+                                  className="flex items-center gap-2 text-blue-600"
+                                >
+                                  <FaDownload className="h-4 w-4" />
+                                  Download Document
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleRemoveDocument(loan)}
+                                  className="flex items-center gap-2 text-red-600"
+                                >
+                                  <FaTrash className="h-4 w-4" />
+                                  Remove Document
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            ) : (
+                              <>
+                                <DropdownMenuItem 
+                                  onClick={() => openEditDialog(loan)}
+                                  className="flex items-center gap-2 text-orange-600"
+                                >
+                                  <FaUpload className="h-4 w-4" />
+                                  Upload Document
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            <DropdownMenuItem 
+                              onClick={() => openEditDialog(loan)}
+                              className="flex items-center gap-2 text-blue-600"
+                            >
+                              <FaEdit className="h-4 w-4" />
+                              Edit Loan
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleQuickDelete(loan)}
+                              className="flex items-center gap-2 text-red-600"
+                            >
+                              <FaTrash className="h-4 w-4" />
+                              Delete Loan
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1273,7 +1267,7 @@ const LoanTable = ({
 
             {filteredLoans.length === 0 && (
               <div className="text-center py-12 text-gray-500">
-                <Search className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <FaSearch className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p>No loans found matching your criteria</p>
                 {selectedCustomerCode && (
                   <p className="text-sm mt-2">
@@ -1302,7 +1296,7 @@ const LoanTable = ({
           <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-xl flex items-center gap-2">
-                <FileEdit className="h-5 w-5" />
+                <FaEdit className="h-5 w-5" />
                 {editingLoan ? "Edit Loan" : "Create New Loan"}
               </DialogTitle>
               <DialogDescription>
@@ -1315,15 +1309,15 @@ const LoanTable = ({
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="details" className="flex items-center gap-2">
-                  <Pencil className="h-4 w-4" />
+                  <FaEdit className="h-4 w-4" />
                   Loan Details
                 </TabsTrigger>
                 <TabsTrigger value="documents" className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
+                  <FaFile className="h-4 w-4" />
                   Documents
                 </TabsTrigger>
                 <TabsTrigger value="actions" className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
+                  <MdSettings className="h-4 w-4" />
                   Actions
                 </TabsTrigger>
               </TabsList>
@@ -1461,7 +1455,7 @@ const LoanTable = ({
                       </>
                     ) : (
                       <>
-                        <Save className="h-4 w-4 mr-2" />
+                        <FaSave className="h-4 w-4 mr-2" />
                         {editingLoan ? "Update Loan" : "Create Loan"}
                       </>
                     )}
@@ -1476,7 +1470,7 @@ const LoanTable = ({
                   <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-green-600" />
+                        <FaFile className="h-5 w-5 text-green-600" />
                         <div>
                           <p className="text-sm font-medium text-green-800">
                             Document Uploaded
@@ -1493,7 +1487,7 @@ const LoanTable = ({
                           onClick={() => handleViewDocument(editingLoan)}
                           className="text-green-600 border-green-200 hover:bg-green-100"
                         >
-                          <Eye className="h-3 w-3 mr-1" />
+                          <FaEye className="h-3 w-3 mr-1" />
                           View
                         </Button>
                         <Button
@@ -1502,7 +1496,7 @@ const LoanTable = ({
                           onClick={() => handleDownloadDocument(editingLoan)}
                           className="text-blue-600 border-blue-200 hover:bg-blue-100"
                         >
-                          <Download className="h-3 w-3 mr-1" />
+                          <FaDownload className="h-3 w-3 mr-1" />
                           Download
                         </Button>
                       </div>
@@ -1528,7 +1522,7 @@ const LoanTable = ({
                       htmlFor="document-upload"
                       className="cursor-pointer flex flex-col items-center justify-center gap-2"
                     >
-                      <Upload className="h-8 w-8 text-gray-400" />
+                      <FaUpload className="h-8 w-8 text-gray-400" />
                       <p className="text-sm font-medium text-gray-700">
                         Drag & drop or click to upload
                       </p>
@@ -1559,7 +1553,7 @@ const LoanTable = ({
                           className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
                           onClick={removeFile}
                         >
-                          <X className="h-3 w-3" />
+                          <FaTimes className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
@@ -1569,7 +1563,7 @@ const LoanTable = ({
                   {documentFile && !previewUrl && (
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
                       <div className="flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-gray-500" />
+                        <FaFile className="h-5 w-5 text-gray-500" />
                         <div>
                           <span className="text-sm font-medium block">
                             {documentFile.name}
@@ -1586,7 +1580,7 @@ const LoanTable = ({
                         className="h-7 w-7"
                         onClick={removeFile}
                       >
-                        <X className="h-4 w-4" />
+                        <FaTimes className="h-4 w-4" />
                       </Button>
                     </div>
                   )}
@@ -1599,7 +1593,7 @@ const LoanTable = ({
                       onClick={() => handleRemoveDocument(editingLoan)}
                       className="text-red-600 border-red-200 hover:bg-red-50"
                     >
-                      <Trash2 className="h-4 w-4 mr-2" />
+                      <FaTrash className="h-4 w-4 mr-2" />
                       Remove Document
                     </Button>
                   )}
@@ -1623,7 +1617,7 @@ const LoanTable = ({
                         </>
                       ) : (
                         <>
-                          <Upload className="h-4 w-4 mr-2" />
+                          <FaUpload className="h-4 w-4 mr-2" />
                           {editingLoan?.documentUrl ? 'Replace Document' : 'Upload Document'}
                         </>
                       )}
@@ -1642,7 +1636,7 @@ const LoanTable = ({
                   
                   <div className="space-y-3">
                     {editingLoan && (
-                      <div className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded">
+                      <div className="flex components-center justify-between p-3 bg-red-50 border border-red-200 rounded">
                         <div>
                           <p className="font-medium text-red-800">Delete Loan</p>
                           <p className="text-sm text-red-600">
@@ -1653,7 +1647,7 @@ const LoanTable = ({
                           variant="destructive"
                           onClick={handleDeleteLoan}
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />
+                          <FaTrash className="h-4 w-4 mr-2" />
                           Delete Loan
                         </Button>
                       </div>
@@ -1683,29 +1677,5 @@ const LoanTable = ({
     </div>
   );
 };
-
-// Add missing Settings icon component
-const Settings = ({ className = "h-4 w-4" }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-    />
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-    />
-  </svg>
-);
 
 export default LoanTable;

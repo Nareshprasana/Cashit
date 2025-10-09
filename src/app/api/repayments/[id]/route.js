@@ -1,6 +1,104 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+// GET single repayment
+export async function GET(req, { params }) {
+  try {
+    const { id } = params;
+
+    const repayment = await prisma.repayment.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        loan: {
+          include: {
+            customer: {
+              include: {
+                area: true
+              }
+            },
+            repayments: {
+              select: { 
+                id: true,
+                amount: true,
+                dueDate: true,
+                repaymentDate: true,
+                paymentMethod: true
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!repayment) {
+      return NextResponse.json({ error: "Repayment not found" }, { status: 404 });
+    }
+
+    // Calculate total paid and pending amount
+    const totalPaid = repayment.loan.repayments.reduce(
+      (sum, r) => sum + Number(r.amount),
+      0
+    );
+    const loanAmount = Number(repayment.loan.loanAmount);
+    const pendingAmount = Math.max(0, loanAmount - totalPaid);
+
+    // Calculate status
+    let status = "PENDING";
+    const today = new Date();
+    const dueDate = new Date(repayment.dueDate);
+    
+    if (repayment.repaymentDate) {
+      status = "PAID";
+    } else if (dueDate < today) {
+      status = "OVERDUE";
+    }
+
+    const loan = repayment.loan;
+    const customer = loan.customer;
+
+    const response = {
+      id: repayment.id.toString(),
+      loanId: repayment.loanId,
+      amount: repayment.amount,
+      dueDate: repayment.dueDate.toISOString(),
+      repaymentDate: repayment.repaymentDate?.toISOString() || null,
+      paymentMethod: repayment.paymentMethod,
+      createdAt: repayment.createdAt.toISOString(),
+      status: status,
+      customer: {
+        id: customer.id,
+        customerCode: customer.customerCode,
+        customerName: customer.customerName,
+        aadhar: customer.aadhar,
+        areaId: customer.areaId,
+        area: customer.area
+      },
+      loan: {
+        id: loan.id,
+        amount: loan.amount,
+        loanAmount: loan.loanAmount,
+        pendingAmount: pendingAmount,
+        interestAmount: loan.interestAmount,
+        status: loan.status
+      },
+      customerCode: customer.customerCode,
+      customerName: customer.customerName,
+      aadhar: customer.aadhar,
+      loanAmount: loan.loanAmount,
+      pendingAmount: pendingAmount
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error("GET repayment error:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch repayment", detail: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH - Partial update (mainly for amount)
 export async function PATCH(req, { params }) {
   try {
     const { id } = params;
@@ -140,6 +238,7 @@ export async function PATCH(req, { params }) {
   }
 }
 
+// PUT - Full update
 export async function PUT(req, { params }) {
   try {
     const { id } = params;
@@ -267,6 +366,74 @@ export async function PUT(req, { params }) {
     console.error("PUT repayment error:", error);
     return NextResponse.json(
       { error: "Failed to update repayment", detail: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Remove repayment
+export async function DELETE(req, { params }) {
+  try {
+    const { id } = params;
+
+    // Check if repayment exists
+    const existingRepayment = await prisma.repayment.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        loan: {
+          include: {
+            repayments: {
+              select: { 
+                id: true,
+                amount: true
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!existingRepayment) {
+      return NextResponse.json(
+        { error: "Repayment not found" },
+        { status: 404 }
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Delete the repayment
+      await tx.repayment.delete({
+        where: { id: parseInt(id) }
+      });
+
+      // Recalculate loan pending amount
+      const remainingRepayments = await tx.repayment.findMany({
+        where: { loanId: existingRepayment.loanId },
+        select: { amount: true }
+      });
+
+      const totalPaid = remainingRepayments.reduce((sum, r) => sum + Number(r.amount), 0);
+      const loanAmount = Number(existingRepayment.loan.loanAmount);
+      const pendingAmount = Math.max(0, loanAmount - totalPaid);
+
+      // Update loan pending amount
+      await tx.loan.update({
+        where: { id: existingRepayment.loanId },
+        data: { pendingAmount }
+      });
+    });
+
+    return NextResponse.json(
+      { message: "Repayment deleted successfully" },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("DELETE repayment error:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to delete repayment",
+        detail: error.message,
+      },
       { status: 500 }
     );
   }
