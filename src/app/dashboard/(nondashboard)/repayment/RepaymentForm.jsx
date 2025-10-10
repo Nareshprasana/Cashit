@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, ChevronsUpDown, Check, QrCode, User, MapPin, Calendar, CreditCard, DollarSign, ArrowLeft, Scan } from "lucide-react";
+import { Loader2, ChevronsUpDown, Check, QrCode, User, MapPin, Calendar, CreditCard, DollarSign, ArrowLeft, Scan, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import {
   Command,
@@ -21,6 +21,7 @@ import QRScanner from "@/components/QRScanner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function RepaymentForm({ customerId, onRepaymentSaved }) {
   const [areas, setAreas] = useState([]);
@@ -40,6 +41,15 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
     dueDate: "",
     loanId: "",
   });
+  const [isLoanCompleted, setIsLoanCompleted] = useState(false);
+
+  // Check if loan is completed
+  const checkLoanCompletion = (loan) => {
+    if (!loan) return false;
+    const pendingAmount = parseFloat(loan.pendingAmount || 0);
+    const loanAmount = parseFloat(loan.loanAmount || 0);
+    return pendingAmount <= 0 && loanAmount > 0;
+  };
 
   // Update URL parameters when area or customer changes
   useEffect(() => {
@@ -92,6 +102,8 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
         fetchCustomerDetails(customerFromUrl).then((data) => {
           if (data) {
             const loan = data?.loans?.[0] || {};
+            const completed = checkLoanCompletion(loan);
+            setIsLoanCompleted(completed);
             setCustomerDetails({ ...data, ...loan });
             setFormData(prev => ({
               ...prev,
@@ -131,6 +143,7 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
     if (!formData.area) {
       setCustomers([]);
       setFormData((prev) => ({ ...prev, customerCode: "" }));
+      setIsLoanCompleted(false);
       return;
     }
     
@@ -148,6 +161,8 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
     fetchCustomerDetails(customerId).then((data) => {
       if (data) {
         const loan = data?.loans?.[0] || {};
+        const completed = checkLoanCompletion(loan);
+        setIsLoanCompleted(completed);
         setCustomerDetails({ ...data, ...loan });
         setFormData({
           area: data.areaId || "",
@@ -182,12 +197,14 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
     setFormData((prev) => ({ ...prev, area: areaId, customerCode: "" }));
     setOpenArea(false);
     setCustomerDetails(null);
+    setIsLoanCompleted(false);
   };
 
   const handleCustomerSelect = async (cust) => {
     setFormData((prev) => ({ ...prev, customerCode: cust.customerCode }));
     setOpenCustomer(false);
     setCustomerDetails(null);
+    setIsLoanCompleted(false);
 
     // Update URL with customer parameter
     const params = new URLSearchParams(window.location.search);
@@ -203,6 +220,8 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
     const data = await fetchCustomerDetails(cust.customerCode);
     if (data) {
       const loan = data?.loans?.[0] || {};
+      const completed = checkLoanCompletion(loan);
+      setIsLoanCompleted(completed);
       setCustomerDetails({ ...data, ...loan });
       setFormData(prev => ({
         ...prev,
@@ -227,6 +246,7 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
     });
     setCustomers([]);
     setCustomerDetails(null);
+    setIsLoanCompleted(false);
     
     // Clear URL parameters
     const newUrl = window.location.pathname;
@@ -235,6 +255,27 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent submission if loan is completed
+    if (isLoanCompleted) {
+      toast.error("Cannot add repayment for a completed loan");
+      return;
+    }
+
+    // Validate amount
+    const amount = parseFloat(formData.amount || 0);
+    const pendingAmount = parseFloat(formData.pendingAmount || 0);
+    
+    if (amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    if (amount > pendingAmount + amount) { // This ensures we don't exceed the remaining balance
+      toast.error("Repayment amount cannot exceed the remaining balance");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/repayments", {
@@ -252,7 +293,10 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
         }),
       });
       
-      if (!res.ok) throw new Error("Failed to save repayment");
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to save repayment");
+      }
       
       // Get the complete repayment data from the response
       const newRepayment = await res.json();
@@ -265,8 +309,8 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
       }
       
       handleClear();
-    } catch {
-      toast.error("Error saving repayment");
+    } catch (error) {
+      toast.error(error.message || "Error saving repayment");
     } finally {
       setIsSubmitting(false);
     }
@@ -296,6 +340,15 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {isLoanCompleted && (
+              <Alert className="mb-4 border-amber-200 bg-amber-50">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800">
+                  This loan has been completed. No further repayments can be added.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Area Selection */}
@@ -400,6 +453,8 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
                           const customersForArea = await customersRes.json();
                           setCustomers(Array.isArray(customersForArea) ? customersForArea : []);
                           const loan = customerData?.loans?.[0] || {};
+                          const completed = checkLoanCompletion(loan);
+                          setIsLoanCompleted(completed);
                           setCustomerDetails({ ...customerData, ...loan });
                           setFormData({
                             area: customerData.areaId || "",
@@ -424,6 +479,7 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
                           toast.error("Customer not found or unable to load details.");
                           setFormData(prev => ({ ...prev, customerCode: customerCode, area: "" }));
                           setCustomers([]);
+                          setIsLoanCompleted(false);
                         }
                         setTimeout(() => { setScanning(false); }, 100);
                       }}
@@ -448,6 +504,7 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
                     required 
                     placeholder="Enter amount" 
                     className="h-10"
+                    disabled={isLoanCompleted}
                   />
                 </div>
 
@@ -457,6 +514,7 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
                   <Select 
                     value={formData.paymentMethod} 
                     onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}
+                    disabled={isLoanCompleted}
                   >
                     <SelectTrigger className="h-10">
                       <SelectValue placeholder="Select method" />
@@ -508,6 +566,7 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
                     onChange={handleChange} 
                     required 
                     className="h-10"
+                    disabled={isLoanCompleted}
                   />
                 </div>
               </div>
@@ -523,7 +582,7 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
                 </Button>
                 <Button 
                   type="submit" 
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isLoanCompleted}
                   className="h-10 min-w-[140px]"
                 >
                   {isSubmitting && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
@@ -570,10 +629,10 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
                   <div>
                     <p className="text-xs text-gray-500">Loan Status</p>
                     <Badge 
-                      variant={customerDetails.pendingAmount > 0 ? "default" : "secondary"} 
-                      className={customerDetails.pendingAmount > 0 ? "bg-orange-100 text-orange-800" : "bg-green-100 text-green-800"}
+                      variant={isLoanCompleted ? "secondary" : "default"} 
+                      className={isLoanCompleted ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}
                     >
-                      {customerDetails.pendingAmount > 0 ? "Active" : "Closed"}
+                      {isLoanCompleted ? "Completed" : "Active"}
                     </Badge>
                   </div>
                 </div>
@@ -612,6 +671,13 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
                 <span className="text-sm text-gray-600">Remaining Balance</span>
                 <span className="font-semibold text-green-600">₹{Number(formData.pendingAmount || 0).toLocaleString()}</span>
               </div>
+              {isLoanCompleted && (
+                <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                  <p className="text-xs text-green-700 text-center">
+                    ✓ Loan fully repaid
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

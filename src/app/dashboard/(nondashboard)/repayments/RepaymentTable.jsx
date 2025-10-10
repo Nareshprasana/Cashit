@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +27,7 @@ import {
   MapPin,
   Plus,
   Trash2,
+  MoreVertical,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,8 +56,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
-
-/* ================= Pagination Component ================= */
 import {
   Pagination,
   PaginationContent,
@@ -66,10 +65,41 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from "@/components/ui/pagination";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 /* ================= Helper Functions ================= */
-const getStatusBadge = (status) => {
-  switch (status) {
+const isOverdue = (dueDate, pendingAmount) => {
+  if (!dueDate || pendingAmount <= 0) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+  return due < today && pendingAmount > 0;
+};
+
+const getStatusBadge = (repayment, allRepayments) => {
+  const pendingAmount = getPendingAmount(repayment, allRepayments);
+  const status = repayment.status || "PENDING"; // Default to PENDING if status is undefined
+
+  let effectiveStatus = status;
+
+  // If pending amount is 0, mark as PAID
+  if (pendingAmount <= 0) {
+    effectiveStatus = "PAID";
+  }
+  // Only mark as OVERDUE if due date is in the past and pending amount > 0
+  else if (isOverdue(repayment.dueDate, pendingAmount)) {
+    effectiveStatus = "OVERDUE";
+  }
+  // Otherwise, respect the repayment's status (e.g., PENDING for future due dates)
+
+  switch (effectiveStatus) {
     case "PAID":
       return (
         <Badge className="bg-green-100 text-green-800 hover:bg-green-100 flex items-center gap-1 py-1">
@@ -92,24 +122,42 @@ const getStatusBadge = (status) => {
         </Badge>
       );
     default:
-      return <Badge variant="outline">{status}</Badge>;
+      return <Badge variant="outline">{effectiveStatus}</Badge>;
   }
 };
 
-/* ================= Payment Method Badge ================= */
 const getPaymentMethodBadge = (paymentMethod) => {
   if (!paymentMethod) return null;
-  
+
   const methodConfig = {
-    CASH: { label: "Cash", className: "bg-green-100 text-green-800 border-green-200" },
-    UPI: { label: "UPI", className: "bg-purple-100 text-purple-800 border-purple-200" },
-    BANK_TRANSFER: { label: "Bank Transfer", className: "bg-blue-100 text-blue-800 border-blue-200" },
-    CHEQUE: { label: "Cheque", className: "bg-orange-100 text-orange-800 border-orange-200" },
-    OTHER: { label: "Other", className: "bg-gray-100 text-gray-800 border-gray-200" }
+    CASH: {
+      label: "Cash",
+      className: "bg-green-100 text-green-800 border-green-200",
+    },
+    UPI: {
+      label: "UPI",
+      className: "bg-purple-100 text-purple-800 border-purple-200",
+    },
+    BANK_TRANSFER: {
+      label: "Bank Transfer",
+      className: "bg-blue-100 text-blue-800 border-blue-200",
+    },
+    CHEQUE: {
+      label: "Cheque",
+      className: "bg-orange-100 text-orange-800 border-orange-200",
+    },
+    OTHER: {
+      label: "Other",
+      className: "bg-gray-100 text-gray-800 border-gray-200",
+    },
   };
 
-  const config = methodConfig[paymentMethod] || { label: paymentMethod, className: "bg-gray-100 text-gray-800 border-gray-200" };
-  
+  const config =
+    methodConfig[paymentMethod] || {
+      label: paymentMethod,
+      className: "bg-gray-100 text-gray-800 border-gray-200",
+    };
+
   return (
     <Badge variant="outline" className={`text-xs ${config.className}`}>
       {config.label}
@@ -126,17 +174,17 @@ const formatCurrency = (amount) =>
   }).format(amount);
 
 const formatDate = (dateString) =>
-  new Date(dateString).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  dateString
+    ? new Date(dateString).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "N/A";
 
-/* ================= Consistent Pending Amount Logic ================= */
 const calculateTotalPaid = (repayment, allRepayments) => {
   if (!repayment?.loanId) return 0;
-  
-  // Sum all repayments for this loan
+
   const loanRepayments = allRepayments.filter((r) => r.loanId === repayment.loanId);
   return loanRepayments.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
 };
@@ -144,7 +192,6 @@ const calculateTotalPaid = (repayment, allRepayments) => {
 const getPendingAmount = (repayment, allRepayments = []) => {
   if (!repayment?.loanId) return 0;
 
-  // Sort all repayments for this loan by dueDate
   const loanRepayments = allRepayments
     .filter((r) => r.loanId === repayment.loanId)
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
@@ -152,16 +199,14 @@ const getPendingAmount = (repayment, allRepayments = []) => {
   const loanAmount = getLoanAmount(repayment);
   let runningBalance = loanAmount;
 
-  // Iterate through repayments up to the current one
   for (let r of loanRepayments) {
     if (new Date(r.dueDate) <= new Date(repayment.dueDate)) {
       runningBalance -= Number(r.amount) || 0;
     }
-    // Stop if we reach the current repayment to get its pending amount
     if (r.id === repayment.id) break;
   }
 
-  return Math.max(0, runningBalance); // Ensure balance doesn't go negative
+  return Math.max(0, runningBalance);
 };
 
 const getLoanAmount = (repayment) => {
@@ -173,13 +218,63 @@ const getCustomerData = (repayment) => {
     customerCode: repayment.customer?.customerCode || repayment.customerCode || "N/A",
     customerName: repayment.customer?.customerName || repayment.customerName || "N/A",
     aadhar: repayment.customer?.aadhar || repayment.aadhar || "N/A",
-    areaId: repayment.customer?.areaId || "N/A"
+    areaId: repayment.customer?.areaId || "N/A",
   };
 };
 
-/* ================= Get consistent total paid for display ================= */
 const getTotalPaidAmount = (repayment, allRepayments) => {
   return calculateTotalPaid(repayment, allRepayments);
+};
+
+/* ================= Calculate Due Date from Loan Tenure ================= */
+const calculateDueDate = (loan, repaymentCount = 1, repaymentIndex = 0) => {
+  if (!loan?.createdAt || !loan?.tenure) return "";
+  
+  const createdAt = new Date(loan.createdAt);
+  const tenureMonths = Number(loan.tenure) || 1;
+  
+  // For simplicity, assume single repayment covers full tenure
+  // For multiple repayments, divide tenure into equal intervals
+  const interval = tenureMonths / Math.max(1, repaymentCount);
+  const dueDate = new Date(createdAt);
+  dueDate.setMonth(createdAt.getMonth() + interval * (repaymentIndex + 1));
+  
+  // Format as YYYY-MM-DD
+  return dueDate.toISOString().split("T")[0];
+};
+
+const getRepaymentsWithBusinessRules = (repayments) => {
+  const repaymentsByCustomer = {};
+  
+  repayments.forEach(repayment => {
+    const customerCode = getCustomerData(repayment).customerCode;
+    if (!customerCode || customerCode === "N/A") return;
+    
+    if (!repaymentsByCustomer[customerCode]) {
+      repaymentsByCustomer[customerCode] = [];
+    }
+    repaymentsByCustomer[customerCode].push(repayment);
+  });
+
+  const repaymentsToShow = [];
+  
+  Object.values(repaymentsByCustomer).forEach(customerRepayments => {
+    const hasActiveLoan = customerRepayments.some(repayment => {
+      const pendingAmount = getPendingAmount(repayment, repayments);
+      return pendingAmount > 0;
+    });
+
+    if (hasActiveLoan) {
+      repaymentsToShow.push(...customerRepayments.filter(repayment => {
+        const pendingAmount = getPendingAmount(repayment, repayments);
+        return pendingAmount > 0;
+      }));
+    } else {
+      repaymentsToShow.push(...customerRepayments);
+    }
+  });
+
+  return repaymentsToShow;
 };
 
 /* ================= Create Repayment Form ================= */
@@ -191,21 +286,34 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
     dueDate: "",
     status: "PENDING",
     notes: "",
-    paymentMethod: "CASH"
+    paymentMethod: "CASH",
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Filter loans based on selected customer
-  const customerLoans = loans.filter(loan => 
+  const customerLoans = loans.filter((loan) =>
     formData.customerId ? loan.customerId === formData.customerId : true
   );
 
+  // Update due date when loan is selected
+  useEffect(() => {
+    if (formData.loanId) {
+      const selectedLoan = loans.find((loan) => loan.id === formData.loanId);
+      if (selectedLoan) {
+        const dueDate = calculateDueDate(selectedLoan);
+        setFormData((prev) => ({ ...prev, dueDate }));
+      }
+    } else {
+      setFormData((prev) => ({ ...prev, dueDate: "" }));
+    }
+  }, [formData.loanId, loans]);
+
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.loanId) newErrors.loanId = "Loan is required";
-    if (!formData.amount || Number(formData.amount) <= 0) newErrors.amount = "Valid amount is required";
+    if (!formData.amount || Number(formData.amount) <= 0)
+      newErrors.amount = "Valid amount is required";
     if (!formData.dueDate) newErrors.dueDate = "Due date is required";
     if (!formData.status) newErrors.status = "Status is required";
 
@@ -215,7 +323,7 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     setLoading(true);
@@ -225,18 +333,17 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
-          amount: Number(formData.amount)
+          amount: Number(formData.amount),
         }),
       });
 
       if (!res.ok) throw new Error("Failed to create repayment");
 
       const newRepayment = await res.json();
-      
+
       if (onCreated) onCreated(newRepayment);
       if (onClose) onClose();
-      
-      // Reset form
+
       setFormData({
         loanId: "",
         customerId: "",
@@ -244,7 +351,7 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
         dueDate: "",
         status: "PENDING",
         notes: "",
-        paymentMethod: "CASH"
+        paymentMethod: "CASH",
       });
     } catch (err) {
       console.error(err);
@@ -255,23 +362,20 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
   };
 
   const handleCustomerChange = (customerId) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       customerId,
-      loanId: "" // Reset loan when customer changes
+      loanId: "",
+      dueDate: "",
     }));
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 gap-4">
-        {/* Customer Selection */}
         <div className="space-y-2">
           <Label htmlFor="customerId">Customer *</Label>
-          <Select 
-            value={formData.customerId} 
-            onValueChange={handleCustomerChange}
-          >
+          <Select value={formData.customerId} onValueChange={handleCustomerChange}>
             <SelectTrigger className={errors.customerId ? "border-red-500" : ""}>
               <SelectValue placeholder="Select customer" />
             </SelectTrigger>
@@ -283,26 +387,29 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
               ))}
             </SelectContent>
           </Select>
-          {errors.customerId && <p className="text-red-500 text-sm">{errors.customerId}</p>}
+          {errors.customerId && (
+            <p className="text-red-500 text-sm">{errors.customerId}</p>
+          )}
         </div>
 
-        {/* Loan Selection */}
         <div className="space-y-2">
           <Label htmlFor="loanId">Loan *</Label>
-          <Select 
-            value={formData.loanId} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, loanId: value }))}
+          <Select
+            value={formData.loanId}
+            onValueChange={(value) => setFormData((prev) => ({ ...prev, loanId: value }))}
             disabled={!formData.customerId}
           >
             <SelectTrigger className={errors.loanId ? "border-red-500" : ""}>
-              <SelectValue placeholder={
-                formData.customerId ? "Select loan" : "Select customer first"
-              } />
+              <SelectValue
+                placeholder={
+                  formData.customerId ? "Select loan" : "Select customer first"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               {customerLoans.map((loan) => (
                 <SelectItem key={loan.id} value={loan.id}>
-                  Loan #{loan.id} - ₹{loan.loanAmount?.toLocaleString()}
+                  Loan #{loan.id} - ₹{loan.loanAmount?.toLocaleString()} (Tenure: {loan.tenure} months)
                 </SelectItem>
               ))}
             </SelectContent>
@@ -311,14 +418,13 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          {/* Amount */}
           <div className="space-y-2">
             <Label htmlFor="amount">Amount (₹) *</Label>
             <Input
               id="amount"
               type="number"
               value={formData.amount}
-              onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+              onChange={(e) => setFormData((prev) => ({ ...prev, amount: e.target.value }))}
               className={errors.amount ? "border-red-500" : ""}
               min="0"
               step="1"
@@ -326,28 +432,27 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
             {errors.amount && <p className="text-red-500 text-sm">{errors.amount}</p>}
           </div>
 
-          {/* Due Date */}
           <div className="space-y-2">
             <Label htmlFor="dueDate">Due Date *</Label>
             <Input
               id="dueDate"
               type="date"
               value={formData.dueDate}
-              onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+              onChange={(e) => setFormData((prev) => ({ ...prev, dueDate: e.target.value }))}
               className={errors.dueDate ? "border-red-500" : ""}
             />
-            {errors.dueDate && <p className="text-red-500 text-sm">{errors.dueDate}</p>}
+            {errors.dueDate && (
+              <p className="text-red-500 text-sm">{errors.dueDate}</p>
+            )}
           </div>
         </div>
 
-        {/* Status and Payment Method */}
         <div className="grid grid-cols-2 gap-4">
-          {/* Status */}
           <div className="space-y-2">
             <Label htmlFor="status">Status *</Label>
-            <Select 
-              value={formData.status} 
-              onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+            <Select
+              value={formData.status}
+              onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
             >
               <SelectTrigger className={errors.status ? "border-red-500" : ""}>
                 <SelectValue placeholder="Select status" />
@@ -361,12 +466,13 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
             {errors.status && <p className="text-red-500 text-sm">{errors.status}</p>}
           </div>
 
-          {/* Payment Method */}
           <div className="space-y-2">
             <Label htmlFor="paymentMethod">Payment Method</Label>
-            <Select 
-              value={formData.paymentMethod} 
-              onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}
+            <Select
+              value={formData.paymentMethod}
+              onValueChange={(value) =>
+                setFormData((prev) => ({ ...prev, paymentMethod: value }))
+              }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select payment method" />
@@ -380,13 +486,12 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
           </div>
         </div>
 
-        {/* Notes */}
         <div className="space-y-2">
           <Label htmlFor="notes">Notes</Label>
           <Textarea
             id="notes"
             value={formData.notes}
-            onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+            onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
             placeholder="Additional notes about this repayment..."
             rows={3}
           />
@@ -437,8 +542,10 @@ function DeleteConfirmationDialog({ repayment, onDelete, onClose }) {
           <span className="font-semibold">Warning: This action cannot be undone</span>
         </div>
         <p className="text-red-700 text-sm mt-2">
-          You are about to delete the repayment for <strong>{customerName}</strong> ({customerCode}) 
-          with amount <strong>₹{(repayment.amount || 0).toLocaleString()}</strong> due on <strong>{formatDate(repayment.dueDate)}</strong>.
+          You are about to delete the repayment for <strong>{customerName}</strong> (
+          {customerCode}) with amount{" "}
+          <strong>₹{(repayment.amount || 0).toLocaleString()}</strong> due on{" "}
+          <strong>{formatDate(repayment.dueDate)}</strong>.
         </p>
       </div>
 
@@ -446,9 +553,9 @@ function DeleteConfirmationDialog({ repayment, onDelete, onClose }) {
         <Button variant="outline" onClick={onClose} disabled={loading}>
           Cancel
         </Button>
-        <Button 
-          variant="destructive" 
-          onClick={handleDelete} 
+        <Button
+          variant="destructive"
+          onClick={handleDelete}
           disabled={loading}
           className="gap-2"
         >
@@ -474,7 +581,6 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
 
     const loanAmount = getLoanAmount(repayment);
 
-    // Check if new amount would exceed the loan amount
     if (Number(value) > loanAmount) {
       alert(`Amount cannot exceed loan amount of ₹${loanAmount.toLocaleString()}`);
       return;
@@ -556,13 +662,16 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
 }
 
 /* ================= Edit Repayment Form ================= */
-function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
+function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments, loans }) {
+  const selectedLoan = loans.find((loan) => loan.id === repayment.loanId);
+  const calculatedDueDate = selectedLoan ? calculateDueDate(selectedLoan) : repayment.dueDate?.split("T")[0] || "";
+
   const [formData, setFormData] = useState({
     amount: repayment.amount || 0,
-    dueDate: repayment.dueDate?.split("T")[0] || "",
+    dueDate: calculatedDueDate,
     status: repayment.status || "PENDING",
     notes: repayment.notes || "",
-    paymentMethod: repayment.paymentMethod || "CASH"
+    paymentMethod: repayment.paymentMethod || "CASH",
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -573,8 +682,9 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
 
   const validateForm = () => {
     const newErrors = {};
-    
-    if (!formData.amount || Number(formData.amount) <= 0) newErrors.amount = "Valid amount is required";
+
+    if (!formData.amount || Number(formData.amount) <= 0)
+      newErrors.amount = "Valid amount is required";
     if (!formData.dueDate) newErrors.dueDate = "Due date is required";
     if (!formData.status) newErrors.status = "Status is required";
 
@@ -590,7 +700,6 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
       return;
     }
 
-    // Check if new amount would exceed the loan amount
     if (Number(formData.amount) > loanAmount) {
       alert(`Amount cannot exceed loan amount of ₹${loanAmount.toLocaleString()}`);
       return;
@@ -606,7 +715,7 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
           dueDate: formData.dueDate,
           status: formData.status,
           notes: formData.notes,
-          paymentMethod: formData.paymentMethod
+          paymentMethod: formData.paymentMethod,
         }),
       });
 
@@ -631,7 +740,7 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
           <Input
             type="number"
             value={formData.amount}
-            onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+            onChange={(e) => setFormData((prev) => ({ ...prev, amount: e.target.value }))}
             className={errors.amount ? "border-red-500" : ""}
             min="0"
             max={loanAmount}
@@ -640,23 +749,22 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
         </div>
         <div className="space-y-2">
           <Label>Due Date *</Label>
-          <Input 
-            type="date" 
-            value={formData.dueDate} 
-            onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+          <Input
+            type="date"
+            value={formData.dueDate}
+            onChange={(e) => setFormData((prev) => ({ ...prev, dueDate: e.target.value }))}
             className={errors.dueDate ? "border-red-500" : ""}
           />
           {errors.dueDate && <p className="text-red-500 text-sm">{errors.dueDate}</p>}
         </div>
       </div>
 
-      {/* Status and Payment Method */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Status *</Label>
-          <Select 
-            value={formData.status} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+          <Select
+            value={formData.status}
+            onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
           >
             <SelectTrigger className={errors.status ? "border-red-500" : ""}>
               <SelectValue placeholder="Select status" />
@@ -672,9 +780,11 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
 
         <div className="space-y-2">
           <Label>Payment Method</Label>
-          <Select 
-            value={formData.paymentMethod} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}
+          <Select
+            value={formData.paymentMethod}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, paymentMethod: value }))
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder="Select payment method" />
@@ -692,13 +802,12 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
         <Label>Notes</Label>
         <Textarea
           value={formData.notes}
-          onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+          onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
           placeholder="Additional notes about this repayment..."
           rows={3}
         />
       </div>
 
-      {/* Loan summary */}
       <div className="bg-gray-50 p-3 rounded-lg">
         <Label className="text-sm font-medium">Loan Summary</Label>
         <div className="grid grid-cols-3 gap-3 mt-2 text-xs">
@@ -721,7 +830,9 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
       </div>
 
       <div className="flex gap-2 justify-end pt-4">
-        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
         <Button onClick={handleSave} disabled={loading}>
           {loading ? "Saving..." : "Save Changes"}
         </Button>
@@ -730,8 +841,9 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments }) {
   );
 }
 
-/* ================= ActionButtons Component ================= */
-function ActionButtons({ repayment, onUpdate, onDelete, allRepayments }) {
+/* ================= ActionButtons Component with Dropdown ================= */
+function ActionButtons({ repayment, onUpdate, onDelete, allRepayments, loans }) {
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { customerCode, customerName, aadhar } = getCustomerData(repayment);
@@ -741,14 +853,9 @@ function ActionButtons({ repayment, onUpdate, onDelete, allRepayments }) {
   const pendingAmount = getPendingAmount(repayment, allRepayments);
 
   return (
-    <div className="flex gap-2">
+    <>
       {/* View dialog */}
-      <Dialog>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0">
-            <Eye className="h-4 w-4" />
-          </Button>
-        </DialogTrigger>
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -807,7 +914,7 @@ function ActionButtons({ repayment, onUpdate, onDelete, allRepayments }) {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Status</Label>
-                <div>{getStatusBadge(repayment.status)}</div>
+                <div>{getStatusBadge(repayment, allRepayments)}</div>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Payment Method</Label>
@@ -827,11 +934,6 @@ function ActionButtons({ repayment, onUpdate, onDelete, allRepayments }) {
 
       {/* Edit dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogTrigger asChild>
-          <Button variant="secondary" size="sm" className="h-8 w-8 p-0">
-            <Edit className="h-4 w-4" />
-          </Button>
-        </DialogTrigger>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -845,17 +947,13 @@ function ActionButtons({ repayment, onUpdate, onDelete, allRepayments }) {
             onUpdate={onUpdate}
             onClose={() => setEditDialogOpen(false)}
             allRepayments={allRepayments}
+            loans={loans}
           />
         </DialogContent>
       </Dialog>
 
       {/* Delete dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogTrigger asChild>
-          <Button variant="destructive" size="sm" className="h-8 w-8 p-0">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </DialogTrigger>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
@@ -871,7 +969,34 @@ function ActionButtons({ repayment, onUpdate, onDelete, allRepayments }) {
           />
         </DialogContent>
       </Dialog>
-    </div>
+
+      {/* Dropdown Menu */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={() => setViewDialogOpen(true)}>
+            <Eye className="h-4 w-4 mr-2" />
+            View Details
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Repayment
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem 
+            onClick={() => setDeleteDialogOpen(true)}
+            className="text-red-600 focus:text-red-600 focus:bg-red-50"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   );
 }
 
@@ -965,27 +1090,49 @@ function CustomPagination({
 /* ================= Simple Table Component ================= */
 function SimpleTable({ columns, data }) {
   return (
-    <div className="rounded-md border">
-      <table className="w-full text-sm">
+    <div className="rounded-md border min-w-[1200px] w-full">
+      <table className="w-full text-sm table-fixed">
         <thead className="bg-gray-50">
           <tr>
             {columns.map((column) => (
-              <th key={column.accessorKey || column.id} className="h-12 px-4 text-left align-middle font-medium text-gray-500">
-                {typeof column.header === 'function' ? column.header() : column.header}
+              <th
+                key={column.accessorKey || column.id}
+                className="h-12 px-4 text-left align-middle font-medium text-gray-500"
+                style={{ width: column.width || 'auto' }}
+              >
+                {typeof column.header === "function" ? column.header() : column.header}
               </th>
             ))}
           </tr>
         </thead>
         <tbody className="divide-y">
-          {data.map((row, index) => (
-            <tr key={row.id || index} className="hover:bg-gray-50">
-              {columns.map((column) => (
-                <td key={column.accessorKey || column.id} className="p-4 align-middle">
-                  {column.cell ? column.cell({ row: { original: row } }) : row[column.accessorKey]}
-                </td>
-              ))}
+          {data.length > 0 ? (
+            data.map((row, index) => (
+              <tr key={row.id || index} className="hover:bg-gray-50">
+                {columns.map((column) => (
+                  <td
+                    key={column.accessorKey || column.id}
+                    className="p-4 align-middle"
+                    style={{ width: column.width || 'auto' }}
+                  >
+                    {column.cell
+                      ? column.cell({ row: { original: row } })
+                      : row[column.accessorKey]}
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={columns.length} className="p-12 text-center text-gray-500">
+                <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-1">
+                  No repayments found
+                </h3>
+                <p>Try adjusting your search or filters to find what you're looking for.</p>
+              </td>
             </tr>
-          ))}
+          )}
         </tbody>
       </table>
     </div>
@@ -994,7 +1141,6 @@ function SimpleTable({ columns, data }) {
 
 /* ================= Main Component ================= */
 export default function RepaymentTable({ repayments: propRepayments = [] }) {
-  // Use prop repayments if provided, otherwise use internal state
   const [internalRepayments, setInternalRepayments] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState("");
@@ -1003,7 +1149,7 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [loading, setLoading] = useState(!propRepayments); // Only load if no props provided
+  const [loading, setLoading] = useState(!propRepayments);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "ascending" });
   const [urlFilters, setUrlFilters] = useState({ area: "", customer: "" });
   const [currentPage, setCurrentPage] = useState(1);
@@ -1012,23 +1158,28 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
   const [customers, setCustomers] = useState([]);
   const [loans, setLoans] = useState([]);
 
-  // Use prop repayments if provided, otherwise use internal state
   const repayments = propRepayments.length > 0 ? propRepayments : internalRepayments;
+
+  const repaymentsWithBusinessRules = useMemo(() => {
+    return getRepaymentsWithBusinessRules(repayments);
+  }, [repayments]);
 
   const totalItems = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
-  const currentItems = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const currentItems = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
-  /* ---------- Debug data structure ---------- */
   useEffect(() => {
     if (currentItems.length > 0) {
-      console.log('Sample repayment data structure:', currentItems[0]);
-      console.log('All repayments count:', repayments.length);
-      console.log('Filtered repayments count:', filtered.length);
+      console.log("Sample repayment data structure:", currentItems[0]);
+      console.log("All repayments count:", repayments.length);
+      console.log("Filtered repayments count:", filtered.length);
+      console.log("Repayments with business rules count:", repaymentsWithBusinessRules.length);
     }
-  }, [currentItems, repayments, filtered]);
+  }, [currentItems.length, repayments.length, filtered.length, repaymentsWithBusinessRules.length]);
 
-  /* ---------- URL query handling ---------- */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const area = params.get("area") || "";
@@ -1037,31 +1188,35 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
     if (customer && !search) setSearch(customer);
   }, []);
 
-  /* ---------- fetch data ---------- */
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      
-      // Only fetch repayments if no prop repayments provided
+
       const [repaymentsRes, customersRes, loansRes] = await Promise.all([
-        propRepayments.length === 0 ? fetch("/api/repayments") : Promise.resolve({ json: () => Promise.resolve([]) }),
+        propRepayments.length === 0
+          ? fetch("/api/repayments")
+          : Promise.resolve({ json: () => Promise.resolve([]) }),
         fetch("/api/customers"),
-        fetch("/api/loans")
+        fetch("/api/loans"),
       ]);
 
       const repaymentsData = propRepayments.length === 0 ? await repaymentsRes.json() : [];
       const customersData = await customersRes.json();
       const loansData = await loansRes.json();
-      
+
       console.log("=== API RESPONSE DEBUG ===");
       console.log("Repayments API response:", repaymentsData);
       if (repaymentsData.length > 0) {
         console.log("First repayment structure:", repaymentsData[0]);
         console.log("Repayment keys:", Object.keys(repaymentsData[0]));
       }
+      console.log("Loans API response:", loansData);
+      if (loansData.length > 0) {
+        console.log("First loan structure:", loansData[0]);
+        console.log("Loan keys:", Object.keys(loansData[0]));
+      }
       console.log("=== END DEBUG ===");
-      
-      // Only set internal repayments if no props provided
+
       if (propRepayments.length === 0) {
         setInternalRepayments(repaymentsData);
         setFiltered(repaymentsData);
@@ -1073,68 +1228,61 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [propRepayments.length]);
 
-  // Update state functions to work with both scenarios
-  const updateRepaymentInState = (updatedRepayment) => {
+  const updateRepaymentInState = useCallback((updatedRepayment) => {
     if (propRepayments.length > 0) {
-      // If using props, we can't update internal state
-      // The parent component should handle updates
       console.log("Repayment updated (prop mode):", updatedRepayment);
     } else {
-      setInternalRepayments((prev) => prev.map((r) => r.id === updatedRepayment.id ? updatedRepayment : r));
+      setInternalRepayments((prev) =>
+        prev.map((r) => (r.id === updatedRepayment.id ? updatedRepayment : r))
+      );
     }
-    setFiltered((prev) => prev.map((r) => r.id === updatedRepayment.id ? updatedRepayment : r));
-  };
+    setFiltered((prev) =>
+      prev.map((r) => (r.id === updatedRepayment.id ? updatedRepayment : r))
+    );
+  }, [propRepayments.length]);
 
-  const deleteRepaymentFromState = (repaymentId) => {
+  const deleteRepaymentFromState = useCallback((repaymentId) => {
     if (propRepayments.length > 0) {
-      // If using props, the parent component should handle deletions
       console.log("Repayment deleted (prop mode):", repaymentId);
     } else {
       setInternalRepayments((prev) => prev.filter((r) => r.id !== repaymentId));
     }
     setFiltered((prev) => prev.filter((r) => r.id !== repaymentId));
-  };
+  }, [propRepayments.length]);
 
-  const addRepaymentToState = (newRepayment) => {
+  const addRepaymentToState = useCallback((newRepayment) => {
     if (propRepayments.length > 0) {
-      // If using props, the parent component should handle additions
       console.log("Repayment added (prop mode):", newRepayment);
     } else {
       setInternalRepayments((prev) => [newRepayment, ...prev]);
     }
     setFiltered((prev) => [newRepayment, ...prev]);
-  };
+  }, [propRepayments.length]);
 
-  // Only fetch data if no prop repayments provided
   useEffect(() => {
     if (propRepayments.length === 0) {
       fetchData();
     } else {
-      // If props provided, use them directly
       setFiltered(propRepayments);
       setLoading(false);
     }
-  }, [propRepayments]);
+  }, [propRepayments.length, fetchData]);
 
-  /* ---------- Sync filtered state with repayments prop ---------- */
   useEffect(() => {
     if (propRepayments.length > 0) {
       setFiltered(propRepayments);
     }
   }, [propRepayments]);
 
-  /* ---------- reset page on filter change ---------- */
   useEffect(() => {
     setCurrentPage((prev) => (prev > totalPages ? 1 : prev));
-  }, [search, status, paymentMethod, fromDate, toDate, sortConfig, urlFilters, totalPages]);
+  }, [search, status, paymentMethod, fromDate, toDate, sortConfig.key, sortConfig.direction, urlFilters.area, urlFilters.customer, totalPages]);
 
-  /* ---------- filtering & sorting ---------- */
   useEffect(() => {
-    let data = [...repayments];
+    let data = [...repaymentsWithBusinessRules];
 
-    // URL filters
     if (urlFilters.area) {
       data = data.filter((r) => r.customer?.areaId === urlFilters.area);
     }
@@ -1142,7 +1290,6 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
       data = data.filter((r) => r.customer?.customerCode === urlFilters.customer);
     }
 
-    // Text search
     if (search) {
       const lc = search.toLowerCase();
       data = data.filter((r) => {
@@ -1155,21 +1302,21 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
       });
     }
 
-    // Status
     if (status !== "ALL") {
-      data = data.filter((r) => r.status === status);
+      data = data.filter((r) => {
+        const pendingAmount = getPendingAmount(r, repayments);
+        const effectiveStatus = pendingAmount <= 0 ? "PAID" : isOverdue(r.dueDate, pendingAmount) ? "OVERDUE" : "PENDING";
+        return effectiveStatus === status;
+      });
     }
 
-    // Payment Method
     if (paymentMethod !== "ALL") {
       data = data.filter((r) => r.paymentMethod === paymentMethod);
     }
 
-    // Date range
     if (fromDate) data = data.filter((r) => new Date(r.dueDate) >= new Date(fromDate));
     if (toDate) data = data.filter((r) => new Date(r.dueDate) <= new Date(toDate));
 
-    // Sorting
     if (sortConfig.key) {
       data.sort((a, b) => {
         let aVal, bVal;
@@ -1204,38 +1351,67 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
     }
 
     setFiltered(data);
-  }, [search, status, paymentMethod, fromDate, toDate, repayments, sortConfig, urlFilters]);
+  }, [
+    search, 
+    status, 
+    paymentMethod, 
+    fromDate, 
+    toDate, 
+    repaymentsWithBusinessRules, 
+    sortConfig.key, 
+    sortConfig.direction, 
+    urlFilters.area, 
+    urlFilters.customer,
+    repayments
+  ]);
 
-  /* ---------- UI helpers ---------- */
-  const handleSort = (key) => {
+  const handleSort = useCallback((key) => {
     let direction = "ascending";
-    if (sortConfig.key === key && sortConfig.direction === "ascending") direction = "descending";
+    if (sortConfig.key === key && sortConfig.direction === "ascending")
+      direction = "descending";
     setSortConfig({ key, direction });
-  };
+  }, [sortConfig.key, sortConfig.direction]);
 
-  const handlePageChange = (page) => {
+  const handlePageChange = useCallback((page) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  }, []);
 
-  const handleItemsPerPageChange = (newSize) => {
+  const handleItemsPerPageChange = useCallback((newSize) => {
     setItemsPerPage(newSize);
     setCurrentPage(1);
-  };
+  }, []);
 
-  const clearUrlFilters = () => {
+  const clearUrlFilters = useCallback(() => {
     setUrlFilters({ area: "", customer: "" });
     setSearch("");
     window.history.replaceState(null, "", window.location.pathname);
-  };
+  }, []);
 
-  const handleExport = () => {
+  const clearAllFilters = useCallback(() => {
+    setSearch("");
+    setStatus("ALL");
+    setPaymentMethod("ALL");
+    setFromDate("");
+    setToDate("");
+    clearUrlFilters();
+  }, [clearUrlFilters]);
+
+  const handleExport = useCallback(() => {
     if (filtered.length === 0) return;
 
     const headers = [
-      "Customer ID", "Customer Name", "Aadhar Number", "Loan Amount", 
-      "This Repayment", "Total Paid", "Pending Amount", "Due Date", 
-      "Payment Method", "Status", "Notes"
+      "Customer ID",
+      "Customer Name",
+      "Aadhar Number",
+      "Loan Amount",
+      "This Repayment",
+      "Total Paid",
+      "Pending Amount",
+      "Due Date",
+      "Payment Method",
+      "Status",
+      "Notes",
     ];
 
     const csvContent = [
@@ -1245,7 +1421,8 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
         const loanAmount = getLoanAmount(row);
         const totalPaid = getTotalPaidAmount(row, repayments);
         const pendingAmount = getPendingAmount(row, repayments);
-        
+        const effectiveStatus = pendingAmount <= 0 ? "PAID" : isOverdue(row.dueDate, pendingAmount) ? "OVERDUE" : "PENDING";
+
         return [
           `"${customerData.customerCode}"`,
           `"${customerData.customerName}"`,
@@ -1256,7 +1433,7 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
           pendingAmount,
           `"${formatDate(row.dueDate || "")}"`,
           `"${row.paymentMethod || ""}"`,
-          `"${row.status || ""}"`,
+          `"${effectiveStatus}"`,
           `"${row.notes || ""}"`,
         ].join(",");
       }),
@@ -1270,10 +1447,13 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
+  }, [filtered, repayments]);
 
-  const SortableHeader = ({ columnKey, children }) => (
-    <div className="flex items-center cursor-pointer hover:text-blue-600 transition-colors" onClick={() => handleSort(columnKey)}>
+  const SortableHeader = useCallback(({ columnKey, children }) => (
+    <div
+      className="flex items-center cursor-pointer hover:text-blue-600 transition-colors"
+      onClick={() => handleSort(columnKey)}
+    >
       {children}
       {sortConfig.key === columnKey ? (
         sortConfig.direction === "ascending" ? (
@@ -1285,15 +1465,14 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
         <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />
       )}
     </div>
-  );
+  ), [handleSort, sortConfig.key, sortConfig.direction]);
 
-  /* ---------- Column definitions ---------- */
-  const columns = [
+  const columns = useMemo(() => [
     {
       accessorKey: "customerCode",
       header: () => <SortableHeader columnKey="customerCode">Customer ID</SortableHeader>,
       cell: ({ row }) => {
-        const { customerCode, customerName } = getCustomerData(row.original);
+        const { customerCode } = getCustomerData(row.original);
         return (
           <div className="flex items-center gap-2">
             <div className="p-1.5 bg-blue-100 rounded-full">
@@ -1301,11 +1480,11 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
             </div>
             <div>
               <span className="font-medium text-sm block">{customerCode}</span>
-              <span className="text-xs text-gray-500 block">{customerName}</span>
             </div>
           </div>
         );
       },
+      width: "150px",
     },
     {
       accessorKey: "customerName",
@@ -1314,19 +1493,14 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
         const { customerName } = getCustomerData(row.original);
         return <span className="text-sm">{customerName}</span>;
       },
-    },
-    {
-      accessorKey: "aadhar",
-      header: () => <SortableHeader columnKey="aadhar">Aadhar Number</SortableHeader>,
-      cell: ({ row }) => {
-        const { aadhar } = getCustomerData(row.original);
-        return <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{aadhar}</span>;
-      },
+      width: "200px",
     },
     {
       accessorKey: "loanAmount",
       header: () => (
-        <div className="text-right"><SortableHeader columnKey="loanAmount">Loan Amount</SortableHeader></div>
+        <div className="text-right">
+          <SortableHeader columnKey="loanAmount">Loan Amount</SortableHeader>
+        </div>
       ),
       cell: ({ row }) => {
         const loanAmount = getLoanAmount(row.original);
@@ -1337,22 +1511,32 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
           </div>
         );
       },
+      width: "150px",
     },
     {
       accessorKey: "amount",
       header: () => (
-        <div className="text-right"><SortableHeader columnKey="amount">This Repayment</SortableHeader></div>
+        <div className="text-right">
+          <SortableHeader columnKey="amount">This Repayment</SortableHeader>
+        </div>
       ),
       cell: ({ row }) => (
         <div className="text-right">
-          <EditableAmount repayment={row.original} onUpdate={updateRepaymentInState} allRepayments={repayments} />
+          <EditableAmount
+            repayment={row.original}
+            onUpdate={updateRepaymentInState}
+            allRepayments={repayments}
+          />
         </div>
       ),
+      width: "150px",
     },
     {
       accessorKey: "totalPaid",
       header: () => (
-        <div className="text-right"><SortableHeader columnKey="totalPaid">Total Paid</SortableHeader></div>
+        <div className="text-right">
+          <SortableHeader columnKey="totalPaid">Total Paid</SortableHeader>
+        </div>
       ),
       cell: ({ row }) => {
         const totalPaid = getTotalPaidAmount(row.original, repayments);
@@ -1363,11 +1547,14 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
           </div>
         );
       },
+      width: "150px",
     },
     {
       accessorKey: "pendingAmount",
       header: () => (
-        <div className="text-right"><SortableHeader columnKey="pendingAmount">Running Balance</SortableHeader></div>
+        <div className="text-right">
+          <SortableHeader columnKey="pendingAmount">Running Balance</SortableHeader>
+        </div>
       ),
       cell: ({ row }) => {
         const pending = getPendingAmount(row.original, repayments);
@@ -1378,6 +1565,7 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
           </div>
         );
       },
+      width: "150px",
     },
     {
       accessorKey: "dueDate",
@@ -1388,38 +1576,43 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
           {formatDate(row.original.dueDate)}
         </div>
       ),
+      width: "150px",
     },
     {
       accessorKey: "paymentMethod",
       header: "Payment Method",
       cell: ({ row }) => getPaymentMethodBadge(row.original.paymentMethod),
+      width: "120px",
     },
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => getStatusBadge(row.original.status),
+      cell: ({ row }) => getStatusBadge(row.original, repayments),
+      width: "120px",
     },
     {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
-        <ActionButtons 
-          repayment={row.original} 
-          onUpdate={updateRepaymentInState} 
+        <ActionButtons
+          repayment={row.original}
+          onUpdate={updateRepaymentInState}
           onDelete={deleteRepaymentFromState}
-          allRepayments={repayments} 
+          allRepayments={repayments}
+          loans={loans}
         />
       ),
+      width: "80px",
     },
-  ];
+  ], [SortableHeader, updateRepaymentInState, deleteRepaymentFromState, repayments, loans]);
 
-  /* ---------- render ---------- */
   return (
     <div className="space-y-6 p-6 max-w-8xl mx-auto">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Repayment Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
+            Repayment Management
+          </h1>
           <p className="text-gray-600 mt-1">Track and manage all loan repayments in one place</p>
         </div>
         <div className="flex items-center gap-2">
@@ -1428,20 +1621,49 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
             {filtered.length} repayment{filtered.length !== 1 ? "s" : ""}
           </Badge>
 
-          <Button onClick={handleExport} className="h-10 gap-2" disabled={filtered.length === 0}>
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="h-10 gap-2">
+                <Plus className="h-4 w-4" />
+                New Repayment
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Plus className="h-5 w-5" />
+                  Create New Repayment
+                </DialogTitle>
+                <DialogDescription>Add a new repayment record to the system</DialogDescription>
+              </DialogHeader>
+              <CreateRepaymentForm
+                onCreated={addRepaymentToState}
+                onClose={() => setCreateDialogOpen(false)}
+                customers={customers}
+                loans={loans}
+              />
+            </DialogContent>
+          </Dialog>
+
+          <Button
+            onClick={handleExport}
+            className="h-10 gap-2"
+            disabled={filtered.length === 0}
+          >
             <Download className="h-4 w-4" />
             Export
           </Button>
         </div>
       </div>
 
-      {/* URL‑filter banner */}
       {(urlFilters.area || urlFilters.customer) && (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <Badge variant="default" className="bg-blue-100 text-blue-800">Active Filters</Badge>
+                <Badge variant="default" className="bg-blue-100 text-blue-800">
+                  Active Filters
+                </Badge>
                 <div className="flex flex-wrap gap-2">
                   {urlFilters.area && (
                     <Badge variant="secondary" className="flex items-center gap-1">
@@ -1455,7 +1677,12 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
                   )}
                 </div>
               </div>
-              <Button variant="ghost" size="sm" onClick={clearUrlFilters} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearUrlFilters}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
                 <X className="h-3 w-3 mr-1" /> Clear URL Filters
               </Button>
             </div>
@@ -1463,13 +1690,41 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
         </Card>
       )}
 
-      {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { bg: "blue", text: "Total Repayments", count: repayments.length, icon: CreditCard },
-          { bg: "green", text: "Paid", count: repayments.filter((r) => r.status === "PAID").length, icon: BadgeCheck },
-          { bg: "amber", text: "Pending", count: repayments.filter((r) => r.status === "PENDING").length, icon: Clock },
-          { bg: "red", text: "Overdue", count: repayments.filter((r) => r.status === "OVERDUE").length, icon: AlertCircle },
+          {
+            bg: "blue",
+            text: "Total Repayments",
+            count: repayments.length,
+            icon: CreditCard,
+          },
+          {
+            bg: "green",
+            text: "Paid",
+            count: repayments.filter((r) => {
+              const pendingAmount = getPendingAmount(r, repayments);
+              return pendingAmount <= 0;
+            }).length,
+            icon: BadgeCheck,
+          },
+          {
+            bg: "amber",
+            text: "Pending",
+            count: repayments.filter((r) => {
+              const pendingAmount = getPendingAmount(r, repayments);
+              return pendingAmount > 0 && !isOverdue(r.dueDate, pendingAmount);
+            }).length,
+            icon: Clock,
+          },
+          {
+            bg: "red",
+            text: "Overdue",
+            count: repayments.filter((r) => {
+              const pendingAmount = getPendingAmount(r, repayments);
+              return isOverdue(r.dueDate, pendingAmount);
+            }).length,
+            icon: AlertCircle,
+          },
         ].map((card, index) => (
           <Card key={index} className={`bg-${card.bg}-50 border-${card.bg}-100`}>
             <CardContent className="p-4">
@@ -1487,7 +1742,6 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
         ))}
       </div>
 
-      {/* Filters card */}
       <Card>
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -1495,19 +1749,24 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
               <Filter className="h-5 w-5 text-blue-600" /> Filters & Search
             </CardTitle>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-1"
+              >
                 {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
                 {showFilters ? "Hide Filters" : "Show Filters"}
               </Button>
-              {(search || status !== "ALL" || paymentMethod !== "ALL" || fromDate || toDate) && (
-                <Button variant="ghost" size="sm" onClick={() => { 
-                  setSearch(""); 
-                  setStatus("ALL"); 
-                  setPaymentMethod("ALL");
-                  setFromDate(""); 
-                  setToDate(""); 
-                }}>
-                  Clear All
+              {(search || status !== "ALL" || paymentMethod !== "ALL" || fromDate || toDate || urlFilters.area || urlFilters.customer) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <X className="h-4 w-4" />
+                  Clear All Filters
                 </Button>
               )}
             </div>
@@ -1518,7 +1777,12 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
           <div className="flex flex-col gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input placeholder="Search by customer code, name, or Aadhar number..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+              <Input
+                placeholder="Search by customer code, name, or Aadhar number..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
             </div>
 
             {showFilters && (
@@ -1526,7 +1790,9 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
                 <div className="space-y-2">
                   <Label className="text-sm">Status</Label>
                   <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger><SelectValue placeholder="All Status" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">All Status</SelectItem>
                       <SelectItem value="PAID">Paid</SelectItem>
@@ -1539,26 +1805,40 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
                 <div className="space-y-2">
                   <Label className="text-sm">Payment Method</Label>
                   <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                    <SelectTrigger><SelectValue placeholder="All Methods" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Methods" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">All Methods</SelectItem>
                       <SelectItem value="CASH">Cash</SelectItem>
                       <SelectItem value="UPI">UPI</SelectItem>
-
                       <SelectItem value="OTHER">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-2"><Label className="text-sm">From Date</Label><Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></div>
-                <div className="space-y-2"><Label className="text-sm">To Date</Label><Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} /></div>
+                <div className="space-y-2">
+                  <Label className="text-sm">From Date</Label>
+                  <Input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">To Date</Label>
+                  <Input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                  />
+                </div>
               </div>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Main table */}
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -1566,30 +1846,18 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="flex items-center space-x-4">
                   <Skeleton className="h-12 w-12 rounded-full" />
-                  <div className="space-y-2"><Skeleton className="h-4 w-[250px]" /><Skeleton className="h-4 w-[200px]" /></div>
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-[250px]" />
+                    <Skeleton className="h-4 w-[200px]" />
+                  </div>
                 </div>
               ))}
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="p-12 text-center">
-              <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No repayments found</h3>
-              <p className="text-gray-500">
-                {repayments.length === 0 ? "No repayment records available." : "Try adjusting your search or filters to find what you're looking for."}
-              </p>
-              {repayments.length === 0 && (
-                <Button 
-                  onClick={() => setCreateDialogOpen(true)} 
-                  className="mt-4 gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Create Your First Repayment
-                </Button>
-              )}
-            </div>
           ) : (
             <>
-              <SimpleTable columns={columns} data={currentItems} />
+              <div className="overflow-x-auto">
+                <SimpleTable columns={columns} data={currentItems} />
+              </div>
               <CustomPagination
                 currentPage={currentPage}
                 totalPages={totalPages}

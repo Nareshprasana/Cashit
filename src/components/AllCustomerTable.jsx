@@ -103,6 +103,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { toast } from "sonner";
 
 const ProgressBar = ({ value, className = "" }) => (
   <div className={`w-full bg-gray-200 rounded-full h-2 ${className}`}>
@@ -334,6 +335,7 @@ const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(customer?.photoUrl || "");
   const [loading, setLoading] = useState(false);
+  // const { toast } = useToast();
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -366,10 +368,13 @@ const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
         }
       });
 
-      // Append photo file if selected
+      // Only append photo file if a new one was selected
       if (photoFile) {
         submitData.append("photo", photoFile);
       }
+
+      // DON'T append other document files here unless they were specifically updated
+      // This prevents accidental overwriting of existing documents
 
       const res = await fetch("/api/customers", {
         method: "PUT",
@@ -383,9 +388,10 @@ const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
 
       const { customer: updatedCustomer } = await res.json();
       onSave(updatedCustomer);
+      toast.success("Customer updated successfully!");
     } catch (error) {
       console.error("Update error:", error);
-      alert(`Failed to update customer: ${error.message}`);
+      toast.error(`Failed to update customer: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -412,7 +418,6 @@ const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
             name="mobile"
             value={formData.mobile}
             onChange={handleInputChange}
-            maxLength={10}
           />
         </div>
 
@@ -423,7 +428,6 @@ const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
             name="customerCode"
             value={formData.customerCode}
             onChange={handleInputChange}
-            disabled
           />
         </div>
 
@@ -434,7 +438,6 @@ const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
             name="aadhar"
             value={formData.aadhar}
             onChange={handleInputChange}
-            maxLength={12}
           />
         </div>
 
@@ -446,7 +449,6 @@ const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
             value={formData.area}
             onChange={handleInputChange}
             className="w-full rounded border p-2"
-            disabled
           >
             <option value="">Select Area</option>
             {areas.map((area) => (
@@ -611,20 +613,84 @@ const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
   );
 };
 
+// Document Upload Dialog Component
+const DocumentUploadDialog = ({
+  open,
+  onOpenChange,
+  documentType,
+  onSubmit,
+  selectedFile,
+  setSelectedFile,
+  loading,
+}) => {
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    setSelectedFile(file);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!selectedFile) {
+      toast.error("Please select a file to upload");
+      return;
+    }
+    onSubmit(e);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Upload {documentType}</DialogTitle>
+          <DialogDescription>
+            Select a file to upload as {documentType.toLowerCase()}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="document-file">Select File</Label>
+            <Input
+              id="document-file"
+              type="file"
+              onChange={handleFileChange}
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,image/*,application/pdf"
+            />
+            {selectedFile && (
+              <p className="text-sm text-green-600">
+                Selected: {selectedFile.name}
+              </p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading || !selectedFile}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Upload Document
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 export default function AllCustomerTable() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  // const [refreshing, setRefreshing] = useState(false);
   const [customerLoans, setCustomerLoans] = useState({});
   const [areas, setAreas] = useState([]);
 
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [areaFilter, setAreaFilter] = useState("");
-  const [startEndDate, setStartEndDate] = useState("");
-  const [endEndDate, setEndEndDate] = useState("");
-  const [startLoanDate, setStartLoanDate] = useState(""); // NEW: Start loan date filter
-  const [endLoanDate, setEndLoanDate] = useState(""); // NEW: End loan date filter
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [availableAreas, setAvailableAreas] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
   const [areaOpen, setAreaOpen] = useState(false);
@@ -641,9 +707,15 @@ export default function AllCustomerTable() {
   const [deletingId, setDeletingId] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [documentToUpdate, setDocumentToUpdate] = useState(null);
+
+  // Document Management States
+  const [documentUploadOpen, setDocumentUploadOpen] = useState(false);
+  const [currentDocumentField, setCurrentDocumentField] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [deletingDocument, setDeletingDocument] = useState(false);
+  const [deleteDocumentDialog, setDeleteDocumentDialog] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState("");
 
   const [createLoanOpen, setCreateLoanOpen] = useState(false);
   const [editLoanOpen, setEditLoanOpen] = useState(false);
@@ -662,6 +734,7 @@ export default function AllCustomerTable() {
   });
 
   const router = useRouter();
+  // const { toast } = useToast();
 
   const calculateEndDate = (loanDate, tenure) => {
     if (!loanDate || tenure == null) return null;
@@ -693,21 +766,26 @@ export default function AllCustomerTable() {
     return [];
   };
 
-// Refresh data function
+  // Refresh data function
   const refreshCustomerData = async () => {
     try {
       setLoading(true);
       console.log("Refreshing customer data...");
+
       const [customersRes, loansRes, areasRes] = await Promise.all([
         fetch("/api/customers?" + Date.now()),
         fetch("/api/loans?" + Date.now()),
         fetch("/api/area?" + Date.now()),
       ]);
+
       if (!customersRes.ok) throw new Error("Failed to fetch customer data");
+
       let customers = await customersRes.json();
       const loans = loansRes.ok ? await loansRes.json() : [];
       const areasData = areasRes.ok ? await areasRes.json() : [];
+
       setAreas(areasData);
+
       // Ensure all customers have basic structure
       customers = customers.map((c) => ({
         ...c,
@@ -719,14 +797,17 @@ export default function AllCustomerTable() {
           ? calculateEndDate(c.loanDate, c.tenure)
           : null,
       }));
+
       setData(customers);
       setAvailableAreas([
         ...new Set(customers.map((c) => c.area).filter(Boolean)),
       ]);
+
       const loansByCustomer = {};
       const toDeleteLoanIds = [];
       const today = new Date();
       const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
       loans.forEach((loan) => {
         const pendingAmount =
           loan.pendingAmount || (loan.amount || 0) - (loan.totalPaid || 0);
@@ -744,6 +825,7 @@ export default function AllCustomerTable() {
               ? calculateEndDate(loan.loanDate, loan.tenure)
               : null),
         };
+
         const end = normalizedLoan.endDate
           ? new Date(normalizedLoan.endDate)
           : null;
@@ -756,6 +838,7 @@ export default function AllCustomerTable() {
             return;
           }
         }
+
         const candidateKeys = [
           loan.customerId,
           loan.customer?.id,
@@ -765,11 +848,13 @@ export default function AllCustomerTable() {
         ]
           .filter(Boolean)
           .map((k) => String(k));
+
         candidateKeys.forEach((key) => {
           if (!loansByCustomer[key]) loansByCustomer[key] = [];
           loansByCustomer[key].push(normalizedLoan);
         });
       });
+
       // Ensure every customer has an entry in loansByCustomer (even if empty)
       customers.forEach((customer) => {
         const customerKey = String(customer.id);
@@ -777,6 +862,7 @@ export default function AllCustomerTable() {
           loansByCustomer[customerKey] = [];
         }
       });
+
       if (toDeleteLoanIds.length > 0) {
         Promise.all(
           toDeleteLoanIds.map((id) =>
@@ -790,15 +876,17 @@ export default function AllCustomerTable() {
           .then((results) => console.log("Auto-delete results:", results))
           .catch((err) => console.error("Auto-delete error:", err));
       }
+
       setCustomerLoans(loansByCustomer);
       console.log("Customer data refreshed successfully");
     } catch (e) {
       console.error("Refresh error:", e);
-      alert("Failed to refresh customer data");
+      toast.error("Failed to refresh customer data");
     } finally {
       setLoading(false);
     }
   };
+
   // Initial data fetch
   useEffect(() => {
     refreshCustomerData();
@@ -834,7 +922,7 @@ export default function AllCustomerTable() {
 
   const handleDelete = async (id) => {
     if (!id || typeof id !== "string") {
-      alert("Invalid customer ID");
+      toast.error("Invalid customer ID");
       return;
     }
 
@@ -857,11 +945,11 @@ export default function AllCustomerTable() {
           setDialogOpen(false);
           setSelectedCustomer(null);
         }
-        alert(message || "Customer deleted successfully!");
+        toast.success(`${message} || "Customer deleted successfully!`);
       }
     } catch (e) {
       console.error("Delete error:", e);
-      alert(`Delete failed: ${e.message}`);
+      toast.error(`Delete failed: ${e.message}`);
     } finally {
       setDeletingId(null);
     }
@@ -869,7 +957,7 @@ export default function AllCustomerTable() {
 
   const handleDownloadQRCode = () => {
     if (!qrCodeUrl) {
-      alert("QR code not available");
+      toast.error("QR code not available");
       return;
     }
     const a = document.createElement("a");
@@ -878,6 +966,7 @@ export default function AllCustomerTable() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    toast.success("QR code downloaded successfully!");
   };
 
   const handleDownloadStatement = () => {
@@ -915,22 +1004,19 @@ export default function AllCustomerTable() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    toast.success("Statement downloaded successfully!");
   };
 
-  const handleDocumentUpdate = (field) => {
-    setDocumentToUpdate(field);
-    setSelectedFile(null);
-  };
-
-  const handleDocumentSubmit = async (e) => {
+  // Document Management Functions
+  const handleDocumentUpload = async (e) => {
     e.preventDefault();
-    if (!selectedFile || !documentToUpdate || !selectedCustomer) return;
+    if (!selectedFile || !currentDocumentField || !selectedCustomer) return;
 
     setUploadingDocument(true);
     const fd = new FormData();
     fd.append("file", selectedFile);
     fd.append("id", selectedCustomer.id);
-    fd.append("documentField", documentToUpdate);
+    fd.append("documentField", currentDocumentField);
 
     try {
       const res = await fetch("/api/customers", {
@@ -952,14 +1038,58 @@ export default function AllCustomerTable() {
         prev?.id === customer.id ? { ...prev, ...customer } : prev
       );
 
-      alert("Document updated successfully!");
-      setDocumentToUpdate(null);
+      toast.success("Document uploaded successfully!");
+
+      setDocumentUploadOpen(false);
       setSelectedFile(null);
+      setCurrentDocumentField("");
     } catch (e) {
       console.error("Document upload error:", e);
-      alert(e.message);
+
+      toast.error(`Upload failed: ${e.message}`);
     } finally {
       setUploadingDocument(false);
+    }
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!documentToDelete || !selectedCustomer) return;
+
+    setDeletingDocument(true);
+    try {
+      const fd = new FormData();
+      fd.append("id", selectedCustomer.id);
+      fd.append("documentField", documentToDelete);
+      fd.append("deleteDocument", "true");
+
+      const res = await fetch("/api/customers", {
+        method: "PUT",
+        body: fd,
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Delete failed");
+      }
+
+      const { customer } = await res.json();
+
+      setData((prev) =>
+        prev.map((c) => (c.id === customer.id ? { ...c, ...customer } : c))
+      );
+      setSelectedCustomer((prev) =>
+        prev?.id === customer.id ? { ...prev, ...customer } : prev
+      );
+
+      toast.success("Document deleted successfully!");
+
+      setDeleteDocumentDialog(false);
+      setDocumentToDelete("");
+    } catch (e) {
+      console.error("Document delete error:", e);
+      toast.error(`Delete failed: ${e.message}`);
+    } finally {
+      setDeletingDocument(false);
     }
   };
 
@@ -997,17 +1127,72 @@ export default function AllCustomerTable() {
         setSelectedLoan((prev) => ({ ...prev, documentUrl: loan.documentUrl }));
       }
 
-      alert("Loan document updated successfully!");
-      setDocumentToUpdate(null);
+      toast.success("Loan document updated successfully!");
+
+      setDocumentUploadOpen(false);
       setSelectedFile(null);
     } catch (e) {
       console.error("Loan document upload error:", e);
-      alert(`Upload failed: ${e.message}`);
+      toast.error(`Upload failed: ${e.message}`);
     } finally {
       setUploadingDocument(false);
     }
   };
 
+  const handleDeleteLoanDocument = async (loan) => {
+    if (!loan) return;
+
+    setDeletingDocument(true);
+    try {
+      const fd = new FormData();
+      fd.append("loanId", loan.id);
+      fd.append("documentField", "documentUrl");
+      fd.append("deleteDocument", "true");
+
+      const res = await fetch("/api/loans", {
+        method: "PUT",
+        body: fd,
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Loan document delete failed");
+      }
+
+      const { loan: updatedLoan } = await res.json();
+
+      setCustomerLoans((prev) => ({
+        ...prev,
+        [selectedCustomer.id]: (prev[selectedCustomer.id] || []).map((l) =>
+          l.id === updatedLoan.id ? { ...l, documentUrl: null } : l
+        ),
+      }));
+
+      if (selectedLoan?.id === updatedLoan.id) {
+        setSelectedLoan((prev) => ({ ...prev, documentUrl: null }));
+      }
+
+      toast.success("Loan document deleted successfully!");
+    } catch (e) {
+      console.error("Loan document delete error:", e);
+      toast.error(`Delete failed: ${e.message}`);
+    } finally {
+      setDeletingDocument(false);
+    }
+  };
+
+  const openDocumentUpload = (field) => {
+    setCurrentDocumentField(field);
+    setSelectedFile(null);
+    setDocumentUploadOpen(true);
+  };
+
+  const openDocumentDelete = (field) => {
+    setDocumentToDelete(field);
+    setDeleteDocumentDialog(true);
+  };
+
+  // Loan Management Functions
   const handleCreateLoan = async (e) => {
     e.preventDefault();
     if (!selectedCustomer) return;
@@ -1051,10 +1236,10 @@ export default function AllCustomerTable() {
         area: "",
       });
       setCreateLoanOpen(false);
-      alert("Loan created successfully!");
+      toast.success("Loan created successfully!");
     } catch (e) {
       console.error("Loan creation error:", e);
-      alert(`Failed to create loan: ${e.message}`);
+      toast.error(`Failed to create loan: ${e.message}`);
     } finally {
       setCreatingLoan(false);
     }
@@ -1097,10 +1282,10 @@ export default function AllCustomerTable() {
 
       setSelectedLoan(loan);
       setEditLoanOpen(false);
-      alert("Loan updated successfully!");
+      toast.success("Loan updated successfully!");
     } catch (e) {
       console.error("Loan update error:", e);
-      alert(`Failed to update loan: ${e.message}`);
+      toast.error(`Failed to update loan: ${e.message}`);
     } finally {
       setUpdatingLoan(false);
     }
@@ -1137,10 +1322,10 @@ export default function AllCustomerTable() {
 
       setDeleteLoanOpen(false);
       setLoanToDelete(null);
-      alert("Loan deleted successfully!");
+      toast.success("Loan deleted successfully!");
     } catch (e) {
       console.error("Loan deletion error:", e);
-      alert(`Failed to delete loan: ${e.message}`);
+      toast.error(`Failed to delete loan: ${e.message}`);
     } finally {
       setDeletingLoan(false);
     }
@@ -1184,7 +1369,7 @@ export default function AllCustomerTable() {
         : prev
     );
     setEditOpen(false);
-    alert("Customer updated successfully!");
+    toast.success("Customer updated successfully!");
   };
 
   // Updated columns with fixed status display
@@ -1400,7 +1585,7 @@ export default function AllCustomerTable() {
     },
   ];
 
-  // Fixed filteredData logic to include all customers
+  // Fixed filteredData logic to include all customers with From and To date filters
   const filteredData = useMemo(() => {
     return data.filter((customer) => {
       // Basic search filter
@@ -1447,25 +1632,19 @@ export default function AllCustomerTable() {
 
       const areaMatch = !areaFilter || customer.area === areaFilter;
 
-      const end = customer.endDate ? new Date(customer.endDate) : null;
-      const startDateMatch =
-        !startEndDate || (end && end >= new Date(startEndDate));
-      const endDateMatch = !endEndDate || (end && end <= new Date(endEndDate));
-
-      // NEW: Loan date range filtering
-      const customerLoanDate = customer.loanDate ? new Date(customer.loanDate) : null;
-      const loanDateMatch = 
-        (!startLoanDate || (customerLoanDate && customerLoanDate >= new Date(startLoanDate))) &&
-        (!endLoanDate || (customerLoanDate && customerLoanDate <= new Date(endLoanDate)));
+      // Date range filtering based on loan date
+      const loanDate = customer.loanDate ? new Date(customer.loanDate) : null;
+      
+      const fromDateMatch = !fromDate || (loanDate && loanDate >= new Date(fromDate));
+      const toDateMatch = !toDate || (loanDate && loanDate <= new Date(toDate));
 
       // Now returns true for customers without loans when no status filter is applied
       return (
         globalMatch &&
         statusMatch &&
         areaMatch &&
-        startDateMatch &&
-        endDateMatch &&
-        loanDateMatch // NEW: Include loan date filter
+        fromDateMatch &&
+        toDateMatch
       );
     });
   }, [
@@ -1473,10 +1652,8 @@ export default function AllCustomerTable() {
     globalFilter,
     statusFilter,
     areaFilter,
-    startEndDate,
-    endEndDate,
-    startLoanDate, // NEW: Add to dependencies
-    endLoanDate,   // NEW: Add to dependencies
+    fromDate,
+    toDate,
     customerLoans,
   ]);
 
@@ -1495,7 +1672,6 @@ export default function AllCustomerTable() {
       "aadharDocumentUrl",
       "incomeProofUrl",
       "residenceProofUrl",
-      "qrUrl",
       "photoUrl",
     ];
     const customerDocCount = customerDocs.filter(
@@ -1597,6 +1773,8 @@ export default function AllCustomerTable() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* <Toaster /> */}
+
       {/* Header Section */}
       <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
         <div>
@@ -1616,6 +1794,7 @@ export default function AllCustomerTable() {
             <CreditCard className="h-4 w-4" />
             {filteredData.length} filtered
           </Badge>
+
           {/* Refresh Button */}
           <Button
             variant="outline"
@@ -1626,21 +1805,7 @@ export default function AllCustomerTable() {
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          {/* UPDATE the "Add Customer" button in your JSX: */}
-          <Button
-            onClick={() => {
-              // Store current timestamp before navigation
-              sessionStorage.setItem(
-                "lastAddCustomerTime",
-                Date.now().toString()
-              );
-              router.push("/dashboard/addNewCustomer");
-            }}
-            className="ml-4"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Customer
-          </Button>
+
         </div>
       </div>
 
@@ -1669,10 +1834,8 @@ export default function AllCustomerTable() {
               {(globalFilter ||
                 statusFilter ||
                 areaFilter ||
-                startEndDate ||
-                endEndDate ||
-                startLoanDate || // NEW: Add to clear condition
-                endLoanDate) && ( // NEW: Add to clear condition
+                fromDate ||
+                toDate) && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1680,10 +1843,8 @@ export default function AllCustomerTable() {
                     setGlobalFilter("");
                     setStatusFilter("");
                     setAreaFilter("");
-                    setStartEndDate("");
-                    setEndEndDate("");
-                    setStartLoanDate(""); // NEW: Clear loan date filters
-                    setEndLoanDate("");   // NEW: Clear loan date filters
+                    setFromDate("");
+                    setToDate("");
                   }}
                 >
                   Clear All
@@ -1768,36 +1929,19 @@ export default function AllCustomerTable() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm">End Date Range</Label>
+                  <Label className="text-sm">Date Range</Label>
                   <div className="grid grid-cols-2 gap-2">
                     <Input
                       type="date"
-                      value={startEndDate}
-                      onChange={(e) => setStartEndDate(e.target.value)}
+                      placeholder="From"
+                      value={fromDate}
+                      onChange={(e) => setFromDate(e.target.value)}
                     />
                     <Input
                       type="date"
-                      value={endEndDate}
-                      onChange={(e) => setEndEndDate(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {/* NEW: Loan Date Range Filter */}
-                <div className="space-y-2">
-                  <Label className="text-sm">Loan Date Range</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      type="date"
-                      value={startLoanDate}
-                      onChange={(e) => setStartLoanDate(e.target.value)}
-                      placeholder="From date"
-                    />
-                    <Input
-                      type="date"
-                      value={endLoanDate}
-                      onChange={(e) => setEndLoanDate(e.target.value)}
-                      placeholder="To date"
+                      placeholder="To"
+                      value={toDate}
+                      onChange={(e) => setToDate(e.target.value)}
                     />
                   </div>
                 </div>
@@ -2266,7 +2410,7 @@ export default function AllCustomerTable() {
                                     }}
                                     onUpload={(loan) => {
                                       setSelectedLoan(loan);
-                                      setDocumentToUpdate("loanAgreement");
+                                      openDocumentUpload("loanAgreement");
                                     }}
                                   />
                                 );
@@ -2473,11 +2617,21 @@ export default function AllCustomerTable() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() =>
-                                          handleDocumentUpdate("photoUrl")
+                                          openDocumentUpload("photoUrl")
                                         }
                                         className="flex items-center gap-1"
                                       >
                                         <Pencil className="h-4 w-4" /> Modify
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          openDocumentDelete("photoUrl")
+                                        }
+                                        className="flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                                      >
+                                        <Trash2 className="h-4 w-4" /> Delete
                                       </Button>
                                     </div>
                                   ) : (
@@ -2485,7 +2639,7 @@ export default function AllCustomerTable() {
                                       variant="outline"
                                       size="sm"
                                       onClick={() =>
-                                        handleDocumentUpdate("photoUrl")
+                                        openDocumentUpload("photoUrl")
                                       }
                                       className="flex items-center gap-1"
                                     >
@@ -2587,11 +2741,21 @@ export default function AllCustomerTable() {
                                           variant="outline"
                                           size="sm"
                                           onClick={() =>
-                                            handleDocumentUpdate(doc.field)
+                                            openDocumentUpload(doc.field)
                                           }
                                           className="flex items-center gap-1"
                                         >
                                           <Pencil className="h-4 w-4" /> Modify
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            openDocumentDelete(doc.field)
+                                          }
+                                          className="flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                                        >
+                                          <Trash2 className="h-4 w-4" /> Delete
                                         </Button>
                                       </div>
                                     ) : (
@@ -2599,7 +2763,7 @@ export default function AllCustomerTable() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() =>
-                                          handleDocumentUpdate(doc.field)
+                                          openDocumentUpload(doc.field)
                                         }
                                         className="flex items-center gap-1"
                                       >
@@ -2736,11 +2900,11 @@ export default function AllCustomerTable() {
                                               className="flex items-center gap-1"
                                             >
                                               <Eye className="h-4 w-4" />
-                                              {/* {currentLoan.documentUrl
+                                              {currentLoan.documentUrl
                                                 .toLowerCase()
-                                                .endsWith(".pdf, .doc, .docx, jpg, .jpeg, .png, .gif")
-                                                ? "View PDF"
-                                                : "View"} */}
+                                                .endsWith(".pdf, .doc, .docx, .jpg, .png, .jpeg")
+                                                ? "View Document"
+                                                : "View"}
                                             </a>
                                           </Button>
                                           <Button
@@ -2762,7 +2926,7 @@ export default function AllCustomerTable() {
                                             size="sm"
                                             onClick={() => {
                                               setSelectedLoan(currentLoan);
-                                              setDocumentToUpdate(
+                                              openDocumentUpload(
                                                 "loanAgreement"
                                               );
                                             }}
@@ -2770,6 +2934,19 @@ export default function AllCustomerTable() {
                                           >
                                             <Pencil className="h-4 w-4" />{" "}
                                             Modify
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              handleDeleteLoanDocument(
+                                                currentLoan
+                                              )
+                                            }
+                                            className="flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                                          >
+                                            <Trash2 className="h-4 w-4" />{" "}
+                                            Delete
                                           </Button>
                                           <Button
                                             variant="outline"
@@ -2790,7 +2967,7 @@ export default function AllCustomerTable() {
                                             size="sm"
                                             onClick={() => {
                                               setSelectedLoan(currentLoan);
-                                              setDocumentToUpdate(
+                                              openDocumentUpload(
                                                 "loanAgreement"
                                               );
                                             }}
@@ -2816,230 +2993,11 @@ export default function AllCustomerTable() {
                                   </tr>
                                 );
                               })()}
-
-                              {/* QR Code Row */}
-                              <tr className="hover:bg-gray-50">
-                                <td className="p-3 font-medium">QR Code</td>
-                                <td className="p-3">
-                                  {selectedCustomer.qrUrl ? (
-                                    <Badge className="bg-green-100 text-green-800">
-                                      <CheckCircle className="h-3 w-3 mr-1" />
-                                      Uploaded
-                                    </Badge>
-                                  ) : (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-gray-600"
-                                    >
-                                      Not Uploaded
-                                    </Badge>
-                                  )}
-                                </td>
-                                <td className="p-3">
-                                  {selectedCustomer.qrUrl ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs"
-                                    >
-                                      Image
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-sm text-gray-500">
-                                      -
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-3">
-                                  {selectedCustomer.qrUrl ? (
-                                    <div className="flex flex-wrap gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={selectedCustomer.qrUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Eye className="h-4 w-4" /> View
-                                        </a>
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={selectedCustomer.qrUrl}
-                                          download
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Download className="h-4 w-4" />{" "}
-                                          Download
-                                        </a>
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <span className="text-sm text-gray-500">
-                                      N/A
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
                             </tbody>
                           </table>
                         </div>
                       </CardContent>
                     </Card>
-
-                    {/* Document Upload Dialog */}
-                    <Dialog
-                      open={!!documentToUpdate}
-                      onOpenChange={() => setDocumentToUpdate(null)}
-                    >
-                      <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                          <DialogTitle>
-                            {documentToUpdate === "loanAgreement"
-                              ? selectedLoan?.documentUrl
-                                ? "Modify Loan Agreement"
-                                : "Upload Loan Agreement"
-                              : documentToUpdate === "photoUrl"
-                              ? selectedCustomer?.photoUrl
-                                ? "Modify Profile Photo"
-                                : "Upload Profile Photo"
-                              : selectedCustomer?.[documentToUpdate]
-                              ? "Modify Document"
-                              : "Upload Document"}
-                          </DialogTitle>
-                          <DialogDescription>
-                            {documentToUpdate === "photoUrl"
-                              ? "Upload a new profile picture"
-                              : documentToUpdate === "loanAgreement"
-                              ? "Upload loan agreement document"
-                              : `Upload a new ${documentToUpdate?.replace(
-                                  "Url",
-                                  ""
-                                )}`}
-                          </DialogDescription>
-                        </DialogHeader>
-                        <form
-                          onSubmit={
-                            documentToUpdate === "loanAgreement"
-                              ? handleLoanDocumentUpdate
-                              : handleDocumentSubmit
-                          }
-                          className="space-y-4"
-                        >
-                          <div className="space-y-2">
-                            <Label htmlFor="doc-file">File</Label>
-                            <Input
-                              id="doc-file"
-                              type="file"
-                              accept={
-                                documentToUpdate === "photoUrl"
-                                  ? "image/*"
-                                  : "image/*,.pdf"
-                              }
-                              onChange={(e) =>
-                                setSelectedFile(e.target.files[0])
-                              }
-                              required
-                            />
-                            <p className="text-xs text-gray-500">
-                              {documentToUpdate === "photoUrl"
-                                ? "JPG / PNG / GIF"
-                                : "JPG / PNG / GIF / PDF / DOCX / DOC"}
-                            </p>
-                          </div>
-
-                          {(documentToUpdate === "loanAgreement"
-                            ? selectedLoan?.documentUrl
-                            : documentToUpdate === "photoUrl"
-                            ? selectedCustomer?.photoUrl
-                            : selectedCustomer?.[documentToUpdate]) && (
-                            <div className="space-y-2">
-                              <Label>Current Document</Label>
-                              <div className="p-2 border rounded-md bg-gray-50">
-                                {documentToUpdate === "photoUrl" ||
-                                (documentToUpdate === "loanAgreement" &&
-                                  selectedLoan?.documentUrl
-                                    ?.toLowerCase()
-                                    .match(/\.(jpg|jpeg|png|gif|pdf|docx|doc)$/)) ||
-                                (documentToUpdate !== "loanAgreement" &&
-                                  selectedCustomer[documentToUpdate]
-                                    ?.toLowerCase()
-                                    .match(/\.(jpg|jpeg|png|gif|pdf|docx|doc)$/)) ? (
-                                  <img
-                                    src={
-                                      documentToUpdate === "loanAgreement"
-                                        ? selectedLoan.documentUrl
-                                        : documentToUpdate === "photoUrl"
-                                        ? selectedCustomer.photoUrl
-                                        : selectedCustomer[documentToUpdate]
-                                    }
-                                    alt="current"
-                                    className="h-32 object-contain mx-auto rounded"
-                                  />
-                                ) : (
-                                  <div className="text-center py-8">
-                                    <FileText className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-                                    <p className="text-sm text-gray-500">
-                                      PDF Document
-                                    </p>
-                                    <a
-                                      href={
-                                        documentToUpdate === "loanAgreement"
-                                          ? selectedLoan.documentUrl
-                                          : documentToUpdate === "photoUrl"
-                                          ? selectedCustomer.photoUrl
-                                          : selectedCustomer[documentToUpdate]
-                                      }
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-blue-600 hover:underline text-sm"
-                                    >
-                                      View current document
-                                    </a>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setDocumentToUpdate(null)}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              type="submit"
-                              disabled={uploadingDocument || !selectedFile}
-                            >
-                              {uploadingDocument && (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              )}
-                              {documentToUpdate === "loanAgreement"
-                                ? selectedLoan?.documentUrl
-                                  ? "Update"
-                                  : "Upload"
-                                : documentToUpdate === "photoUrl"
-                                ? selectedCustomer?.photoUrl
-                                  ? "Update"
-                                  : "Upload"
-                                : selectedCustomer?.[documentToUpdate]
-                                ? "Update"
-                                : "Upload"}
-                            </Button>
-                          </div>
-                        </form>
-                      </DialogContent>
-                    </Dialog>
                   </TabsContent>
                 </Tabs>
               </div>
@@ -3047,6 +3005,57 @@ export default function AllCustomerTable() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Document Upload Dialog */}
+      <DocumentUploadDialog
+        open={documentUploadOpen}
+        onOpenChange={setDocumentUploadOpen}
+        documentType={
+          currentDocumentField === "loanAgreement"
+            ? "Loan Agreement"
+            : currentDocumentField?.replace("Url", "") || "Document"
+        }
+        onSubmit={
+          currentDocumentField === "loanAgreement"
+            ? handleLoanDocumentUpdate
+            : handleDocumentUpload
+        }
+        selectedFile={selectedFile}
+        setSelectedFile={setSelectedFile}
+        loading={uploadingDocument}
+      />
+
+      {/* Delete Document Confirmation Dialog */}
+      <AlertDialog
+        open={deleteDocumentDialog}
+        onOpenChange={setDeleteDocumentDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The document will be permanently
+              removed from the system.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleDeleteDocument}
+            >
+              {deletingDocument ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                "Delete Document"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Create Loan Dialog */}
       <Dialog open={createLoanOpen} onOpenChange={setCreateLoanOpen}>

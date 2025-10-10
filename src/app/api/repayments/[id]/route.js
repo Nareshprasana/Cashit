@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 // GET single repayment
 export async function GET(req, { params }) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const repayment = await prisma.repayment.findUnique({
       where: { id: parseInt(id) },
@@ -101,7 +101,7 @@ export async function GET(req, { params }) {
 // PATCH - Partial update (mainly for amount)
 export async function PATCH(req, { params }) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await req.json();
 
     // First get the current repayment to calculate updates
@@ -241,7 +241,7 @@ export async function PATCH(req, { params }) {
 // PUT - Full update
 export async function PUT(req, { params }) {
   try {
-    const { id } = params;
+    const { id } = await  params;
     const body = await req.json();
 
     if (!body.amount || !body.status || !body.dueDate) {
@@ -374,7 +374,7 @@ export async function PUT(req, { params }) {
 // DELETE - Remove repayment
 export async function DELETE(req, { params }) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Check if repayment exists
     const existingRepayment = await prisma.repayment.findUnique({

@@ -26,7 +26,9 @@ import {
   FaDownload,
   FaSave,
   FaFileAlt,
-  FaEllipsisV
+  FaEllipsisV,
+  FaFileExport,
+  FaInfoCircle
 } from 'react-icons/fa';
 
 import { MdSettings } from 'react-icons/md';
@@ -89,6 +91,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
+// Import Tooltip components
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
 /* ------------------- CLIENT ONLY WRAPPER ------------------- */
 const ClientOnly = ({ children, fallback = null }) => {
   const [isClient, setIsClient] = useState(false);
@@ -100,64 +110,153 @@ const ClientOnly = ({ children, fallback = null }) => {
   return isClient ? children : fallback;
 };
 
-/* ------------------- STATUS BADGE ------------------- */
-const StatusBadge = ({ status, pendingAmount }) => {
+/* ------------------- ENHANCED STATUS BADGE WITH TOOLTIPS ------------------- */
+const StatusBadge = ({ status, pendingAmount, loanAmount }) => {
   const actualStatus = status || (pendingAmount > 0 ? "ACTIVE" : "CLOSED");
-  switch (actualStatus) {
-    case "ACTIVE":
-      return (
-        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-          <FaClock className="h-3 w-3 mr-1" /> Active
-        </Badge>
-      );
-    case "CLOSED":
-      return (
-        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-          <FaCheckCircle className="h-3 w-3 mr-1" /> Completed
-        </Badge>
-      );
-    case "NEVER_OPENED":
-      return (
-        <Badge variant="outline" className="text-gray-600">
-          <FaTimesCircle className="h-3 w-3 mr-1" /> Never Opened
-        </Badge>
-      );
-    default:
-      return <Badge variant="outline">{actualStatus}</Badge>;
-  }
-};
+  
+  const getTooltipContent = () => {
+    switch (actualStatus) {
+      case "ACTIVE":
+        return `Active Loan - ₹${pendingAmount?.toLocaleString() || 0} pending out of ₹${loanAmount?.toLocaleString() || 0}`;
+      case "CLOSED":
+        return "Completed Loan - All payments received";
+      case "NEVER_OPENED":
+        return "Loan never activated - No transactions processed";
+      default:
+        return "Loan status information";
+    }
+  };
 
-/* ------------------- OVERDUE BADGE ------------------- */
-const OverdueBadge = ({ isOverdue, overdueDays }) => {
-  if (isOverdue) {
-    return (
-      <Badge variant="destructive" className="flex items-center gap-1">
-        <FaExclamationCircle className="h-3 w-3" />
-        Overdue {overdueDays} days
-      </Badge>
-    );
-  }
+  const getBadgeContent = () => {
+    switch (actualStatus) {
+      case "ACTIVE":
+        return (
+          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border border-blue-300">
+            <FaClock className="h-3 w-3 mr-1" /> Active
+          </Badge>
+        );
+      case "CLOSED":
+        return (
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border border-green-300">
+            <FaCheckCircle className="h-3 w-3 mr-1" /> Completed
+          </Badge>
+        );
+      case "NEVER_OPENED":
+        return (
+          <Badge variant="outline" className="text-gray-600 border-gray-400">
+            <FaTimesCircle className="h-3 w-3 mr-1" /> Never Opened
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline">{actualStatus}</Badge>;
+    }
+  };
+
   return (
-    <Badge variant="secondary" className="flex items-center gap-1">
-      <FaCheckCircle className="h-3 w-3 text-green-600" />
-      On Time
-    </Badge>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="inline-block">
+            {getBadgeContent()}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className="text-sm">{getTooltipContent()}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 
-/* ------------------- DOCUMENT BADGE ------------------- */
-const DocumentBadge = ({ documentUrl }) => {
-  if (documentUrl) {
+/* ------------------- ENHANCED OVERDUE BADGE WITH TOOLTIPS ------------------- */
+const OverdueBadge = ({ isOverdue, overdueDays, pendingAmount }) => {
+  const getTooltipContent = () => {
+    if (isOverdue) {
+      return `Overdue by ${overdueDays} days with ₹${pendingAmount?.toLocaleString() || 0} pending payment`;
+    }
+    return "All payments are on time - No overdue amount";
+  };
+
+  if (isOverdue) {
     return (
-      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-        <FaFile className="h-3 w-3 mr-1" /> Document
-      </Badge>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="inline-block">
+              <Badge variant="destructive" className="flex items-center gap-1">
+                <FaExclamationCircle className="h-3 w-3" />
+                Overdue {overdueDays} days
+              </Badge>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-sm">{getTooltipContent()}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
   return (
-    <Badge variant="outline" className="text-gray-500">
-      <FaFile className="h-3 w-3 mr-1" /> No Document
-    </Badge>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="inline-block">
+            <Badge variant="secondary" className="flex items-center gap-1 bg-green-50 text-green-700 border-green-200">
+              <FaCheckCircle className="h-3 w-3 text-green-600" />
+              On Time
+            </Badge>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className="text-sm">{getTooltipContent()}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+};
+
+/* ------------------- ENHANCED DOCUMENT BADGE WITH TOOLTIPS ------------------- */
+const DocumentBadge = ({ documentUrl }) => {
+  const getTooltipContent = () => {
+    if (documentUrl) {
+      return "Document available";
+    }
+    return "No document uploaded - Upload a document for record keeping";
+  };
+
+  if (documentUrl) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="inline-block">
+              <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border border-green-300">
+                <FaFile className="h-3 w-3 mr-1" /> Document
+              </Badge>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-sm">{getTooltipContent()}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="inline-block">
+            <Badge variant="outline" className="text-gray-500 border-gray-300">
+              <FaFile className="h-3 w-3 mr-1" /> No Document
+            </Badge>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className="text-sm">{getTooltipContent()}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 
@@ -187,7 +286,6 @@ const calculateOverdueDays = (loanDate, tenure) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const comparisonEndDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-    
     const timeDiff = today.getTime() - comparisonEndDate.getTime();
     const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
     
@@ -197,8 +295,58 @@ const calculateOverdueDays = (loanDate, tenure) => {
   }
 };
 
+/* ------------------- CSV EXPORT HELPER ------------------- */
+const exportToCSV = (loans) => {
+  const headers = [
+    "Customer Code",
+    "Customer Name",
+    "Aadhar",
+    "Loan Amount",
+    "Pending Amount",
+    "Interest Rate",
+    "Tenure (months)",
+    "Loan Date",
+    "Status",
+    "Overdue Status",
+    "Overdue Days",
+    "Document Available"
+  ];
+
+  const rows = loans.map(loan => {
+    const overdueDays = calculateOverdueDays(loan.loanDate, loan.tenure);
+    const isOverdue = overdueDays > 0 && (loan.pendingAmount || 0) > 0;
+    const status = loan.status || (loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED");
+
+    return [
+      `"${loan.customer?.customerCode || loan.customer?.code || ''}"`,
+      `"${loan.customer?.name || ''}"`,
+      `"${loan.customer?.aadhar || ''}"`,
+      loan.loanAmount?.toString() || '0',
+      loan.pendingAmount?.toString() || '0',
+      loan.rate?.toString() || '0',
+      loan.tenure?.toString() || '0',
+      loan.loanDate ? new Date(loan.loanDate).toLocaleDateString() : '-',
+      status,
+      isOverdue ? 'Overdue' : 'On Time',
+      overdueDays !== null ? overdueDays.toString() : '-',
+      loan.documentUrl ? 'Yes' : 'No'
+    ].join(",");
+  });
+
+  const csvContent = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `loans_export_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
 /* -------------------------------------------------
-   LoanTable Component with React Icons
+   LoanTable Component with Enhanced Status Indicators
 ------------------------------------------------- */
 const LoanTable = ({
   loans = [],
@@ -244,40 +392,94 @@ const LoanTable = ({
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  /* ------------ STATS CALCULATION ------------ */
-  const stats = useMemo(() => {
-    const totalLoans = loans.length;
-    const totalLoanAmount = loans.reduce((sum, loan) => sum + (loan.loanAmount || 0), 0);
-    const totalPending = loans.reduce((sum, loan) => sum + (loan.pendingAmount || 0), 0);
-    const activeLoans = loans.filter(loan => 
-      loan.status === "ACTIVE" || (loan.status === undefined && loan.pendingAmount > 0)
-    ).length;
-    const loansWithDocuments = loans.filter(loan => loan.documentUrl).length;
-
-    return {
-      totalLoans,
-      totalLoanAmount,
-      totalPending,
-      activeLoans,
-      loansWithDocuments,
-    };
-  }, [loans]);
-
-  /* 👈 Client-only computed loans with overdue */
+  /* 👈 Enhanced computed loans with additional status info */
   const computedLoans = useMemo(() => {
     return loans.map(loan => {
       const overdueDays = calculateOverdueDays(loan.loanDate, loan.tenure);
       const hasPendingAmount = (loan.pendingAmount || 0) > 0;
       const isPastDueDate = (overdueDays || 0) > 0;
       const isOverdue = hasPendingAmount && isPastDueDate;
+      const status = loan.status || (hasPendingAmount ? "ACTIVE" : "CLOSED");
+      const isCompleted = status === "CLOSED";
+      const isActive = status === "ACTIVE";
       
       return {
         ...loan,
         overdueDays,
-        isOverdue
+        isOverdue,
+        status,
+        isCompleted,
+        isActive
       };
     });
   }, [loans]);
+
+  /* ------------ BUSINESS LOGIC: FILTER COMPLETED LOANS FOR ACTIVE CUSTOMERS ------------ */
+  const getLoansWithBusinessRules = useMemo(() => {
+    // Group loans by customer
+    const loansByCustomer = {};
+    
+    computedLoans.forEach(loan => {
+      const customerCode = loan.customer?.customerCode || loan.customer?.code;
+      if (!customerCode) return;
+      
+      if (!loansByCustomer[customerCode]) {
+        loansByCustomer[customerCode] = [];
+      }
+      loansByCustomer[customerCode].push(loan);
+    });
+
+    // For each customer, determine which loans to show
+    const loansToShow = [];
+    
+    Object.values(loansByCustomer).forEach(customerLoans => {
+      // Check if customer has any active loans
+      const hasActiveLoan = customerLoans.some(loan => {
+        const status = loan.status || (loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED");
+        return status === "ACTIVE";
+      });
+
+      if (hasActiveLoan) {
+        // Only show active loans for this customer (hide completed loans)
+        loansToShow.push(...customerLoans.filter(loan => {
+          const status = loan.status || (loan.pendingAmount > 0 ? "ACTIVE" : "CLOSED");
+          return status === "ACTIVE";
+        }));
+      } else {
+        // Show all loans (all are completed or no active loans)
+        loansToShow.push(...customerLoans);
+      }
+    });
+
+    return loansToShow;
+  }, [computedLoans]);
+
+  /* ------------ ENHANCED STATS WITH STATUS BREAKDOWN ------------ */
+  const enhancedStats = useMemo(() => {
+    const displayLoans = getLoansWithBusinessRules;
+
+    const totalLoans = displayLoans.length;
+    const totalLoanAmount = displayLoans.reduce((sum, loan) => sum + (loan.loanAmount || 0), 0);
+    const totalPending = displayLoans.reduce((sum, loan) => sum + (loan.pendingAmount || 0), 0);
+    const activeLoans = displayLoans.filter(loan => 
+      loan.status === "ACTIVE" || (loan.status === undefined && loan.pendingAmount > 0)
+    ).length;
+    const completedLoans = displayLoans.filter(loan => 
+      loan.status === "CLOSED" || (loan.status === undefined && loan.pendingAmount <= 0)
+    ).length;
+    const overdueLoans = displayLoans.filter(loan => loan.isOverdue).length;
+    const loansWithDocuments = displayLoans.filter(loan => loan.documentUrl).length;
+
+    return {
+      totalLoans,
+      totalLoanAmount,
+      totalPending,
+      activeLoans,
+      completedLoans,
+      overdueLoans,
+      loansWithDocuments,
+    };
+  }, [getLoansWithBusinessRules]);
 
   /* ------------ COMPREHENSIVE EDIT DIALOG HANDLER ------------ */
   const openEditDialog = (loan = null) => {
@@ -604,7 +806,7 @@ const LoanTable = ({
   };
 
   /* ------------------- SORTING ------------------- */
-  const sortedLoans = [...computedLoans].sort((a, b) => {
+  const sortedLoans = [...getLoansWithBusinessRules].sort((a, b) => {
     let aValue, bValue;
 
     if (sortField.includes("customer.")) {
@@ -787,6 +989,139 @@ const LoanTable = ({
     }
   };
 
+  /* ------------------- ENHANCED TABLE ROW ------------------- */
+  const renderTableRow = (loan) => (
+    <TableRow 
+      key={loan.id} 
+      className={`hover:bg-gray-50 ${
+        loan.isCompleted ? 'bg-green-50/30' : 
+        loan.isOverdue ? 'bg-red-50/30' : 
+        'bg-blue-50/30'
+      }`}
+    >
+      <TableCell className="font-medium">
+        {loan.customer?.customerCode || loan.customer?.code}
+      </TableCell>
+      
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <FaUser className="h-4 w-4 text-gray-400" />
+          {loan.customer?.name}
+        </div>
+      </TableCell>
+      
+      <TableCell>{loan.customer?.aadhar}</TableCell>
+      
+      <TableCell className="text-right">
+        <div className="flex items-center justify-end gap-1">
+          <FaDollarSign className="h-3 w-3 text-gray-400" />
+          {loan.loanAmount?.toLocaleString()}
+        </div>
+      </TableCell>
+      
+      <TableCell className="text-right">
+        <div className="flex items-center justify-end gap-1">
+          <FaDollarSign className="h-3 w-3 text-gray-400" />
+          {loan.pendingAmount?.toLocaleString()}
+        </div>
+      </TableCell>
+      
+      <TableCell>
+        {loan.loanDate
+          ? new Date(loan.loanDate).toLocaleDateString()
+          : "-"}
+      </TableCell>
+      
+      <TableCell>
+        <StatusBadge
+          status={loan.status}
+          pendingAmount={loan.pendingAmount}
+          loanAmount={loan.loanAmount}
+        />
+      </TableCell>
+      
+      <TableCell>
+        {loan.overdueDays !== null ? (
+          <OverdueBadge
+            isOverdue={loan.isOverdue}
+            overdueDays={loan.overdueDays}
+            pendingAmount={loan.pendingAmount}
+          />
+        ) : (
+          <span className="text-gray-500 text-xs italic">Missing data</span>
+        )}
+      </TableCell>
+      
+      <TableCell>
+        <DocumentBadge documentUrl={loan.documentUrl} />
+      </TableCell>
+      
+      <TableCell className="text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <FaEllipsisV className="h-4 w-4 text-gray-600" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            {loan.documentUrl ? (
+              <>
+                <DropdownMenuItem 
+                  onClick={() => handleViewDocument(loan)}
+                  className="flex items-center gap-2 text-green-600"
+                >
+                  <FaEye className="h-4 w-4" />
+                  View Document
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => handleDownloadDocument(loan)}
+                  className="flex items-center gap-2 text-blue-600"
+                >
+                  <FaDownload className="h-4 w-4" />
+                  Download Document
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => handleRemoveDocument(loan)}
+                  className="flex items-center gap-2 text-red-600"
+                >
+                  <FaTrash className="h-4 w-4" />
+                  Remove Document
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            ) : (
+              <>
+                <DropdownMenuItem 
+                  onClick={() => openEditDialog(loan)}
+                  className="flex items-center gap-2 text-orange-600"
+                >
+                  <FaUpload className="h-4 w-4" />
+                  Upload Document
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            <DropdownMenuItem 
+              onClick={() => openEditDialog(loan)}
+              className="flex items-center gap-2 text-blue-600"
+            >
+              <FaEdit className="h-4 w-4" />
+              Edit Loan
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => handleQuickDelete(loan)}
+              className="flex items-center gap-2 text-red-600"
+            >
+              <FaTrash className="h-4 w-4" />
+              Delete Loan
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+
   /* ------------------- LOADING STATE ------------------- */
   if (loading) {
     return (
@@ -810,18 +1145,28 @@ const LoanTable = ({
           </h1>
           <p className="text-gray-600">Manage and track all customer loans</p>
         </div>
-        <ClientOnly>
-          <Button 
-            onClick={() => openEditDialog()} 
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <FaPlus className="h-4 w-4 mr-2" />
-            New Loan
-          </Button>
-        </ClientOnly>
+        <div className="flex gap-2">
+          <ClientOnly>
+            <Button 
+              onClick={() => exportToCSV(filteredLoans)}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <FaFileExport className="h-4 w-4" />
+              Export CSV
+            </Button>
+            <Button 
+              onClick={() => openEditDialog()} 
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <FaPlus className="h-4 w-4 mr-2" />
+              New Loan
+            </Button>
+          </ClientOnly>
+        </div>
       </div>
 
-      {/* ----- Stats Cards ----- */}
+      {/* ----- ENHANCED Stats Cards with Status Overview ----- */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -829,7 +1174,7 @@ const LoanTable = ({
             <FaDollarSign className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalLoans}</div>
+            <div className="text-2xl font-bold">{enhancedStats.totalLoans}</div>
             <p className="text-xs text-gray-600">All time loans</p>
           </CardContent>
         </Card>
@@ -840,33 +1185,70 @@ const LoanTable = ({
             <FaClock className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.activeLoans}</div>
-            <p className="text-xs text-gray-600">Currently active</p>
+            <div className="text-2xl font-bold text-blue-600">{enhancedStats.activeLoans}</div>
+            <p className="text-xs text-gray-600">
+              {enhancedStats.overdueLoans > 0 && 
+                `${enhancedStats.overdueLoans} overdue`}
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Amount</CardTitle>
-            <FaDollarSign className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-sm font-medium">Completed Loans</CardTitle>
+            <FaCheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{stats.totalLoanAmount.toLocaleString()}</div>
-            <p className="text-xs text-gray-600">Total loan amount</p>
+            <div className="text-2xl font-bold text-green-600">{enhancedStats.completedLoans}</div>
+            <p className="text-xs text-gray-600">Successfully closed</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">With Documents</CardTitle>
-            <FaFile className="h-4 w-4 text-orange-500" />
+            <CardTitle className="text-sm font-medium">Pending Amount</CardTitle>
+            <FaDollarSign className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.loansWithDocuments}</div>
-            <p className="text-xs text-gray-600">Loans with documents</p>
+            <div className="text-2xl font-bold text-orange-600">₹{enhancedStats.totalPending.toLocaleString()}</div>
+            <p className="text-xs text-gray-600">Total pending across all loans</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* ----- STATUS LEGEND ----- */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <span className="font-medium text-gray-700">Loan Status:</span>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+              <span>Active Loans</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span>Completed Loans</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+              <span>Overdue Loans</span>
+            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1 text-gray-500 cursor-help">
+                    <FaInfoCircle className="h-3 w-3" />
+                    <span>Hover over badges for details</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-sm">Hover over any status badge to see detailed loan information</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ----- Search & Filters ----- */}
       <Card>
@@ -1106,119 +1488,7 @@ const LoanTable = ({
                 }
               >
                 <TableBody>
-                  {paginatedLoans.map((loan) => (
-                    <TableRow key={loan.id} className="hover:bg-gray-50">
-                      <TableCell className="font-medium">
-                        {loan.customer?.customerCode || loan.customer?.code}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <FaUser className="h-4 w-4 text-gray-400" />
-                          {loan.customer?.name}
-                        </div>
-                      </TableCell>
-                      <TableCell>{loan.customer?.aadhar}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <FaDollarSign className="h-3 w-3 text-gray-400" />
-                          {loan.loanAmount?.toLocaleString()}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <FaDollarSign className="h-3 w-3 text-gray-400" />
-                          {loan.pendingAmount?.toLocaleString()}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {loan.loanDate
-                          ? new Date(loan.loanDate).toLocaleDateString()
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge
-                          status={loan.status}
-                          pendingAmount={loan.pendingAmount}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {loan.overdueDays !== null ? (
-                          <OverdueBadge
-                            isOverdue={loan.isOverdue}
-                            overdueDays={loan.overdueDays}
-                          />
-                        ) : (
-                          <span className="text-gray-500 text-xs italic">Missing data</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <DocumentBadge documentUrl={loan.documentUrl} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <FaEllipsisV className="h-4 w-4 text-gray-600" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            {loan.documentUrl ? (
-                              <>
-                                <DropdownMenuItem 
-                                  onClick={() => handleViewDocument(loan)}
-                                  className="flex items-center gap-2 text-green-600"
-                                >
-                                  <FaEye className="h-4 w-4" />
-                                  View Document
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => handleDownloadDocument(loan)}
-                                  className="flex items-center gap-2 text-blue-600"
-                                >
-                                  <FaDownload className="h-4 w-4" />
-                                  Download Document
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => handleRemoveDocument(loan)}
-                                  className="flex items-center gap-2 text-red-600"
-                                >
-                                  <FaTrash className="h-4 w-4" />
-                                  Remove Document
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            ) : (
-                              <>
-                                <DropdownMenuItem 
-                                  onClick={() => openEditDialog(loan)}
-                                  className="flex items-center gap-2 text-orange-600"
-                                >
-                                  <FaUpload className="h-4 w-4" />
-                                  Upload Document
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
-                            <DropdownMenuItem 
-                              onClick={() => openEditDialog(loan)}
-                              className="flex items-center gap-2 text-blue-600"
-                            >
-                              <FaEdit className="h-4 w-4" />
-                              Edit Loan
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleQuickDelete(loan)}
-                              className="flex items-center gap-2 text-red-600"
-                            >
-                              <FaTrash className="h-4 w-4" />
-                              Delete Loan
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {paginatedLoans.map(renderTableRow)}
                 </TableBody>
               </ClientOnly>
             </Table>
@@ -1636,7 +1906,7 @@ const LoanTable = ({
                   
                   <div className="space-y-3">
                     {editingLoan && (
-                      <div className="flex components-center justify-between p-3 bg-red-50 border border-red-200 rounded">
+                      <div className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded">
                         <div>
                           <p className="font-medium text-red-800">Delete Loan</p>
                           <p className="text-sm text-red-600">

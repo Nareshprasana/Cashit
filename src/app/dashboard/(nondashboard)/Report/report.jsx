@@ -29,13 +29,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -118,10 +118,10 @@ export default function ReportPage() {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      if (selectedArea && selectedArea !== "all") params.append("areaId", selectedArea);
+      if (selectedArea && selectedArea !== "all")
+        params.append("areaId", selectedArea);
       if (fromDate) params.append("fromDate", fromDate);
       if (toDate) params.append("toDate", toDate);
-      if (searchQuery) params.append("search", searchQuery);
 
       const res = await fetch(`/api/customers?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch customers");
@@ -142,14 +142,32 @@ export default function ReportPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* --------------------- CLIENT-SIDE FILTERING --------------------- */
+  const filteredCustomers = useMemo(() => {
+    if (!searchQuery.trim()) return customers;
+
+    const query = searchQuery.toLowerCase().trim();
+    return customers.filter(customer => 
+      customer.name?.toLowerCase().includes(query) ||
+      customer.mobile?.includes(query) ||
+      customer.customerCode?.toLowerCase().includes(query) ||
+      customer.address?.toLowerCase().includes(query)
+    );
+  }, [customers, searchQuery]);
+
   /* --------------------- HANDLERS --------------------- */
-  const handleSearch = () => fetchCustomers();
+  const handleSearch = () => {
+    // Client-side filtering is automatic via useMemo
+    // Just reset to first page when searching
+    setCurrentPage(1);
+  };
 
   const handleReset = () => {
     setSelectedArea("all");
     setFromDate("");
     setToDate("");
     setSearchQuery("");
+    setCurrentPage(1);
     fetchCustomers();
   };
 
@@ -160,7 +178,9 @@ export default function ReportPage() {
     try {
       const [qrData, repaymentsRes] = await Promise.all([
         QRCode.toDataURL(customer.customerCode),
-        fetch(`/api/repayments?customerId=${customer.id}`).then((r) => r.json()),
+        fetch(`/api/repayments?customerId=${customer.id}`).then((r) =>
+          r.json()
+        ),
       ]);
       setQrCodeUrl(qrData);
       setRepayments(Array.isArray(repaymentsRes) ? repaymentsRes : []);
@@ -187,10 +207,7 @@ export default function ReportPage() {
 
   const totalRepaidAmount = useMemo(
     () =>
-      filteredRepayments.reduce(
-        (sum, r) => sum + (Number(r.amount) || 0),
-        0
-      ),
+      filteredRepayments.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
     [filteredRepayments]
   );
 
@@ -228,9 +245,9 @@ export default function ReportPage() {
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Statement_${safeName}_${new Date()
-      .toISOString()
-      .split("T")[0]}.csv`;
+    a.download = `Statement_${safeName}_${
+      new Date().toISOString().split("T")[0]
+    }.csv`;
     a.style.display = "none";
     document.body.appendChild(a);
     a.click();
@@ -239,10 +256,10 @@ export default function ReportPage() {
   };
 
   /* ---------------------- PAGINATION ---------------------- */
-  const totalPages = Math.ceil(customers.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
   const startIdx = (currentPage - 1) * itemsPerPage;
   const endIdx = startIdx + itemsPerPage;
-  const currentCustomers = customers.slice(startIdx, endIdx);
+  const currentCustomers = filteredCustomers.slice(startIdx, endIdx);
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
@@ -264,10 +281,7 @@ export default function ReportPage() {
       );
     } else {
       return (
-        <Badge
-          variant="outline"
-          className="text-amber-600 border-amber-300"
-        >
+        <Badge variant="outline" className="text-amber-600 border-amber-300">
           <Clock className="h-3 w-3 mr-1" /> Pending
         </Badge>
       );
@@ -380,7 +394,12 @@ export default function ReportPage() {
         </div>
         <Badge variant="outline" className="px-3 py-1.5 gap-1.5">
           <FileText className="h-4 w-4" />
-          {customers.length} customer{customers.length !== 1 ? "s" : ""}
+          {filteredCustomers.length} customer{filteredCustomers.length !== 1 ? "s" : ""}
+          {searchQuery && (
+            <span className="text-blue-600 ml-1">
+              (filtered from {customers.length})
+            </span>
+          )}
         </Badge>
       </div>
 
@@ -425,7 +444,7 @@ export default function ReportPage() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
-                  placeholder="Search by name, code, or mobile..."
+                  placeholder="Search by name, code, mobile, or address..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -493,14 +512,22 @@ export default function ReportPage() {
                 Customer List
               </CardTitle>
               <CardDescription>
-                Showing {Math.min(customers.length, itemsPerPage)} of{" "}
-                {customers.length} customer
-                {customers.length !== 1 ? "s" : ""}
+                Showing {Math.min(filteredCustomers.length, itemsPerPage)} of{" "}
+                {filteredCustomers.length} customer
+                {filteredCustomers.length !== 1 ? "s" : ""}
+                {searchQuery && (
+                  <span className="text-blue-600 ml-1">
+                    (from {customers.length} total)
+                  </span>
+                )}
               </CardDescription>
             </div>
 
             <div className="flex items-center gap-2">
-              <Label htmlFor="itemsPerPage" className="text-sm whitespace-nowrap">
+              <Label
+                htmlFor="itemsPerPage"
+                className="text-sm whitespace-nowrap"
+              >
                 Rows per page:
               </Label>
               <Select
@@ -543,23 +570,27 @@ export default function ReportPage() {
                 </div>
               ))}
             </div>
-          ) : customers.length > 0 ? (
+          ) : filteredCustomers.length > 0 ? (
             <>
               {/* ---- TABLE ---- */}
               <div className="rounded-lg border overflow-hidden mb-4">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      {["Customer", "Contact", "Loan Details", "Status", "Actions"].map(
-                        (header) => (
-                          <th
-                            key={header}
-                            className="text-left p-3 text-sm font-medium text-gray-700"
-                          >
-                            {header}
-                          </th>
-                        )
-                      )}
+                      {[
+                        "Customer",
+                        "Contact",
+                        "Loan Details",
+                        "Status",
+                        "Actions",
+                      ].map((header) => (
+                        <th
+                          key={header}
+                          className="text-left p-3 text-sm font-medium text-gray-700"
+                        >
+                          {header}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -665,7 +696,7 @@ export default function ReportPage() {
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">
                   <div className="text-sm text-gray-600">
                     Showing {startIdx + 1} to{" "}
-                    {Math.min(endIdx, customers.length)} of {customers.length}{" "}
+                    {Math.min(endIdx, filteredCustomers.length)} of {filteredCustomers.length}{" "}
                     entries
                   </div>
 
@@ -703,11 +734,13 @@ export default function ReportPage() {
             <div className="text-center py-12 border rounded-lg">
               <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-1">
-                No customers found
+                {customers.length === 0 ? "No customers found" : "No matching customers found"}
               </h3>
               <p className="text-gray-500 max-w-md mx-auto">
-                Try adjusting your search or filters to find what you’re looking
-                for.
+                {customers.length === 0 
+                  ? "Try adjusting your filters to find what you're looking for."
+                  : "No customers match your search criteria. Try different search terms."
+                }
               </p>
             </div>
           )}
@@ -842,9 +875,8 @@ export default function ReportPage() {
                           Area
                         </Label>
                         <p className="font-medium">
-                          {areas.find(
-                            (a) => a.id === selectedCustomer.areaId
-                          )?.areaName || "Not specified"}
+                          {areas.find((a) => a.id === selectedCustomer.areaId)
+                            ?.areaName || "Not specified"}
                         </p>
                       </div>
 
@@ -886,7 +918,9 @@ export default function ReportPage() {
                         </div>
                         <div className="text-center p-3 bg-gray-50 rounded-lg">
                           <p className="text-sm text-gray-700">Status</p>
-                          <div className="mt-1">{getStatusBadge(selectedCustomer)}</div>
+                          <div className="mt-1">
+                            {getStatusBadge(selectedCustomer)}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -926,7 +960,9 @@ export default function ReportPage() {
                           <tr key={repayment.id} className="hover:bg-gray-50">
                             <td className="p-3">
                               {repayment.dueDate
-                                ? new Date(repayment.dueDate).toLocaleDateString()
+                                ? new Date(
+                                    repayment.dueDate
+                                  ).toLocaleDateString()
                                 : "—"}
                             </td>
                             <td className="p-3 font-medium">
@@ -940,7 +976,9 @@ export default function ReportPage() {
                         {/* ---- TOTAL ROW ---- */}
                         <tr className="bg-gray-50 font-semibold">
                           <td className="p-3">Total</td>
-                          <td className="p-3">{formatCurrency(totalRepaidAmount)}</td>
+                          <td className="p-3">
+                            {formatCurrency(totalRepaidAmount)}
+                          </td>
                           <td className="p-3"></td>
                         </tr>
                       </tbody>
