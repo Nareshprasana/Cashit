@@ -73,12 +73,7 @@ export function AppSidebar({ ...props }) {
           icon: FiUsers,
           roles: ["ADMIN"],
         },
-        // {
-        //   name: "Loan",
-        //   url: "/dashboard/loan",
-        //   icon: FaHandHoldingDollar,
-        //   roles: ["ADMIN"],
-        // },
+       
         {
           name: "Add Loan",
           url: "/dashboard/newloanform",

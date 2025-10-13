@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { AddArea } from "../../addArea/Addarea";
 import {
   CircleX,
   User,
@@ -30,6 +29,181 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { areaSchema } from "../../addArea/validation";
+
+export function AddArea({ onAreaCreated = () => {} }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [formData, setFormData] = useState({
+    areaName: "",
+    shortCode: "",
+    pincode: "",
+  });
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === "shortCode" ? value.toUpperCase() : value,
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setLoading(true);
+    setErrors({});
+
+    const result = areaSchema.safeParse(formData);
+
+    if (!result.success) {
+      const fieldErrors = {};
+      result.error.errors.forEach((err) => {
+        fieldErrors[err.path[0]] = err.message;
+      });
+      setErrors(fieldErrors);
+      setLoading(false);
+
+      toast.error("Please fill in all required fields correctly.", {
+        description: "Validation failed",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/area", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.message || "Failed to create area");
+      }
+
+      const data = await response.json();
+      toast.success(`${data.areaName} has been successfully added.`, {
+        description: "Area created",
+      });
+      onAreaCreated(data);
+
+      setFormData({ areaName: "", shortCode: "", pincode: "" });
+      setOpen(false);
+    } catch (err) {
+      toast.error("Failed to save area", {
+        description: err.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isMounted) {
+    return (
+      <Button variant="default" type="button" disabled>
+        + Create New Area
+      </Button>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="default" type="button">
+          + Create New Area
+        </Button>
+      </DialogTrigger>
+
+      <DialogContent className="max-w-[90vw] sm:max-w-[450px] w-full">
+        <DialogHeader>
+          <DialogTitle>Create New Area</DialogTitle>
+          <DialogDescription>
+            Add a new service area to organize customers and repayments.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="areaName">Area Name</Label>
+              <Input
+                id="areaName"
+                name="areaName"
+                value={formData.areaName}
+                onChange={handleChange}
+                placeholder="Eg: Gandhipuram"
+                disabled={loading}
+                className={errors.areaName ? "border-red-500" : ""}
+              />
+              {errors.areaName && (
+                <p className="text-red-500 text-xs">{errors.areaName}</p>
+              )}
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="shortCode">Short Code</Label>
+              <Input
+                id="shortCode"
+                name="shortCode"
+                value={formData.shortCode}
+                onChange={handleChange}
+                placeholder="Eg: GPM"
+                maxLength={5}
+                disabled={loading}
+                className={errors.shortCode ? "border-red-500" : ""}
+              />
+              {errors.shortCode && (
+                <p className="text-red-500 text-xs">{errors.shortCode}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="pincode">Pincode</Label>
+            <Input
+              id="pincode"
+              name="pincode"
+              value={formData.pincode}
+              onChange={handleChange}
+              placeholder="Eg: 641012"
+              disabled={loading}
+              className={errors.pincode ? "border-red-500" : ""}
+            />
+            {errors.pincode && (
+              <p className="text-red-500 text-xs">{errors.pincode}</p>
+            )}
+          </div>
+
+          <Button type="submit" className="mt-2 w-full" disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {loading ? "Saving..." : "Save Area"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const StepOneForm = ({
   form,
@@ -41,7 +215,6 @@ const StepOneForm = ({
   const [areas, setAreas] = useState([]);
   const [open, setOpen] = useState(false);
 
-  // Create refs for all file inputs
   const photoInputRef = useRef(null);
   const aadharInputRef = useRef(null);
   const incomeInputRef = useRef(null);
@@ -60,7 +233,6 @@ const StepOneForm = ({
     fetchAreas();
   }, []);
 
-  // Auto-generate customer code when area changes
   useEffect(() => {
     const generateCustomerCode = async () => {
       const selectedArea = areas.find((a) => a.id === form.area);
@@ -87,27 +259,21 @@ const StepOneForm = ({
     if (form.area && areas.length > 0) {
       generateCustomerCode();
     }
-  }, [form.area, areas]);
+  }, [form.area, areas, onChange]);
 
-  // ✅ Safe error lookup
   const getError = (name) =>
     (errors || []).find((e) => e?.path?.[0] === name)?.message;
 
-  // Function to handle file removal
   const handleRemoveFile = (inputRef, fileKey, isImage = false) => {
-    // 1. Clear the file input value using the ref
     if (inputRef.current) {
       inputRef.current.value = "";
     }
-    // 2. Clear the preview if it's an image
     if (isImage) {
       setPhotoPreview(null);
     }
-    // 3. Clear the file from the form state
     onChange({ target: { name: fileKey, value: null } });
   };
 
-  // icon mapping for inputs
   const fieldIcons = {
     customerName: <User size={18} />,
     spouseName: <User size={18} />,
@@ -122,7 +288,7 @@ const StepOneForm = ({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         {[
           ["Customer Name", "customerName"],
           ["Spouse Name", "spouseName"],
@@ -149,7 +315,7 @@ const StepOneForm = ({
               <input
                 id={name}
                 name={name}
-                value={form[name]}
+                value={form[name] || ""}
                 onChange={onChange}
                 type={props.type || "text"}
                 inputMode={props.inputMode}
@@ -167,12 +333,11 @@ const StepOneForm = ({
           </div>
         ))}
 
-        {/* Gender */}
-        <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">
+        <div className="space-y-1">
+          <label className="block text-sm font-medium text-gray-700">
             Gender
           </label>
-          <div className="flex gap-6">
+          <div className="flex gap-4 sm:gap-6">
             {["Male", "Female"].map((g) => (
               <label key={g} className="flex items-center gap-2">
                 <input
@@ -192,7 +357,6 @@ const StepOneForm = ({
         </div>
       </div>
 
-      {/* Area Dropdown with Search */}
       <div className="space-y-1">
         <label
           htmlFor="area"
@@ -200,7 +364,7 @@ const StepOneForm = ({
         >
           Area
         </label>
-        <div className="flex gap-2 w-[450px]">
+        <div className="flex flex-col sm:flex-row gap-2 w-full max-w-[90vw] sm:max-w-[450px]">
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <Button
@@ -217,7 +381,7 @@ const StepOneForm = ({
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[300px] p-0">
+            <PopoverContent className="w-full sm:w-[300px] p-0">
               <Command>
                 <CommandInput placeholder="Search area..." />
                 <CommandList>
@@ -247,7 +411,6 @@ const StepOneForm = ({
             </PopoverContent>
           </Popover>
 
-          {/* Add Area button */}
           <AddArea
             onAreaCreated={(newArea) => {
               setAreas((prev) => [...prev, newArea]);
@@ -260,34 +423,31 @@ const StepOneForm = ({
         )}
       </div>
 
-      {/* Address */}
-      <div>
+      <div className="space-y-1">
         <label
           htmlFor="address"
-          className="block mb-1 text-sm font-medium text-gray-700"
+          className="block text-sm font-medium text-gray-700"
         >
           Address
         </label>
         <textarea
           id="address"
           name="address"
-          value={form.address}
+          value={form.address || ""}
           onChange={onChange}
           rows="3"
-          className={`w-full px-3 py-2 border ${
+          className={`w-full max-w-[90vw] sm:max-w-[450px] px-3 py-2 border ${
             getError("address") ? "border-red-500" : "border-gray-300"
           } rounded-md shadow-sm focus:border-blue-600 focus:outline-none resize-none`}
         ></textarea>
         {getError("address") && (
-          <p className="text-sm text-red-500 mt-1">* {getError("address")}</p>
+          <p className="text-xs text-red-500">* {getError("address")}</p>
         )}
       </div>
 
-      {/* Uploads */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Photo Upload - Supports all image types */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
         <div
-          className="border-2 border-dashed p-6 rounded-md text-center hover:border-blue-500"
+          className="border-2 border-dashed p-4 sm:p-6 rounded-md text-center hover:border-blue-500"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
@@ -340,7 +500,6 @@ const StepOneForm = ({
           )}
         </div>
 
-        {/* Document Uploads - Supports all file types */}
         {[
           { key: "aadharDocument", label: "Aadhar", ref: aadharInputRef },
           { key: "incomeProof", label: "Income Proof", ref: incomeInputRef },
@@ -352,7 +511,7 @@ const StepOneForm = ({
         ].map(({ key, label, ref }) => (
           <div
             key={key}
-            className="border-2 border-dashed p-6 rounded-md text-center hover:border-blue-500"
+            className="border-2 border-dashed p-4 sm:p-6 rounded-md text-center hover:border-blue-500"
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
@@ -406,7 +565,6 @@ const StepOneForm = ({
         ))}
       </div>
 
-      {/* Submit */}
       <div className="text-right">
         <button
           type="submit"

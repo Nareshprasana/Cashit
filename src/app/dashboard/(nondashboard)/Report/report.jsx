@@ -1,6 +1,3 @@
-/* -----------------------------------------------------------------
-   src/app/dashboard/(nondashboard)/Report/report.jsx
------------------------------------------------------------------ */
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
@@ -122,6 +119,7 @@ export default function ReportPage() {
         params.append("areaId", selectedArea);
       if (fromDate) params.append("fromDate", fromDate);
       if (toDate) params.append("toDate", toDate);
+      if (searchQuery.trim()) params.append("search", searchQuery.trim());
 
       const res = await fetch(`/api/customers?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch customers");
@@ -142,24 +140,9 @@ export default function ReportPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* --------------------- CLIENT-SIDE FILTERING --------------------- */
-  const filteredCustomers = useMemo(() => {
-    if (!searchQuery.trim()) return customers;
-
-    const query = searchQuery.toLowerCase().trim();
-    return customers.filter(customer => 
-      customer.name?.toLowerCase().includes(query) ||
-      customer.mobile?.includes(query) ||
-      customer.customerCode?.toLowerCase().includes(query) ||
-      customer.address?.toLowerCase().includes(query)
-    );
-  }, [customers, searchQuery]);
-
   /* --------------------- HANDLERS --------------------- */
   const handleSearch = () => {
-    // Client-side filtering is automatic via useMemo
-    // Just reset to first page when searching
-    setCurrentPage(1);
+    fetchCustomers();
   };
 
   const handleReset = () => {
@@ -256,10 +239,10 @@ export default function ReportPage() {
   };
 
   /* ---------------------- PAGINATION ---------------------- */
-  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+  const totalPages = Math.ceil(customers.length / itemsPerPage);
   const startIdx = (currentPage - 1) * itemsPerPage;
   const endIdx = startIdx + itemsPerPage;
-  const currentCustomers = filteredCustomers.slice(startIdx, endIdx);
+  const currentCustomers = customers.slice(startIdx, endIdx);
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
@@ -394,12 +377,7 @@ export default function ReportPage() {
         </div>
         <Badge variant="outline" className="px-3 py-1.5 gap-1.5">
           <FileText className="h-4 w-4" />
-          {filteredCustomers.length} customer{filteredCustomers.length !== 1 ? "s" : ""}
-          {searchQuery && (
-            <span className="text-blue-600 ml-1">
-              (filtered from {customers.length})
-            </span>
-          )}
+          {customers.length} customer{customers.length !== 1 ? "s" : ""}
         </Badge>
       </div>
 
@@ -512,14 +490,9 @@ export default function ReportPage() {
                 Customer List
               </CardTitle>
               <CardDescription>
-                Showing {Math.min(filteredCustomers.length, itemsPerPage)} of{" "}
-                {filteredCustomers.length} customer
-                {filteredCustomers.length !== 1 ? "s" : ""}
-                {searchQuery && (
-                  <span className="text-blue-600 ml-1">
-                    (from {customers.length} total)
-                  </span>
-                )}
+                Showing {Math.min(customers.length, itemsPerPage)} of{" "}
+                {customers.length} customer
+                {customers.length !== 1 ? "s" : ""}
               </CardDescription>
             </div>
 
@@ -570,7 +543,7 @@ export default function ReportPage() {
                 </div>
               ))}
             </div>
-          ) : filteredCustomers.length > 0 ? (
+          ) : customers.length > 0 ? (
             <>
               {/* ---- TABLE ---- */}
               <div className="rounded-lg border overflow-hidden mb-4">
@@ -696,7 +669,7 @@ export default function ReportPage() {
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">
                   <div className="text-sm text-gray-600">
                     Showing {startIdx + 1} to{" "}
-                    {Math.min(endIdx, filteredCustomers.length)} of {filteredCustomers.length}{" "}
+                    {Math.min(endIdx, customers.length)} of {customers.length}{" "}
                     entries
                   </div>
 
@@ -734,13 +707,10 @@ export default function ReportPage() {
             <div className="text-center py-12 border rounded-lg">
               <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-1">
-                {customers.length === 0 ? "No customers found" : "No matching customers found"}
+                No customers found
               </h3>
               <p className="text-gray-500 max-w-md mx-auto">
-                {customers.length === 0 
-                  ? "Try adjusting your filters to find what you're looking for."
-                  : "No customers match your search criteria. Try different search terms."
-                }
+                Try adjusting your filters to find what you're looking for.
               </p>
             </div>
           )}

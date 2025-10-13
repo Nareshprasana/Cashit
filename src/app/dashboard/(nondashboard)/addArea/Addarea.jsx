@@ -1,4 +1,4 @@
-// Updated AddArea to store data into DB using API call
+// AddArea.jsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -29,7 +29,6 @@ export function AddArea({ onAreaCreated = () => {} }) {
   });
   const [errors, setErrors] = useState({});
 
-  // Set isMounted to true after component mounts on client
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -38,7 +37,7 @@ export function AddArea({ onAreaCreated = () => {} }) {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "shortCode" ? value.toUpperCase() : value, // auto-uppercase shortCode
+      [name]: name === "shortCode" ? value.toUpperCase() : value,
     }));
   };
 
@@ -95,7 +94,6 @@ export function AddArea({ onAreaCreated = () => {} }) {
     }
   };
 
-  // Don't render the dialog during SSR to avoid hydration mismatch
   if (!isMounted) {
     return (
       <Button variant="default" type="button" disabled>
@@ -112,7 +110,7 @@ export function AddArea({ onAreaCreated = () => {} }) {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-[450px]">
+      <DialogContent className="max-w-[90vw] sm:max-w-[450px] w-full">
         <DialogHeader>
           <DialogTitle>Create New Area</DialogTitle>
           <DialogDescription>
@@ -121,7 +119,6 @@ export function AddArea({ onAreaCreated = () => {} }) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-          {/* Area Name + Short Code in grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="areaName">Area Name</Label>
@@ -157,7 +154,6 @@ export function AddArea({ onAreaCreated = () => {} }) {
             </div>
           </div>
 
-          {/* Pincode full width */}
           <div className="grid gap-2">
             <Label htmlFor="pincode">Pincode</Label>
             <Input
