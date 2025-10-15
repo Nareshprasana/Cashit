@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 
 export const authOptions = {
   adapter: PrismaAdapter(prisma),
+
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -18,7 +19,7 @@ export const authOptions = {
 
         if (!user) throw new Error("No user found with this email");
 
-        // Simple password check (replace with bcrypt if you use hashing)
+        // ⚠️ Replace with bcrypt compare() if you hash passwords
         if (credentials.password !== user.password) {
           throw new Error("Invalid password");
         }
@@ -27,9 +28,29 @@ export const authOptions = {
       },
     }),
   ],
-  session: { strategy: "jwt" },
+
+  session: {
+    strategy: "jwt", // use JWT session
+    maxAge: 30 * 60, // ⏳ 30 minutes session expiry
+    updateAge: 5 * 60, // refresh JWT every 5 minutes when active
+  },
+
+  callbacks: {
+    async jwt({ token, user }) {
+      // attach user data on first login
+      if (user) token.user = user;
+      return token;
+    },
+    async session({ session, token }) {
+      // make user data available in session
+      session.user = token.user;
+      return session;
+    },
+  },
+
   pages: {
     signIn: "/login",
   },
+
   secret: process.env.NEXTAUTH_SECRET,
 };

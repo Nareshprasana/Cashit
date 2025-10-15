@@ -85,12 +85,6 @@ export function AppSidebar({ ...props }) {
     {
       title: "REPAYMENT & DUE",
       links: [
-        // {
-        //   name: "Repayment",
-        //   url: "/dashboard/repayments",
-        //   icon: FaCoins,
-        //   roles: ["ADMIN", "AGENT"],
-        // },
         {
           name: "Add Repayment",
           url: "/dashboard/repayment",

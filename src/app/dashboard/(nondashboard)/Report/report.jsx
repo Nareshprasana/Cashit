@@ -72,9 +72,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-/* ==============================================================
-   MAIN COMPONENT
-================================================================ */
 export default function ReportPage() {
   /* ------------------------ STATE ------------------------ */
   const [areas, setAreas] = useState([]);
@@ -83,28 +80,33 @@ export default function ReportPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-
+  const [loanStatus, setLoanStatus] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [repayments, setRepayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [customerLoading, setCustomerLoading] = useState(false);
-
-  // Pagination state for the **customers** table
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [filterError, setFilterError] = useState(null);
 
   /* --------------------- FETCH AREAS --------------------- */
   useEffect(() => {
     const fetchAreas = async () => {
       try {
         const res = await fetch("/api/area");
-        if (!res.ok) throw new Error("Failed to fetch areas");
+        if (!res.ok) throw new Error(`Failed to fetch areas: ${res.statusText}`);
         const data = await res.json();
+        if (!Array.isArray(data)) {
+          console.error("Expected array for areas, got:", data);
+          setAreas([]);
+          return;
+        }
         setAreas(data);
       } catch (error) {
-        console.error("Failed to load areas", error);
+        console.error("Failed to load areas:", error);
+        setAreas([]);
       }
     };
     fetchAreas();
@@ -114,30 +116,68 @@ export default function ReportPage() {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
+      setFilterError(null);
       const params = new URLSearchParams();
-      if (selectedArea && selectedArea !== "all")
+      if (selectedArea && selectedArea !== "all") {
         params.append("areaId", selectedArea);
-      if (fromDate) params.append("fromDate", fromDate);
-      if (toDate) params.append("toDate", toDate);
-      if (searchQuery.trim()) params.append("search", searchQuery.trim());
+      }
+      if (fromDate) {
+        params.append("fromDate", fromDate);
+      }
+      if (toDate) {
+        params.append("toDate", toDate);
+      }
+      if (searchQuery.trim()) {
+        params.append("search", searchQuery.trim());
+      }
+      if (loanStatus !== "all") {
+        const mappedStatus = loanStatus.toUpperCase();
+        params.append("loanStatus", mappedStatus);
+      }
+
+      console.log("Fetching customers with query:", params.toString());
 
       const res = await fetch(`/api/customers?${params.toString()}`);
-      if (!res.ok) throw new Error("Failed to fetch customers");
+      if (!res.ok) {
+        throw new Error(`Failed to fetch customers: ${res.status} ${res.statusText}`);
+      }
       const data = await res.json();
-      setCustomers(data);
+      console.log("Received customers:", data);
+
+      if (!Array.isArray(data)) {
+        console.error("Expected an array of customers, got:", data);
+        setFilterError("Invalid response from server. Please try again.");
+        setCustomers([]);
+        return;
+      }
+
+      // Client-side fallback filter for loanStatus in case backend fails
+      let filteredCustomers = data;
+      if (loanStatus !== "all") {
+        filteredCustomers = data.filter((customer) => {
+          if (loanStatus === "active") {
+            return customer.pendingAmount > 0;
+          } else if (loanStatus === "closed") {
+            return customer.pendingAmount <= 0;
+          }
+          return true; // For "all" or unexpected loanStatus
+        });
+      }
+
+      setCustomers(filteredCustomers);
       setCurrentPage(1);
     } catch (error) {
-      console.error("Failed to load customers", error);
+      console.error("Failed to load customers:", error);
+      setFilterError("Failed to load customers. Please check your connection or try again.");
       setCustomers([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Load customers on first render
+  // Initial fetch only
   useEffect(() => {
     fetchCustomers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* --------------------- HANDLERS --------------------- */
@@ -150,7 +190,9 @@ export default function ReportPage() {
     setFromDate("");
     setToDate("");
     setSearchQuery("");
+    setLoanStatus("all");
     setCurrentPage(1);
+    setFilterError(null);
     fetchCustomers();
   };
 
@@ -161,9 +203,7 @@ export default function ReportPage() {
     try {
       const [qrData, repaymentsRes] = await Promise.all([
         QRCode.toDataURL(customer.customerCode),
-        fetch(`/api/repayments?customerId=${customer.id}`).then((r) =>
-          r.json()
-        ),
+        fetch(`/api/repayments?customerId=${customer.id}`).then((r) => r.json()),
       ]);
       setQrCodeUrl(qrData);
       setRepayments(Array.isArray(repaymentsRes) ? repaymentsRes : []);
@@ -189,8 +229,7 @@ export default function ReportPage() {
   }, [repayments, fromDate, toDate]);
 
   const totalRepaidAmount = useMemo(
-    () =>
-      filteredRepayments.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+    () => filteredRepayments.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
     [filteredRepayments]
   );
 
@@ -228,9 +267,7 @@ export default function ReportPage() {
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Statement_${safeName}_${
-      new Date().toISOString().split("T")[0]
-    }.csv`;
+    a.download = `Statement_${safeName}_${new Date().toISOString().split("T")[0]}.csv`;
     a.style.display = "none";
     document.body.appendChild(a);
     a.click();
@@ -298,7 +335,6 @@ export default function ReportPage() {
         );
       }
     } else {
-      // first page
       items.push(
         <PaginationItem key={1}>
           <PaginationLink
@@ -310,7 +346,6 @@ export default function ReportPage() {
         </PaginationItem>
       );
 
-      // left ellipsis
       if (currentPage > 3) {
         items.push(
           <PaginationItem key="ellipsis-start">
@@ -319,7 +354,6 @@ export default function ReportPage() {
         );
       }
 
-      // neighbours
       const start = Math.max(2, currentPage - 1);
       const end = Math.min(totalPages - 1, currentPage + 1);
       for (let i = start; i <= end; i++) {
@@ -337,7 +371,6 @@ export default function ReportPage() {
         }
       }
 
-      // right ellipsis
       if (currentPage < totalPages - 2) {
         items.push(
           <PaginationItem key="ellipsis-end">
@@ -346,7 +379,6 @@ export default function ReportPage() {
         );
       }
 
-      // last page
       items.push(
         <PaginationItem key={totalPages}>
           <PaginationLink
@@ -415,6 +447,9 @@ export default function ReportPage() {
         </CardHeader>
 
         <CardContent>
+          {filterError && (
+            <div className="text-red-600 text-sm mb-4">{filterError}</div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {/* ---- SEARCH ---- */}
             <div className="md:col-span-2">
@@ -445,6 +480,21 @@ export default function ReportPage() {
                       {area.areaName}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* ---- LOAN STATUS ---- */}
+            <div>
+              <Label className="mb-1.5 block">Loan Status</Label>
+              <Select value={loanStatus} onValueChange={setLoanStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -491,16 +541,12 @@ export default function ReportPage() {
               </CardTitle>
               <CardDescription>
                 Showing {Math.min(customers.length, itemsPerPage)} of{" "}
-                {customers.length} customer
-                {customers.length !== 1 ? "s" : ""}
+                {customers.length} customer{customers.length !== 1 ? "s" : ""}
               </CardDescription>
             </div>
 
             <div className="flex items-center gap-2">
-              <Label
-                htmlFor="itemsPerPage"
-                className="text-sm whitespace-nowrap"
-              >
+              <Label htmlFor="itemsPerPage" className="text-sm whitespace-nowrap">
                 Rows per page:
               </Label>
               <Select
@@ -545,25 +591,20 @@ export default function ReportPage() {
             </div>
           ) : customers.length > 0 ? (
             <>
-              {/* ---- TABLE ---- */}
               <div className="rounded-lg border overflow-hidden mb-4">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      {[
-                        "Customer",
-                        "Contact",
-                        "Loan Details",
-                        "Status",
-                        "Actions",
-                      ].map((header) => (
-                        <th
-                          key={header}
-                          className="text-left p-3 text-sm font-medium text-gray-700"
-                        >
-                          {header}
-                        </th>
-                      ))}
+                      {["Customer", "Contact", "Loan Details", "Status", "Actions"].map(
+                        (header) => (
+                          <th
+                            key={header}
+                            className="text-left p-3 text-sm font-medium text-gray-700"
+                          >
+                            {header}
+                          </th>
+                        )
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -572,7 +613,6 @@ export default function ReportPage() {
                         key={customer.id}
                         className="hover:bg-gray-50/50 transition-colors"
                       >
-                        {/* ---- CUSTOMER ---- */}
                         <td className="p-3">
                           <div className="flex items-center gap-3">
                             {customer.photoUrl ? (
@@ -597,8 +637,6 @@ export default function ReportPage() {
                             </div>
                           </div>
                         </td>
-
-                        {/* ---- CONTACT ---- */}
                         <td className="p-3">
                           <div className="text-sm">
                             <div className="flex items-center gap-1">
@@ -608,15 +646,11 @@ export default function ReportPage() {
                             {customer.address && (
                               <div className="text-gray-500 mt-1 flex items-start gap-1">
                                 <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                                <span className="line-clamp-1">
-                                  {customer.address}
-                                </span>
+                                <span className="line-clamp-1">{customer.address}</span>
                               </div>
                             )}
                           </div>
                         </td>
-
-                        {/* ---- LOAN DETAILS ---- */}
                         <td className="p-3">
                           <div className="grid gap-1 text-sm">
                             <div className="flex items-center gap-1">
@@ -640,19 +674,12 @@ export default function ReportPage() {
                             </div>
                           </div>
                         </td>
-
-                        {/* ---- STATUS ---- */}
                         <td className="p-3">{getStatusBadge(customer)}</td>
-
-                        {/* ---- ACTIONS ---- */}
                         <td className="p-3">
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation(); // keep row from also firing
-                              handleRowClick(customer);
-                            }}
+                            onClick={() => handleRowClick(customer)}
                           >
                             <Eye className="h-4 w-4 mr-1" />
                             View
@@ -663,31 +690,23 @@ export default function ReportPage() {
                   </tbody>
                 </table>
               </div>
-
-              {/* ---- PAGINATION ---- */}
               {totalPages > 1 && (
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">
                   <div className="text-sm text-gray-600">
-                    Showing {startIdx + 1} to{" "}
-                    {Math.min(endIdx, customers.length)} of {customers.length}{" "}
-                    entries
+                    Showing {startIdx + 1} to {Math.min(endIdx, customers.length)} of{" "}
+                    {customers.length} entries
                   </div>
-
                   <Pagination>
                     <PaginationContent>
                       <PaginationItem>
                         <PaginationPrevious
                           onClick={() => handlePageChange(currentPage - 1)}
                           className={
-                            currentPage === 1
-                              ? "pointer-events-none opacity-50"
-                              : "cursor-pointer"
+                            currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"
                           }
                         />
                       </PaginationItem>
-
                       {getPaginationItems()}
-
                       <PaginationItem>
                         <PaginationNext
                           onClick={() => handlePageChange(currentPage + 1)}
@@ -729,8 +748,6 @@ export default function ReportPage() {
               Complete information for {selectedCustomer?.name}
             </DialogDescription>
           </DialogHeader>
-
-          {/* ---------- LOADING ---------- */}
           {customerLoading ? (
             <div className="space-y-4 py-6">
               <div className="flex items-center gap-4">
@@ -749,11 +766,8 @@ export default function ReportPage() {
                 <TabsTrigger value="details">Customer Details</TabsTrigger>
                 <TabsTrigger value="repayments">Repayment History</TabsTrigger>
               </TabsList>
-
-              {/* --------------------- DETAILS TAB --------------------- */}
               <TabsContent value="details" className="space-y-6 pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* LEFT – PHOTO & QR */}
                   <div className="flex flex-col items-center gap-4">
                     {selectedCustomer.photoUrl ? (
                       <img
@@ -769,7 +783,6 @@ export default function ReportPage() {
                         <User className="h-10 w-10 text-gray-400" />
                       </div>
                     )}
-
                     {qrCodeUrl ? (
                       <div className="border rounded-lg p-3 shadow-sm">
                         <img
@@ -786,14 +799,11 @@ export default function ReportPage() {
                         <QrCode className="h-8 w-8 mb-1" />
                       </div>
                     )}
-
                     <div className="flex flex-col gap-2 w-full">
                       <Button
                         variant="secondary"
                         onClick={() => {
-                          navigator.clipboard.writeText(
-                            selectedCustomer.customerCode
-                          );
+                          navigator.clipboard.writeText(selectedCustomer.customerCode);
                         }}
                         className="flex items-center gap-2"
                       >
@@ -809,8 +819,6 @@ export default function ReportPage() {
                       </Button>
                     </div>
                   </div>
-
-                  {/* RIGHT – INFORMATION */}
                   <div className="md:col-span-2 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
@@ -820,7 +828,6 @@ export default function ReportPage() {
                         </Label>
                         <p className="font-medium">{selectedCustomer.name}</p>
                       </div>
-
                       <div className="space-y-1">
                         <Label className="text-sm text-muted-foreground flex items-center gap-2">
                           <Phone className="h-4 w-4" />
@@ -828,40 +835,31 @@ export default function ReportPage() {
                         </Label>
                         <p className="font-medium">{selectedCustomer.mobile}</p>
                       </div>
-
                       <div className="space-y-1">
                         <Label className="text-sm text-muted-foreground flex items-center gap-2">
                           <IdCard className="h-4 w-4" />
                           Aadhar
                         </Label>
-                        <p className="font-medium">
-                          {selectedCustomer.aadhar || "Not provided"}
-                        </p>
+                        <p className="font-medium">{selectedCustomer.aadhar || "Not provided"}</p>
                       </div>
-
                       <div className="space-y-1">
                         <Label className="text-sm text-muted-foreground flex items-center gap-2">
                           <MapPin className="h-4 w-4" />
                           Area
                         </Label>
                         <p className="font-medium">
-                          {areas.find((a) => a.id === selectedCustomer.areaId)
-                            ?.areaName || "Not specified"}
+                          {areas.find((a) => a.id === selectedCustomer.areaId)?.areaName ||
+                            "Not specified"}
                         </p>
                       </div>
-
                       <div className="space-y-1 md:col-span-2">
                         <Label className="text-sm text-muted-foreground flex items-center gap-2">
                           <Home className="h-4 w-4" />
                           Address
                         </Label>
-                        <p className="font-medium">
-                          {selectedCustomer.address || "Not provided"}
-                        </p>
+                        <p className="font-medium">{selectedCustomer.address || "Not provided"}</p>
                       </div>
                     </div>
-
-                    {/* ----- LOAN INFO ----- */}
                     <div className="border-t pt-4">
                       <h3 className="font-semibold mb-3 flex items-center gap-2">
                         <CreditCard className="h-4 w-4" />
@@ -870,44 +868,32 @@ export default function ReportPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="text-center p-3 bg-blue-50 rounded-lg">
                           <p className="text-sm text-blue-700">Loan Amount</p>
-                          <p className="font-bold text-lg">
-                            {formatCurrency(selectedCustomer.loanAmount)}
-                          </p>
+                          <p className="font-bold text-lg">{formatCurrency(selectedCustomer.loanAmount)}</p>
                         </div>
                         <div className="text-center p-3 bg-green-50 rounded-lg">
                           <p className="text-sm text-green-700">Amount Paid</p>
-                          <p className="font-bold text-lg">
-                            {formatCurrency(selectedCustomer.totalPaid)}
-                          </p>
+                          <p className="font-bold text-lg">{formatCurrency(selectedCustomer.totalPaid)}</p>
                         </div>
                         <div className="text-center p-3 bg-amber-50 rounded-lg">
                           <p className="text-sm text-amber-700">Pending</p>
-                          <p className="font-bold text-lg">
-                            {formatCurrency(selectedCustomer.pendingAmount)}
-                          </p>
+                          <p className="font-bold text-lg">{formatCurrency(selectedCustomer.pendingAmount)}</p>
                         </div>
                         <div className="text-center p-3 bg-gray-50 rounded-lg">
                           <p className="text-sm text-gray-700">Status</p>
-                          <div className="mt-1">
-                            {getStatusBadge(selectedCustomer)}
-                          </div>
+                          <div className="mt-1">{getStatusBadge(selectedCustomer)}</div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </TabsContent>
-
-              {/* ------------------ REPAYMENT TAB ------------------ */}
               <TabsContent value="repayments" className="pt-4">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-semibold">Repayment History</h3>
                   <Badge variant="outline">
-                    {filteredRepayments.length} repayment
-                    {filteredRepayments.length !== 1 ? "s" : ""}
+                    {filteredRepayments.length} repayment{filteredRepayments.length !== 1 ? "s" : ""}
                   </Badge>
                 </div>
-
                 {filteredRepayments.length === 0 ? (
                   <div className="text-center py-8 border rounded-lg">
                     <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
@@ -929,26 +915,17 @@ export default function ReportPage() {
                         {filteredRepayments.map((repayment) => (
                           <tr key={repayment.id} className="hover:bg-gray-50">
                             <td className="p-3">
-                              {repayment.dueDate
-                                ? new Date(
-                                    repayment.dueDate
-                                  ).toLocaleDateString()
-                                : "—"}
+                              {repayment.date ? new Date(repayment.date).toLocaleDateString() : "—"}
                             </td>
                             <td className="p-3 font-medium">
                               {formatCurrency(repayment.amount || 0)}
                             </td>
-                            <td className="p-3 text-gray-600">
-                              {repayment.note || "—"}
-                            </td>
+                            <td className="p-3 text-gray-600">{repayment.note || "—"}</td>
                           </tr>
                         ))}
-                        {/* ---- TOTAL ROW ---- */}
                         <tr className="bg-gray-50 font-semibold">
                           <td className="p-3">Total</td>
-                          <td className="p-3">
-                            {formatCurrency(totalRepaidAmount)}
-                          </td>
+                          <td className="p-3">{formatCurrency(totalRepaidAmount)}</td>
                           <td className="p-3"></td>
                         </tr>
                       </tbody>
@@ -962,7 +939,6 @@ export default function ReportPage() {
               No customer selected.
             </div>
           )}
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Close

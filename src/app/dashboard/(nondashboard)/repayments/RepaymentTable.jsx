@@ -85,45 +85,47 @@ const isOverdue = (dueDate, pendingAmount) => {
 
 const getStatusBadge = (repayment, allRepayments) => {
   const pendingAmount = getPendingAmount(repayment, allRepayments);
-  const status = repayment.status || "PENDING"; // Default to PENDING if status is undefined
-
+  const status = repayment.status || "PENDING";
   let effectiveStatus = status;
 
-  // If pending amount is 0, mark as PAID
   if (pendingAmount <= 0) {
     effectiveStatus = "PAID";
-  }
-  // Only mark as OVERDUE if due date is in the past and pending amount > 0
-  else if (isOverdue(repayment.dueDate, pendingAmount)) {
+  } else if (isOverdue(repayment.dueDate, pendingAmount)) {
     effectiveStatus = "OVERDUE";
   }
-  // Otherwise, respect the repayment's status (e.g., PENDING for future due dates)
 
-  switch (effectiveStatus) {
-    case "PAID":
-      return (
-        <Badge className="bg-green-100 text-green-800 hover:bg-green-100 flex items-center gap-1 py-1">
-          <BadgeCheck className="h-3 w-3" /> Paid
-        </Badge>
-      );
-    case "PENDING":
-      return (
-        <Badge
-          variant="outline"
-          className="text-amber-600 border-amber-300 flex items-center gap-1 py-1"
-        >
-          <Clock className="h-3 w-3" /> Pending
-        </Badge>
-      );
-    case "OVERDUE":
-      return (
-        <Badge variant="destructive" className="flex items-center gap-1 py-1">
-          <AlertCircle className="h-3 w-3" /> Overdue
-        </Badge>
-      );
-    default:
-      return <Badge variant="outline">{effectiveStatus}</Badge>;
-  }
+  const tooltipContent = {
+    PAID: `Repayment completed. Total paid: ${formatCurrency(getTotalPaidAmount(repayment, allRepayments))}.`,
+    PENDING: `Repayment due on ${formatDate(repayment.dueDate)}. Pending: ${formatCurrency(pendingAmount)}.`,
+    OVERDUE: `Repayment overdue since ${formatDate(repayment.dueDate)}. Pending: ${formatCurrency(pendingAmount)}.`,
+  };
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            className={`flex items-center gap-1 py-1 ${
+              effectiveStatus === "PAID"
+                ? "bg-green-100 text-green-800 hover:bg-green-100"
+                : effectiveStatus === "OVERDUE"
+                ? "bg-red-100 text-red-800 hover:bg-red-100"
+                : "text-amber-600 border-amber-300"
+            }`}
+            variant={effectiveStatus === "PENDING" ? "outline" : undefined}
+          >
+            {effectiveStatus === "PAID" && <BadgeCheck className="h-3 w-3" />}
+            {effectiveStatus === "PENDING" && <Clock className="h-3 w-3" />}
+            {effectiveStatus === "OVERDUE" && <AlertCircle className="h-3 w-3" />}
+            {effectiveStatus}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{tooltipContent[effectiveStatus] || "Status information unavailable."}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 };
 
 const getPaymentMethodBadge = (paymentMethod) => {
@@ -133,22 +135,27 @@ const getPaymentMethodBadge = (paymentMethod) => {
     CASH: {
       label: "Cash",
       className: "bg-green-100 text-green-800 border-green-200",
+      tooltip: "Payment made in cash.",
     },
     UPI: {
       label: "UPI",
       className: "bg-purple-100 text-purple-800 border-purple-200",
+      tooltip: "Payment made via UPI transaction.",
     },
     BANK_TRANSFER: {
       label: "Bank Transfer",
       className: "bg-blue-100 text-blue-800 border-blue-200",
+      tooltip: "Payment made through bank transfer.",
     },
     CHEQUE: {
       label: "Cheque",
       className: "bg-orange-100 text-orange-800 border-orange-200",
+      tooltip: "Payment made via cheque.",
     },
     OTHER: {
       label: "Other",
       className: "bg-gray-100 text-gray-800 border-gray-200",
+      tooltip: "Payment made through other methods.",
     },
   };
 
@@ -156,12 +163,22 @@ const getPaymentMethodBadge = (paymentMethod) => {
     methodConfig[paymentMethod] || {
       label: paymentMethod,
       className: "bg-gray-100 text-gray-800 border-gray-200",
+      tooltip: "Payment method not specified.",
     };
 
   return (
-    <Badge variant="outline" className={`text-xs ${config.className}`}>
-      {config.label}
-    </Badge>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="outline" className={`text-xs ${config.className}`}>
+            {config.label}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{config.tooltip}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 
@@ -184,18 +201,15 @@ const formatDate = (dateString) =>
 
 const calculateTotalPaid = (repayment, allRepayments) => {
   if (!repayment?.loanId) return 0;
-
   const loanRepayments = allRepayments.filter((r) => r.loanId === repayment.loanId);
   return loanRepayments.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
 };
 
 const getPendingAmount = (repayment, allRepayments = []) => {
   if (!repayment?.loanId) return 0;
-
   const loanRepayments = allRepayments
     .filter((r) => r.loanId === repayment.loanId)
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-
   const loanAmount = getLoanAmount(repayment);
   let runningBalance = loanAmount;
 
@@ -229,27 +243,20 @@ const getTotalPaidAmount = (repayment, allRepayments) => {
 /* ================= Calculate Due Date from Loan Tenure ================= */
 const calculateDueDate = (loan, repaymentCount = 1, repaymentIndex = 0) => {
   if (!loan?.createdAt || !loan?.tenure) return "";
-  
   const createdAt = new Date(loan.createdAt);
   const tenureMonths = Number(loan.tenure) || 1;
-  
-  // For simplicity, assume single repayment covers full tenure
-  // For multiple repayments, divide tenure into equal intervals
   const interval = tenureMonths / Math.max(1, repaymentCount);
   const dueDate = new Date(createdAt);
   dueDate.setMonth(createdAt.getMonth() + interval * (repaymentIndex + 1));
-  
-  // Format as YYYY-MM-DD
   return dueDate.toISOString().split("T")[0];
 };
 
 const getRepaymentsWithBusinessRules = (repayments) => {
   const repaymentsByCustomer = {};
-  
-  repayments.forEach(repayment => {
+
+  repayments.forEach((repayment) => {
     const customerCode = getCustomerData(repayment).customerCode;
     if (!customerCode || customerCode === "N/A") return;
-    
     if (!repaymentsByCustomer[customerCode]) {
       repaymentsByCustomer[customerCode] = [];
     }
@@ -257,18 +264,20 @@ const getRepaymentsWithBusinessRules = (repayments) => {
   });
 
   const repaymentsToShow = [];
-  
-  Object.values(repaymentsByCustomer).forEach(customerRepayments => {
-    const hasActiveLoan = customerRepayments.some(repayment => {
+
+  Object.values(repaymentsByCustomer).forEach((customerRepayments) => {
+    const hasActiveLoan = customerRepayments.some((repayment) => {
       const pendingAmount = getPendingAmount(repayment, repayments);
       return pendingAmount > 0;
     });
 
     if (hasActiveLoan) {
-      repaymentsToShow.push(...customerRepayments.filter(repayment => {
-        const pendingAmount = getPendingAmount(repayment, repayments);
-        return pendingAmount > 0;
-      }));
+      repaymentsToShow.push(
+        ...customerRepayments.filter((repayment) => {
+          const pendingAmount = getPendingAmount(repayment, repayments);
+          return pendingAmount > 0;
+        })
+      );
     } else {
       repaymentsToShow.push(...customerRepayments);
     }
@@ -295,7 +304,6 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
     formData.customerId ? loan.customerId === formData.customerId : true
   );
 
-  // Update due date when loan is selected
   useEffect(() => {
     if (formData.loanId) {
       const selectedLoan = loans.find((loan) => loan.id === formData.loanId);
@@ -323,7 +331,6 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!validateForm()) return;
 
     setLoading(true);
@@ -337,10 +344,9 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to create repayment");
+      if (!res.ok) throw new Error(`Failed to create repayment: ${res.statusText}`);
 
       const newRepayment = await res.json();
-
       if (onCreated) onCreated(newRepayment);
       if (onClose) onClose();
 
@@ -354,8 +360,8 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
         paymentMethod: "CASH",
       });
     } catch (err) {
-      console.error(err);
-      alert("Error creating repayment");
+      console.error("Error creating repayment:", err);
+      alert("Error creating repayment. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -522,13 +528,13 @@ function DeleteConfirmationDialog({ repayment, onDelete, onClose }) {
         method: "DELETE",
       });
 
-      if (!res.ok) throw new Error("Failed to delete repayment");
+      if (!res.ok) throw new Error(`Failed to delete repayment: ${res.statusText}`);
 
       if (onDelete) onDelete(repayment.id);
       if (onClose) onClose();
     } catch (err) {
-      console.error(err);
-      alert("Error deleting repayment");
+      console.error("Error deleting repayment:", err);
+      alert("Error deleting repayment. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -573,14 +579,13 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
   const [value, setValue] = useState(repayment.amount);
   const [loading, setLoading] = useState(false);
 
+  const loanAmount = getLoanAmount(repayment);
+
   const saveChange = async () => {
     if (Number(value) <= 0) {
       alert("Amount must be greater than 0");
       return;
     }
-
-    const loanAmount = getLoanAmount(repayment);
-
     if (Number(value) > loanAmount) {
       alert(`Amount cannot exceed loan amount of ₹${loanAmount.toLocaleString()}`);
       return;
@@ -594,13 +599,14 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
         body: JSON.stringify({ amount: Number(value) }),
       });
 
-      if (!res.ok) throw new Error("Failed to update repayment");
+      if (!res.ok) throw new Error(`Failed to update repayment: ${res.statusText}`);
 
       const updatedRepayment = await res.json();
       setEditing(false);
       if (onUpdate) onUpdate(updatedRepayment);
     } catch (err) {
-      alert("Error updating repayment");
+      console.error("Error updating repayment:", err);
+      alert("Error updating repayment. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -628,7 +634,7 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
           className="w-28 h-8 text-sm pl-7"
           autoFocus
           min="0"
-          max={getLoanAmount(repayment)}
+          max={loanAmount}
         />
       </div>
       <Button size="sm" className="h-7 px-2" onClick={saveChange} disabled={loading}>
@@ -651,9 +657,12 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
           </div>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Click to edit amount</p>
+          <p>Click to edit repayment amount.</p>
           <p className="text-xs text-gray-500">
-            Loan Amount: ₹{getLoanAmount(repayment).toLocaleString()}
+            Loan Amount: ₹{loanAmount.toLocaleString()}
+          </p>
+          <p className="text-xs text-gray-500">
+            Pending: ₹{getPendingAmount(repayment, allRepayments).toLocaleString()}
           </p>
         </TooltipContent>
       </Tooltip>
@@ -664,7 +673,9 @@ function EditableAmount({ repayment, onUpdate, allRepayments }) {
 /* ================= Edit Repayment Form ================= */
 function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments, loans }) {
   const selectedLoan = loans.find((loan) => loan.id === repayment.loanId);
-  const calculatedDueDate = selectedLoan ? calculateDueDate(selectedLoan) : repayment.dueDate?.split("T")[0] || "";
+  const calculatedDueDate = selectedLoan
+    ? calculateDueDate(selectedLoan)
+    : repayment.dueDate?.split("T")[0] || "";
 
   const [formData, setFormData] = useState({
     amount: repayment.amount || 0,
@@ -699,7 +710,6 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments, loans 
       alert("Amount must be greater than 0");
       return;
     }
-
     if (Number(formData.amount) > loanAmount) {
       alert(`Amount cannot exceed loan amount of ₹${loanAmount.toLocaleString()}`);
       return;
@@ -719,14 +729,14 @@ function EditRepaymentForm({ repayment, onUpdate, onClose, allRepayments, loans 
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to update repayment");
+      if (!res.ok) throw new Error(`Failed to update repayment: ${res.statusText}`);
 
       const updatedRepayment = await res.json();
       if (onUpdate) onUpdate(updatedRepayment);
       if (onClose) onClose();
     } catch (err) {
-      console.error(err);
-      alert("Error updating repayment");
+      console.error("Error updating repayment:", err);
+      alert("Error updating repayment. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -907,7 +917,22 @@ function ActionButtons({ repayment, onUpdate, onDelete, allRepayments, loans }) 
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Due Date</Label>
-                <p className="text-sm font-medium">{formatDate(repayment.dueDate)}</p>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <p className="text-sm font-medium">
+                        {formatDate(repayment.dueDate)}
+                      </p>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        {isOverdue(repayment.dueDate, pendingAmount)
+                          ? "This repayment is overdue."
+                          : `Due on ${formatDate(repayment.dueDate)}.`}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
 
@@ -987,7 +1012,7 @@ function ActionButtons({ repayment, onUpdate, onDelete, allRepayments, loans }) 
             Edit Repayment
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem 
+          <DropdownMenuItem
             onClick={() => setDeleteDialogOpen(true)}
             className="text-red-600 focus:text-red-600 focus:bg-red-50"
           >
@@ -1098,7 +1123,7 @@ function SimpleTable({ columns, data }) {
               <th
                 key={column.accessorKey || column.id}
                 className="h-12 px-4 text-left align-middle font-medium text-gray-500"
-                style={{ width: column.width || 'auto' }}
+                style={{ width: column.width || "auto" }}
               >
                 {typeof column.header === "function" ? column.header() : column.header}
               </th>
@@ -1113,7 +1138,7 @@ function SimpleTable({ columns, data }) {
                   <td
                     key={column.accessorKey || column.id}
                     className="p-4 align-middle"
-                    style={{ width: column.width || 'auto' }}
+                    style={{ width: column.width || "auto" }}
                   >
                     {column.cell
                       ? column.cell({ row: { original: row } })
@@ -1177,8 +1202,13 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
       console.log("All repayments count:", repayments.length);
       console.log("Filtered repayments count:", filtered.length);
       console.log("Repayments with business rules count:", repaymentsWithBusinessRules.length);
+      currentItems.forEach((item, index) => {
+        const pendingAmount = getPendingAmount(item, repayments);
+        const status = pendingAmount <= 0 ? "PAID" : isOverdue(item.dueDate, pendingAmount) ? "OVERDUE" : "PENDING";
+        console.log(`Repayment ${index + 1}: ID=${item.id}, Status=${status}, Pending=${pendingAmount}, DueDate=${item.dueDate}`);
+      });
     }
-  }, [currentItems.length, repayments.length, filtered.length, repaymentsWithBusinessRules.length]);
+  }, [currentItems, repayments, repaymentsWithBusinessRules.length]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1191,7 +1221,6 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-
       const [repaymentsRes, customersRes, loansRes] = await Promise.all([
         propRepayments.length === 0
           ? fetch("/api/repayments")
@@ -1210,11 +1239,8 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
         console.log("First repayment structure:", repaymentsData[0]);
         console.log("Repayment keys:", Object.keys(repaymentsData[0]));
       }
+      console.log("Customers API response:", customersData);
       console.log("Loans API response:", loansData);
-      if (loansData.length > 0) {
-        console.log("First loan structure:", loansData[0]);
-        console.log("Loan keys:", Object.keys(loansData[0]));
-      }
       console.log("=== END DEBUG ===");
 
       if (propRepayments.length === 0) {
@@ -1225,6 +1251,7 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
       setLoans(loansData);
     } catch (error) {
       console.error("Failed to fetch data:", error);
+      alert("Failed to load data. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -1268,17 +1295,7 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
       setFiltered(propRepayments);
       setLoading(false);
     }
-  }, [propRepayments.length, fetchData]);
-
-  useEffect(() => {
-    if (propRepayments.length > 0) {
-      setFiltered(propRepayments);
-    }
-  }, [propRepayments]);
-
-  useEffect(() => {
-    setCurrentPage((prev) => (prev > totalPages ? 1 : prev));
-  }, [search, status, paymentMethod, fromDate, toDate, sortConfig.key, sortConfig.direction, urlFilters.area, urlFilters.customer, totalPages]);
+  }, [propRepayments, fetchData]);
 
   useEffect(() => {
     let data = [...repaymentsWithBusinessRules];
@@ -1352,17 +1369,17 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
 
     setFiltered(data);
   }, [
-    search, 
-    status, 
-    paymentMethod, 
-    fromDate, 
-    toDate, 
-    repaymentsWithBusinessRules, 
-    sortConfig.key, 
-    sortConfig.direction, 
-    urlFilters.area, 
+    search,
+    status,
+    paymentMethod,
+    fromDate,
+    toDate,
+    repaymentsWithBusinessRules,
+    sortConfig.key,
+    sortConfig.direction,
+    urlFilters.area,
     urlFilters.customer,
-    repayments
+    repayments,
   ]);
 
   const handleSort = useCallback((key) => {
@@ -1449,162 +1466,221 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
     document.body.removeChild(link);
   }, [filtered, repayments]);
 
-  const SortableHeader = useCallback(({ columnKey, children }) => (
-    <div
-      className="flex items-center cursor-pointer hover:text-blue-600 transition-colors"
-      onClick={() => handleSort(columnKey)}
-    >
-      {children}
-      {sortConfig.key === columnKey ? (
-        sortConfig.direction === "ascending" ? (
-          <ChevronUp className="h-4 w-4 ml-1" />
+  const SortableHeader = useCallback(
+    ({ columnKey, children }) => (
+      <div
+        className="flex items-center cursor-pointer hover:text-blue-600 transition-colors"
+        onClick={() => handleSort(columnKey)}
+      >
+        {children}
+        {sortConfig.key === columnKey ? (
+          sortConfig.direction === "ascending" ? (
+            <ChevronUp className="h-4 w-4 ml-1" />
+          ) : (
+            <ChevronDown className="h-4 w-4 ml-1" />
+          )
         ) : (
-          <ChevronDown className="h-4 w-4 ml-1" />
-        )
-      ) : (
-        <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />
-      )}
-    </div>
-  ), [handleSort, sortConfig.key, sortConfig.direction]);
+          <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />
+        )}
+      </div>
+    ),
+    [handleSort, sortConfig.key, sortConfig.direction]
+  );
 
-  const columns = useMemo(() => [
-    {
-      accessorKey: "customerCode",
-      header: () => <SortableHeader columnKey="customerCode">Customer ID</SortableHeader>,
-      cell: ({ row }) => {
-        const { customerCode } = getCustomerData(row.original);
-        return (
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-blue-100 rounded-full">
-              <User className="h-3.5 w-3.5 text-blue-700" />
-            </div>
-            <div>
-              <span className="font-medium text-sm block">{customerCode}</span>
-            </div>
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: "customerCode",
+        header: () => <SortableHeader columnKey="customerCode">Customer ID</SortableHeader>,
+        cell: ({ row }) => {
+          const { customerCode } = getCustomerData(row.original);
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-blue-100 rounded-full">
+                      <User className="h-3.5 w-3.5 text-blue-700" />
+                    </div>
+                    <span className="font-medium text-sm block">{customerCode}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Unique customer identifier.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        },
+        width: "150px",
+      },
+      {
+        accessorKey: "customerName",
+        header: () => <SortableHeader columnKey="customerName">Customer Name</SortableHeader>,
+        cell: ({ row }) => {
+          const { customerName } = getCustomerData(row.original);
+          return <span className="text-sm">{customerName}</span>;
+        },
+        width: "200px",
+      },
+      {
+        accessorKey: "loanAmount",
+        header: () => (
+          <div className="text-right">
+            <SortableHeader columnKey="loanAmount">Loan Amount</SortableHeader>
           </div>
-        );
+        ),
+        cell: ({ row }) => {
+          const loanAmount = getLoanAmount(row.original);
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="text-right font-semibold">
+                    <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
+                    {loanAmount.toLocaleString()}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Total loan amount for this repayment.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        },
+        width: "150px",
       },
-      width: "150px",
-    },
-    {
-      accessorKey: "customerName",
-      header: () => <SortableHeader columnKey="customerName">Customer Name</SortableHeader>,
-      cell: ({ row }) => {
-        const { customerName } = getCustomerData(row.original);
-        return <span className="text-sm">{customerName}</span>;
-      },
-      width: "200px",
-    },
-    {
-      accessorKey: "loanAmount",
-      header: () => (
-        <div className="text-right">
-          <SortableHeader columnKey="loanAmount">Loan Amount</SortableHeader>
-        </div>
-      ),
-      cell: ({ row }) => {
-        const loanAmount = getLoanAmount(row.original);
-        return (
-          <div className="text-right font-semibold">
-            <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
-            {loanAmount.toLocaleString()}
+      {
+        accessorKey: "amount",
+        header: () => (
+          <div className="text-right">
+            <SortableHeader columnKey="amount">This Repayment</SortableHeader>
           </div>
-        );
+        ),
+        cell: ({ row }) => (
+          <div className="text-right">
+            <EditableAmount
+              repayment={row.original}
+              onUpdate={updateRepaymentInState}
+              allRepayments={repayments}
+            />
+          </div>
+        ),
+        width: "150px",
       },
-      width: "150px",
-    },
-    {
-      accessorKey: "amount",
-      header: () => (
-        <div className="text-right">
-          <SortableHeader columnKey="amount">This Repayment</SortableHeader>
-        </div>
-      ),
-      cell: ({ row }) => (
-        <div className="text-right">
-          <EditableAmount
+      {
+        accessorKey: "totalPaid",
+        header: () => (
+          <div className="text-right">
+            <SortableHeader columnKey="totalPaid">Total Paid</SortableHeader>
+          </div>
+        ),
+        cell: ({ row }) => {
+          const totalPaid = getTotalPaidAmount(row.original, repayments);
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="text-right font-semibold text-green-600">
+                    <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
+                    {totalPaid.toLocaleString()}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Total amount paid for this loan across all repayments.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        },
+        width: "150px",
+      },
+      {
+        accessorKey: "pendingAmount",
+        header: () => (
+          <div className="text-right">
+            <SortableHeader columnKey="pendingAmount">Running Balance</SortableHeader>
+          </div>
+        ),
+        cell: ({ row }) => {
+          const pending = getPendingAmount(row.original, repayments);
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="text-right font-semibold text-red-600">
+                    <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
+                    {pending.toLocaleString()}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Remaining balance for this loan as of this repayment.</p>
+                  {isOverdue(row.original.dueDate, pending) && (
+                    <p className="text-red-600">Overdue since {formatDate(row.original.dueDate)}.</p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        },
+        width: "150px",
+      },
+      {
+        accessorKey: "dueDate",
+        header: () => <SortableHeader columnKey="dueDate">Due Date</SortableHeader>,
+        cell: ({ row }) => {
+          const pendingAmount = getPendingAmount(row.original, repayments);
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1 text-sm">
+                    <Calendar className="h-3.5 w-3.5 text-gray-500" />
+                    {formatDate(row.original.dueDate)}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>
+                    {isOverdue(row.original.dueDate, pendingAmount)
+                      ? "This repayment is overdue."
+                      : `Repayment due on ${formatDate(row.original.dueDate)}.`}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        },
+        width: "150px",
+      },
+      {
+        accessorKey: "paymentMethod",
+        header: "Payment Method",
+        cell: ({ row }) => getPaymentMethodBadge(row.original.paymentMethod),
+        width: "120px",
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => getStatusBadge(row.original, repayments),
+        width: "120px",
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <ActionButtons
             repayment={row.original}
             onUpdate={updateRepaymentInState}
+            onDelete={deleteRepaymentFromState}
             allRepayments={repayments}
+            loans={loans}
           />
-        </div>
-      ),
-      width: "150px",
-    },
-    {
-      accessorKey: "totalPaid",
-      header: () => (
-        <div className="text-right">
-          <SortableHeader columnKey="totalPaid">Total Paid</SortableHeader>
-        </div>
-      ),
-      cell: ({ row }) => {
-        const totalPaid = getTotalPaidAmount(row.original, repayments);
-        return (
-          <div className="text-right font-semibold text-green-600">
-            <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
-            {totalPaid.toLocaleString()}
-          </div>
-        );
+        ),
+        width: "80px",
       },
-      width: "150px",
-    },
-    {
-      accessorKey: "pendingAmount",
-      header: () => (
-        <div className="text-right">
-          <SortableHeader columnKey="pendingAmount">Running Balance</SortableHeader>
-        </div>
-      ),
-      cell: ({ row }) => {
-        const pending = getPendingAmount(row.original, repayments);
-        return (
-          <div className="text-right font-semibold text-red-600">
-            <IndianRupee className="h-3.5 w-3.5 inline mr-1" />
-            {pending.toLocaleString()}
-          </div>
-        );
-      },
-      width: "150px",
-    },
-    {
-      accessorKey: "dueDate",
-      header: () => <SortableHeader columnKey="dueDate">Due Date</SortableHeader>,
-      cell: ({ row }) => (
-        <div className="flex items-center gap-1 text-sm">
-          <Calendar className="h-3.5 w-3.5 text-gray-500" />
-          {formatDate(row.original.dueDate)}
-        </div>
-      ),
-      width: "150px",
-    },
-    {
-      accessorKey: "paymentMethod",
-      header: "Payment Method",
-      cell: ({ row }) => getPaymentMethodBadge(row.original.paymentMethod),
-      width: "120px",
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => getStatusBadge(row.original, repayments),
-      width: "120px",
-    },
-    {
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => (
-        <ActionButtons
-          repayment={row.original}
-          onUpdate={updateRepaymentInState}
-          onDelete={deleteRepaymentFromState}
-          allRepayments={repayments}
-          loans={loans}
-        />
-      ),
-      width: "80px",
-    },
-  ], [SortableHeader, updateRepaymentInState, deleteRepaymentFromState, repayments, loans]);
+    ],
+    [SortableHeader, updateRepaymentInState, deleteRepaymentFromState, repayments, loans]
+  );
 
   return (
     <div className="space-y-6 p-6 max-w-8xl mx-auto">
