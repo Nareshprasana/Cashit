@@ -1530,10 +1530,16 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-blue-100 rounded-full">
-                      <User className="h-3.5 w-3.5 text-blue-700" />
-                    </div>
-                    <span className="font-medium text-sm block">{customerCode}</span>
+                        <div className="h-8 w-8 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                          <img
+                            src={
+                              row.original.customer?.photoUrl || row.original.photoUrl || "/Avatars/profile-user.png"
+                            }
+                            alt={customerCode}
+                            className="object-cover w-full h-full"
+                          />
+                        </div>
+                        <span className="font-medium text-sm block">{customerCode}</span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
