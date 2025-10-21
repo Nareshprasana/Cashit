@@ -180,37 +180,38 @@ export async function GET(req) {
           return await prisma.customer.findMany({
             where: whereClause,
             select: {
-              id: true,
-              customerCode: true,
-              customerName: true,
-              aadhar: true,
-              photoUrl: true,
-              mobile: true, // Let it fail and we'll handle in transformation
-              dob: true,
-              gender: true,
-              spouseName: true,
-              parentName: true,
-              guarantorName: true,
-              guarantorAadhar: true,
-              address: true,
-              areaId: true,
-              qrUrl: true,
-              createdAt: true,
-              area: true,
-              loans: {
-                orderBy: { createdAt: "desc" },
-                take: 1,
-                include: {
-                  repayments: {
-                    select: {
-                      amount: true,
-                      repaymentDate: true,
-                      dueDate: true,
+                id: true,
+                customerCode: true,
+                customerName: true,
+                aadhar: true,
+                photoUrl: true,
+                // NOTE: intentionally NOT selecting `mobile` here to avoid Prisma
+                // conversion errors when the DB contains NULL values for mobile.
+                dob: true,
+                gender: true,
+                spouseName: true,
+                parentName: true,
+                guarantorName: true,
+                guarantorAadhar: true,
+                address: true,
+                areaId: true,
+                qrUrl: true,
+                createdAt: true,
+                area: true,
+                loans: {
+                  orderBy: { createdAt: "desc" },
+                  take: 1,
+                  include: {
+                    repayments: {
+                      select: {
+                        amount: true,
+                        repaymentDate: true,
+                        dueDate: true,
+                      },
                     },
                   },
                 },
               },
-            },
             orderBy: { createdAt: "desc" },
           });
         }
@@ -258,7 +259,10 @@ export async function GET(req) {
         name: customer.customerName,
         aadhar: customer.aadhar || "",
         photoUrl: customer.photoUrl,
-        mobile: customer.mobile || "Not Provided", // Safe fallback
+        // Mobile may not have been selected by Prisma (omitted above),
+        // so defensively coalesce from the object if present, otherwise
+        // provide a safe fallback string.
+        mobile: (customer && typeof customer.mobile !== 'undefined' && customer.mobile) ? customer.mobile : "Not Provided",
         dob: customer.dob ? customer.dob.toISOString() : null,
         gender: customer.gender,
         spouseName: customer.spouseName || "",

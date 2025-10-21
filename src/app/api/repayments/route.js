@@ -13,10 +13,19 @@ export async function GET(req) {
       include: {
         loan: {
           include: {
+            // Select customer fields explicitly and omit `mobile` to avoid
+            // Prisma conversion errors if mobile is NULL in the DB.
             customer: {
-              include: {
-                area: true
-              }
+              select: {
+                id: true,
+                customerCode: true,
+                customerName: true,
+                aadhar: true,
+                areaId: true,
+                photoUrl: true,
+                // do not select mobile here
+                area: true,
+              },
             },
             repayments: {
               select: { 
@@ -83,14 +92,16 @@ export async function GET(req) {
         createdAt: repayment.createdAt.toISOString(),
         status: status,
 
-        // Customer data
+        // Customer data (mobile intentionally omitted from DB selection; coalesce below if present)
         customer: {
           id: customer.id,
           customerCode: customer.customerCode,
           customerName: customer.customerName,
           aadhar: customer.aadhar,
           areaId: customer.areaId,
-          area: customer.area
+          area: customer.area,
+          mobile: (customer && typeof customer.mobile !== 'undefined' && customer.mobile) ? customer.mobile : "Not Provided",
+          photoUrl: customer.photoUrl
         },
 
         // Loan data
@@ -254,7 +265,9 @@ export async function POST(req) {
         customerName: customer.customerName,
         aadhar: customer.aadhar,
         areaId: customer.areaId,
-        area: customer.area
+        area: customer.area,
+        mobile: (customer && typeof customer.mobile !== 'undefined' && customer.mobile) ? customer.mobile : "Not Provided",
+        photoUrl: customer.photoUrl
       },
       loan: {
         id: loanData.id,
@@ -413,7 +426,9 @@ export async function PUT(req) {
         customerName: customer.customerName,
         aadhar: customer.aadhar,
         areaId: customer.areaId,
-        area: customer.area
+        area: customer.area,
+        mobile: (customer && typeof customer.mobile !== 'undefined' && customer.mobile) ? customer.mobile : "Not Provided",
+        photoUrl: customer.photoUrl
       },
       loan: {
         id: loanData.id,
@@ -554,7 +569,9 @@ export async function PATCH(req) {
         customerName: customer.customerName,
         aadhar: customer.aadhar,
         areaId: customer.areaId,
-        area: customer.area
+        area: customer.area,
+        mobile: (customer && typeof customer.mobile !== 'undefined' && customer.mobile) ? customer.mobile : "Not Provided",
+        photoUrl: customer.photoUrl
       },
       loan: {
         id: loanData.id,
