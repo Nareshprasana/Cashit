@@ -134,12 +134,15 @@ export async function GET(req) {
       where: customerId ? { customerId } : {},
       include: {
         customer: {
+          // Do not select `mobile` directly — some rows in the DB contain NULL which
+          // can cause Prisma to throw a conversion error if the schema expects a
+          // non-nullable string. We'll omit it here and coalesce safely when
+          // formatting the response below.
           select: {
             id: true,
             customerCode: true,
             customerName: true,
             aadhar: true,
-            mobile: true,
             photoUrl: true,
           },
         },
@@ -171,7 +174,8 @@ export async function GET(req) {
           name: loan.customer.customerName,
           customerCode: loan.customer.customerCode,
           aadhar: loan.customer.aadhar,
-          mobile: loan.customer.mobile,
+          // Coalesce mobile to empty string if missing/null to avoid leaking nulls.
+          mobile: (loan.customer && loan.customer.mobile) ? loan.customer.mobile : "",
           photoUrl: loan.customer.photoUrl,
         },
         amount: Number(loan.amount),
@@ -305,12 +309,12 @@ export async function POST(req) {
       },
       include: {
         customer: {
+          // Avoid selecting `mobile` directly (can be NULL in DB). We'll coalesce when formatting.
           select: {
             id: true,
             customerCode: true,
             customerName: true,
             aadhar: true,
-            mobile: true,
             photoUrl: true,
           },
         },
@@ -338,7 +342,7 @@ export async function POST(req) {
         name: loan.customer.customerName,
         customerCode: loan.customer.customerCode,
         aadhar: loan.customer.aadhar,
-        mobile: loan.customer.mobile,
+        mobile: (loan.customer && loan.customer.mobile) ? loan.customer.mobile : "",
         photoUrl: loan.customer.photoUrl,
       },
       amount: Number(loan.amount),
@@ -436,12 +440,12 @@ export async function PUT(req) {
         data: updateData,
         include: {
           customer: {
+            // Avoid selecting `mobile` directly here for the same reason as GET/POST
             select: {
               id: true,
               customerCode: true,
               customerName: true,
               aadhar: true,
-              mobile: true,
               photoUrl: true,
             },
           },
@@ -469,7 +473,7 @@ export async function PUT(req) {
           name: updatedLoan.customer.customerName,
           customerCode: updatedLoan.customer.customerCode,
           aadhar: updatedLoan.customer.aadhar,
-          mobile: updatedLoan.customer.mobile,
+          mobile: (updatedLoan.customer && updatedLoan.customer.mobile) ? updatedLoan.customer.mobile : "",
           photoUrl: updatedLoan.customer.photoUrl,
         },
         amount: Number(updatedLoan.amount),
