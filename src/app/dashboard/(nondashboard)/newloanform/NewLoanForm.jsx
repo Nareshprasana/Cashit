@@ -337,6 +337,17 @@ const NewLoanForm = ({ onCustomerSelect }) => {
         setPreviewUrl(null);
         setCustomers([]);
         setCustomerDetails(null);
+        // Notify other parts of the app that a loan was created so they can refresh
+        try {
+          const createdLoan = data && Object.keys(data).length ? data : null;
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("loan:created", { detail: createdLoan })
+            );
+          }
+        } catch (e) {
+          console.error("Failed to dispatch loan:created event", e);
+        }
       } else {
         toast.error(data.error || `Server error: ${res.status}`);
       }

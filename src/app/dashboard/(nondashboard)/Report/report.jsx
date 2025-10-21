@@ -206,7 +206,17 @@ export default function ReportPage() {
         fetch(`/api/repayments?customerId=${customer.id}`).then((r) => r.json()),
       ]);
       setQrCodeUrl(qrData);
-      setRepayments(Array.isArray(repaymentsRes) ? repaymentsRes : []);
+      // Normalize repayments to include a `date` field used by filtering/display
+      const normalized = Array.isArray(repaymentsRes)
+        ? repaymentsRes.map((rp) => {
+            // Prefer repaymentDate (actual payment), then dueDate, then createdAt
+            const date = rp.repaymentDate || rp.dueDate || rp.createdAt || null;
+            // Normalize note field (some responses use `note` or `notes`)
+            const note = rp.note ?? rp.notes ?? "";
+            return { ...rp, date, note };
+          })
+        : [];
+      setRepayments(normalized);
     } catch (err) {
       console.error("Error loading customer details:", err);
       setQrCodeUrl("");
@@ -216,21 +226,67 @@ export default function ReportPage() {
     }
   };
 
-  /* ----------------- FILTER REPAYMENTS BY DATE ----------------- */
-  const filteredRepayments = useMemo(() => {
-    if (!fromDate && !toDate) return repayments;
+  /* ----------------- SPLIT & FILTER REPAYMENTS ----------------- */
+  // Determine current loan id from repayments: prefer a loan with pendingAmount>0 or the most recent loanDate
+  const currentLoanId = useMemo(() => {
+    if (!repayments || repayments.length === 0) return null;
+    const loans = new Map();
+    repayments.forEach((r) => {
+      const l = r.loan || r.loanData || {};
+      if (l && l.id) loans.set(l.id, l);
+    });
+    // Prefer ACTIVE / pending loan
+    for (const [id, loan] of loans) {
+      if (loan.pendingAmount > 0 || (loan.status && loan.status === "ACTIVE")) {
+        return id;
+      }
+    }
+    // Fallback: pick loan with latest loanDate or createdAt
+    let latestId = null;
+    let latestTs = 0;
+    for (const [id, loan] of loans) {
+      const ts = new Date(loan.loanDate || loan.createdAt || 0).getTime();
+      if (!isNaN(ts) && ts > latestTs) {
+        latestTs = ts;
+        latestId = id;
+      }
+    }
+    return latestId;
+  }, [repayments]);
+
+  const filteredCurrentRepayments = useMemo(() => {
+    if (!currentLoanId) return [];
     return repayments.filter((r) => {
+      if (r.loanId !== currentLoanId) return false;
+      if (!fromDate && !toDate) return true;
       if (!r.date) return false;
       const d = new Date(r.date);
       if (fromDate && d < new Date(fromDate)) return false;
       if (toDate && d > new Date(toDate)) return false;
       return true;
     });
-  }, [repayments, fromDate, toDate]);
+  }, [repayments, currentLoanId, fromDate, toDate]);
 
-  const totalRepaidAmount = useMemo(
-    () => filteredRepayments.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
-    [filteredRepayments]
+  const filteredPreviousRepayments = useMemo(() => {
+    return repayments.filter((r) => {
+      if (currentLoanId && r.loanId === currentLoanId) return false;
+      if (!fromDate && !toDate) return true;
+      if (!r.date) return false;
+      const d = new Date(r.date);
+      if (fromDate && d < new Date(fromDate)) return false;
+      if (toDate && d > new Date(toDate)) return false;
+      return true;
+    });
+  }, [repayments, currentLoanId, fromDate, toDate]);
+
+  const totalCurrentRepaidAmount = useMemo(
+    () => filteredCurrentRepayments.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+    [filteredCurrentRepayments]
+  );
+
+  const totalPreviousRepaidAmount = useMemo(
+    () => filteredPreviousRepayments.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+    [filteredPreviousRepayments]
   );
 
   /* ----------------- DOWNLOAD STATEMENT ----------------- */
@@ -890,48 +946,89 @@ export default function ReportPage() {
               <TabsContent value="repayments" className="pt-4">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-semibold">Repayment History</h3>
-                  <Badge variant="outline">
-                    {filteredRepayments.length} repayment{filteredRepayments.length !== 1 ? "s" : ""}
-                  </Badge>
+                  <div className="flex gap-4 items-center">
+                    <Badge variant="outline">
+                      Current: {filteredCurrentRepayments.length} repayment{filteredCurrentRepayments.length !== 1 ? "s" : ""}
+                    </Badge>
+                    <Badge variant="outline">
+                      Previous: {filteredPreviousRepayments.length} repayment{filteredPreviousRepayments.length !== 1 ? "s" : ""}
+                    </Badge>
+                  </div>
                 </div>
-                {filteredRepayments.length === 0 ? (
-                  <div className="text-center py-8 border rounded-lg">
-                    <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">
-                      No repayment history found for the selected date range.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="text-left p-3 font-medium">Date</th>
-                          <th className="text-left p-3 font-medium">Amount</th>
-                          <th className="text-left p-3 font-medium">Note</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {filteredRepayments.map((repayment) => (
-                          <tr key={repayment.id} className="hover:bg-gray-50">
-                            <td className="p-3">
-                              {repayment.date ? new Date(repayment.date).toLocaleDateString() : "—"}
-                            </td>
-                            <td className="p-3 font-medium">
-                              {formatCurrency(repayment.amount || 0)}
-                            </td>
-                            <td className="p-3 text-gray-600">{repayment.note || "—"}</td>
+
+                {/* Current loan repayments */}
+                <div className="mb-6">
+                  <h4 className="font-medium mb-2">Current Loan Repayments</h4>
+                  {filteredCurrentRepayments.length === 0 ? (
+                    <div className="text-center py-6 border rounded-lg">
+                      <FileText className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500">No repayments for the current loan in the selected date range.</p>
+                    </div>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="text-left p-3 font-medium">Date</th>
+                            <th className="text-left p-3 font-medium">Amount</th>
+                            <th className="text-left p-3 font-medium">Note</th>
                           </tr>
-                        ))}
-                        <tr className="bg-gray-50 font-semibold">
-                          <td className="p-3">Total</td>
-                          <td className="p-3">{formatCurrency(totalRepaidAmount)}</td>
-                          <td className="p-3"></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                        </thead>
+                        <tbody className="divide-y">
+                          {filteredCurrentRepayments.map((repayment) => (
+                            <tr key={repayment.id} className="hover:bg-gray-50">
+                              <td className="p-3">{repayment.date ? new Date(repayment.date).toLocaleDateString() : "—"}</td>
+                              <td className="p-3 font-medium">{formatCurrency(repayment.amount || 0)}</td>
+                              <td className="p-3 text-gray-600">{repayment.note || "—"}</td>
+                            </tr>
+                          ))}
+                          <tr className="bg-gray-50 font-semibold">
+                            <td className="p-3">Total</td>
+                            <td className="p-3">{formatCurrency(totalCurrentRepaidAmount)}</td>
+                            <td className="p-3"></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Previous loans repayments */}
+                <div>
+                  <h4 className="font-medium mb-2">Previous Loans Repayments</h4>
+                  {filteredPreviousRepayments.length === 0 ? (
+                    <div className="text-center py-6 border rounded-lg">
+                      <FileText className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500">No repayments for previous loans in the selected date range.</p>
+                    </div>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="text-left p-3 font-medium">Date</th>
+                            <th className="text-left p-3 font-medium">Amount</th>
+                            <th className="text-left p-3 font-medium">Note</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {filteredPreviousRepayments.map((repayment) => (
+                            <tr key={repayment.id} className="hover:bg-gray-50">
+                              <td className="p-3">{repayment.date ? new Date(repayment.date).toLocaleDateString() : "—"}</td>
+                              <td className="p-3 font-medium">{formatCurrency(repayment.amount || 0)}</td>
+                              <td className="p-3 text-gray-600">{repayment.note || "—"}</td>
+                            </tr>
+                          ))}
+                          <tr className="bg-gray-50 font-semibold">
+                            <td className="p-3">Total</td>
+                            <td className="p-3">{formatCurrency(totalPreviousRepaidAmount)}</td>
+                            <td className="p-3"></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </TabsContent>
             </Tabs>
           ) : (

@@ -5,8 +5,8 @@ import { NextResponse } from "next/server";
 // ✅ GET /api/customers/[customerCode]
 export async function GET(req, { params }) {
   try {
-    // params is provided by Next.js router; no need to await it
-    const { customerCode } = params;
+    // `params` is async in the App Router — await it before accessing properties
+    const { customerCode } = await params;
 
     if (!customerCode) {
       return NextResponse.json(

@@ -287,7 +287,7 @@ const getRepaymentsWithBusinessRules = (repayments) => {
 };
 
 /* ================= Create Repayment Form ================= */
-function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] }) {
+function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [], onSelectionChange }) {
   const [formData, setFormData] = useState({
     loanId: "",
     customerId: "",
@@ -374,6 +374,12 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
       loanId: "",
       dueDate: "",
     }));
+    if (onSelectionChange) onSelectionChange({ customerId, loanId: "" });
+  };
+
+  const handleLoanChange = (loanId) => {
+    setFormData((prev) => ({ ...prev, loanId }));
+    if (onSelectionChange) onSelectionChange({ customerId: formData.customerId, loanId });
   };
 
   return (
@@ -402,7 +408,7 @@ function CreateRepaymentForm({ onCreated, onClose, customers = [], loans = [] })
           <Label htmlFor="loanId">Loan *</Label>
           <Select
             value={formData.loanId}
-            onValueChange={(value) => setFormData((prev) => ({ ...prev, loanId: value }))}
+            onValueChange={handleLoanChange}
             disabled={!formData.customerId}
           >
             <SelectTrigger className={errors.loanId ? "border-red-500" : ""}>
@@ -1257,18 +1263,39 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
     }
   }, [propRepayments.length]);
 
-  const updateRepaymentInState = useCallback((updatedRepayment) => {
-    if (propRepayments.length > 0) {
-      console.log("Repayment updated (prop mode):", updatedRepayment);
-    } else {
-      setInternalRepayments((prev) =>
-        prev.map((r) => (r.id === updatedRepayment.id ? updatedRepayment : r))
-      );
-    }
-    setFiltered((prev) =>
-      prev.map((r) => (r.id === updatedRepayment.id ? updatedRepayment : r))
-    );
-  }, [propRepayments.length]);
+  const normalizeRepayment = useCallback(
+    (raw) => {
+      if (!raw) return raw;
+      const normalized = {
+        ...raw,
+        id: raw.id?.toString() || raw.id,
+        amount: Number(raw.amount) || 0,
+        dueDate: raw.dueDate || raw.repaymentDate || raw.createdAt || "",
+        notes: raw.notes || raw.note || "",
+        paymentMethod: raw.paymentMethod || raw.payment_method || raw.payment || null,
+        status: raw.status || "PENDING",
+        customer: raw.customer || customers.find((c) => c.id === raw.customerId) || null,
+        loan: raw.loan || loans.find((l) => l.id === raw.loanId) || null,
+      };
+      return normalized;
+    },
+    [customers, loans]
+  );
+
+  const updateRepaymentInState = useCallback(
+    (updatedRepayment) => {
+      const normalized = normalizeRepayment(updatedRepayment);
+      if (propRepayments.length > 0) {
+        console.log("Repayment updated (prop mode):", normalized);
+      } else {
+        setInternalRepayments((prev) =>
+          prev.map((r) => (r.id === normalized.id ? normalized : r))
+        );
+      }
+      setFiltered((prev) => prev.map((r) => (r.id === normalized.id ? normalized : r)));
+    },
+    [propRepayments.length, normalizeRepayment]
+  );
 
   const deleteRepaymentFromState = useCallback((repaymentId) => {
     if (propRepayments.length > 0) {
@@ -1279,14 +1306,18 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
     setFiltered((prev) => prev.filter((r) => r.id !== repaymentId));
   }, [propRepayments.length]);
 
-  const addRepaymentToState = useCallback((newRepayment) => {
-    if (propRepayments.length > 0) {
-      console.log("Repayment added (prop mode):", newRepayment);
-    } else {
-      setInternalRepayments((prev) => [newRepayment, ...prev]);
-    }
-    setFiltered((prev) => [newRepayment, ...prev]);
-  }, [propRepayments.length]);
+  const addRepaymentToState = useCallback(
+    (newRepayment) => {
+      const normalized = normalizeRepayment(newRepayment);
+      if (propRepayments.length > 0) {
+        console.log("Repayment added (prop mode):", normalized);
+      } else {
+        setInternalRepayments((prev) => [normalized, ...prev]);
+      }
+      setFiltered((prev) => [normalized, ...prev]);
+    },
+    [propRepayments.length, normalizeRepayment]
+  );
 
   useEffect(() => {
     if (propRepayments.length === 0) {
@@ -1683,7 +1714,7 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
   );
 
   return (
-    <div className="space-y-6 p-6 max-w-8xl mx-auto">
+    <div className="space-y-6 p-6 max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">

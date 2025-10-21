@@ -793,6 +793,37 @@ export default function AllCustomerTable() {
     return [];
   };
 
+  // Enhanced function to get loans for display (only current and recent closed)
+  const getLoansForDisplay = (customer) => {
+    const allLoans = getLoansForCustomer(customer);
+    
+    if (allLoans.length === 0) return [];
+    
+    // Sort loans by date (newest first)
+    const sortedLoans = [...allLoans].sort(
+      (a, b) => new Date(b.loanDate || 0) - new Date(a.loanDate || 0)
+    );
+
+    // Get current loan (active/overdue)
+    const currentLoan = getCurrentLoan(sortedLoans);
+    
+    // Get recent completed/closed loans (max 1 recent closed loan)
+    const recentClosedLoans = sortedLoans
+      .filter(loan => {
+        const status = getLoanStatus(loan);
+        return (status === "COMPLETED" || status === "CLOSED") && 
+               loan.id !== currentLoan?.id;
+      })
+      .slice(0, 1); // Only take the most recent closed loan
+
+    // Combine current loan and recent closed loans
+    const displayLoans = [];
+    if (currentLoan) displayLoans.push(currentLoan);
+    displayLoans.push(...recentClosedLoans);
+
+    return displayLoans;
+  };
+
   // Refresh data function
   const refreshCustomerData = async () => {
     try {
@@ -918,6 +949,22 @@ export default function AllCustomerTable() {
   useEffect(() => {
     refreshCustomerData();
   }, []);
+
+  // Listen for loan creation events so we can refresh data without a full page reload
+  useEffect(() => {
+    const handler = (e) => {
+      console.log("loan:created event received", e?.detail);
+      refreshCustomerData();
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("loan:created", handler);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("loan:created", handler);
+      }
+    };
+  }, [refreshCustomerData]);
 
   useEffect(() => {
     if (!selectedCustomer?.customerCode) {
@@ -2672,25 +2719,19 @@ export default function AllCustomerTable() {
                       </CardContent>
                     </Card>
 
-                    {getLoansForCustomer(selectedCustomer)?.length > 0 && (
+                    {/* Fixed All Loans Section - Only shows current and recent closed loans */}
+                    {getLoansForDisplay(selectedCustomer)?.length > 0 && (
                       <Card>
                         <CardHeader>
-                          <CardTitle className="text-lg">All Loans</CardTitle>
+                          <CardTitle className="text-lg">Loan History</CardTitle>
                           <CardDescription>
                             {(() => {
-                              const customerLoansList =
-                                getLoansForCustomer(selectedCustomer);
+                              const customerLoansList = getLoansForCustomer(selectedCustomer);
+                              const displayLoans = getLoansForDisplay(selectedCustomer);
                               const total = customerLoansList.length;
-                              const activeCount = customerLoansList.filter(
-                                (loan) => getLoanStatus(loan) === "ACTIVE"
-                              ).length;
-                              const completedCount = customerLoansList.filter(
-                                (loan) => getLoanStatus(loan) === "COMPLETED"
-                              ).length;
-                              const overdueCount = customerLoansList.filter(
-                                (loan) => getLoanStatus(loan) === "OVERDUE"
-                              ).length;
-                              return `${total} loan(s) found - Active: ${activeCount}, Completed: ${completedCount}, Overdue: ${overdueCount}`;
+                              const displayCount = displayLoans.length;
+                              
+                              return `${displayCount} of ${total} loan(s) shown - Current and most recent closed loans`;
                             })()}
                             <TooltipProvider>
                               <Tooltip>
@@ -2713,39 +2754,28 @@ export default function AllCustomerTable() {
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-4">
-                            {(() => {
-                              const customerLoansList =
-                                getLoansForCustomer(selectedCustomer);
-                              const sortedLoans = [...customerLoansList].sort(
-                                (a, b) =>
-                                  new Date(b.loanDate || 0) -
-                                  new Date(a.loanDate || 0)
-                              );
-                              const toShow = sortedLoans.slice(0, 2);
-                              return toShow.map((loan, index) => {
-                                const uniqueKey = `${
-                                  loan.id
-                                }-${index}-${Date.now()}`;
+                            {getLoansForDisplay(selectedCustomer).map((loan, index) => {
+                              const uniqueKey = `${loan.id}-${index}`;
+                              const status = getLoanStatus(loan);
 
-                                return (
-                                  <LoanCard
-                                    key={uniqueKey}
-                                    loan={loan}
-                                    index={index}
-                                    status={getLoanStatus(loan)}
-                                    onEdit={initializeEditLoan}
-                                    onDelete={(loan) => {
-                                      setLoanToDelete(loan);
-                                      setDeleteLoanOpen(true);
-                                    }}
-                                    onUpload={(loan) => {
-                                      setSelectedLoan(loan);
-                                      openDocumentUpload("loanAgreement");
-                                    }}
-                                  />
-                                );
-                              });
-                            })()}
+                              return (
+                                <LoanCard
+                                  key={uniqueKey}
+                                  loan={loan}
+                                  index={index}
+                                  status={status}
+                                  onEdit={initializeEditLoan}
+                                  onDelete={(loan) => {
+                                    setLoanToDelete(loan);
+                                    setDeleteLoanOpen(true);
+                                  }}
+                                  onUpload={(loan) => {
+                                    setSelectedLoan(loan);
+                                    openDocumentUpload("loanAgreement");
+                                  }}
+                                />
+                              );
+                            })}
                           </div>
                         </CardContent>
                       </Card>
