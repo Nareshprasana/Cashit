@@ -46,12 +46,12 @@ model Area {
 
 model Customer {
   id                 String   @id @default(uuid())
-  customerName       String?
+  customerName       String
   spouseName         String?
   parentName         String?
-  mobile             String?
+  mobile             String
   dob                DateTime?
-  aadhar             String?    // This is correctly defined as optional
+  aadhar             String?
   gender             String?
   address            String?
   guarantorName      String?

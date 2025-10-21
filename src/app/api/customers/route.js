@@ -194,12 +194,12 @@ export async function GET(req) {
 
       return {
         id: customer.id,
-        customerCode: customer.customerCode,
+        customerCode: customer.customerCode || '',
         name: customer.customerName,
-        aadhar: customer.aadhar,
+        aadhar: customer.aadhar || '',
         photoUrl: customer.photoUrl,
-        mobile: customer.mobile,
-        dob: customer.dob,
+        mobile: customer.mobile || 'Not Provided',
+        dob: customer.dob ? customer.dob.toISOString() : null,
         gender: customer.gender,
         spouseName: customer.spouseName || "",
         parentName: customer.parentName || "",

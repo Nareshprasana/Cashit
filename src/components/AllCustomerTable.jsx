@@ -27,6 +27,7 @@ import {
   Trash2,
   Plus,
   RefreshCw,
+  Info,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -93,6 +94,13 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { Textarea } from "@/components/ui/textarea";
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import {
   Pagination,
@@ -242,25 +250,44 @@ const LoanCard = ({ loan, index, status, onEdit, onDelete, onUpload }) => {
         <div className="mt-3 pt-3 border-t">
           <Label className="text-xs text-gray-500">Loan Agreement</Label>
           <div className="flex gap-2 mt-1">
-            <Button variant="outline" size="sm" asChild>
-              <a
-                href={loan.documentUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1"
-              >
-                <Eye className="h-3 w-3" /> View
-              </a>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <a
-                href={loan.documentUrl}
-                download
-                className="flex items-center gap-1"
-              >
-                <Download className="h-3 w-3" /> Download
-              </a>
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" asChild>
+                    <a
+                      href={loan.documentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1"
+                    >
+                      <Eye className="h-3 w-3" /> View
+                    </a>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>View loan agreement document</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" asChild>
+                    <a
+                      href={loan.documentUrl}
+                      download
+                      className="flex items-center gap-1"
+                    >
+                      <Download className="h-3 w-3" /> Download
+                    </a>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Download loan agreement document</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       )}
@@ -1380,15 +1407,33 @@ export default function AllCustomerTable() {
       cell: ({ row }) => {
         const url = row.original.photoUrl;
         return url ? (
-          <img
-            src={url}
-            alt="Customer"
-            className="h-10 w-10 rounded-full object-cover border shadow-sm"
-          />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <img
+                  src={url}
+                  alt="Customer"
+                  className="h-10 w-10 rounded-full object-cover border shadow-sm"
+                />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Customer profile photo</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : (
-          <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center border">
-            <User className="h-5 w-5 text-gray-400" />
-          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center border">
+                  <User className="h-5 w-5 text-gray-400" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>No profile photo</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         );
       },
     },
@@ -1396,50 +1441,95 @@ export default function AllCustomerTable() {
       accessorKey: "customerCode",
       header: "Customer ID",
       cell: ({ row }) => (
-        <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded border">
-          {row.original.customerCode || "N/A"}
-        </span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="font-mono text-sm bg-blue-50 px-2 py-1 rounded border">
+                {row.original.customerCode || "N/A"}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Unique customer identifier</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ),
     },
     {
       accessorKey: "name",
       header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Name <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              >
+                Name <ArrowUpDown className="ml-2 h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Click to sort by name</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ),
       cell: ({ row }) => (
-        <span
-          className="cursor-pointer text-blue-600 hover:underline font-medium transition-colors"
-          onClick={() => {
-            setSelectedCustomer(row.original);
-            setDialogOpen(true);
-          }}
-        >
-          {row.original.name}
-        </span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className="cursor-pointer text-blue-600 hover:underline font-medium transition-colors"
+                onClick={() => {
+                  setSelectedCustomer(row.original);
+                  setDialogOpen(true);
+                }}
+              >
+                {row.original.name}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Click to view customer details</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ),
     },
     {
       accessorKey: "aadhar",
       header: "Aadhar",
       cell: ({ row }) => (
-        <span className="font-mono text-sm">
-          {row.original.aadhar || "N/A"}
-        </span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="font-mono text-sm">
+                {row.original.aadhar || "N/A"}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Aadhar identification number</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ),
     },
     {
       accessorKey: "area",
       header: "Area",
       cell: ({ row }) => (
-        <div className="flex items-center gap-1">
-          <MapPin className="h-3.5 w-3.5 text-gray-500" />
-          {row.original.area || "N/A"}
-        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5 text-gray-500" />
+                {row.original.area || "N/A"}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Customer's area/location</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ),
     },
     {
@@ -1451,9 +1541,18 @@ export default function AllCustomerTable() {
         // Handle customers with no loans
         if (customerLoansList.length === 0) {
           return (
-            <Badge variant="outline" className="text-gray-600">
-              No Loans
-            </Badge>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="text-gray-600">
+                    No Loans
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Customer has no active loans</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           );
         }
 
@@ -1469,30 +1568,66 @@ export default function AllCustomerTable() {
 
         if (hasOverdueLoan) {
           return (
-            <Badge variant="destructive" className="flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" />
-              Overdue
-            </Badge>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="destructive" className="flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Overdue
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Customer has overdue payments</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           );
         } else if (hasActiveLoan) {
           return (
-            <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
-              <CheckCircle className="h-3 w-3 mr-1" />
-              Active
-            </Badge>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Active
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Customer has active loans</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           );
         } else if (hasCompletedLoan) {
           return (
-            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200">
-              <CheckCircle className="h-3 w-3 mr-1" />
-              Completed
-            </Badge>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Completed
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>All loans are completed</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           );
         } else {
           return (
-            <Badge variant="outline" className="text-gray-600">
-              No Loans
-            </Badge>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="text-gray-600">
+                    No Loans
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Customer has no active loans</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           );
         }
       },
@@ -1501,9 +1636,18 @@ export default function AllCustomerTable() {
       accessorKey: "loanAmount",
       header: () => <div className="text-right">Loan Amount</div>,
       cell: ({ row }) => (
-        <div className="text-right font-medium">
-          ₹{Number(row.original.loanAmount ?? 0).toLocaleString("en-IN")}
-        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="text-right font-medium">
+                ₹{Number(row.original.loanAmount ?? 0).toLocaleString("en-IN")}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Total loan amount</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ),
     },
     {
@@ -1512,14 +1656,23 @@ export default function AllCustomerTable() {
       cell: ({ row }) => {
         const d = row.original.endDate;
         return d ? (
-          <div className="flex items-center gap-1">
-            <Calendar className="h-3.5 w-3.5 text-gray-500" />
-            {new Date(d).toLocaleDateString("en-IN", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })}
-          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-3.5 w-3.5 text-gray-500" />
+                  {new Date(d).toLocaleDateString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Loan end date</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : (
           "N/A"
         );
@@ -1535,12 +1688,30 @@ export default function AllCustomerTable() {
         if (!end) return "N/A";
         const diff = Math.floor((Date.now() - end) / (1000 * 60 * 60 * 24));
         return diff > 0 ? (
-          <Badge variant="destructive" className="flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            {diff} days
-          </Badge>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {diff} days
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Loan is overdue by {diff} days</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : (
-          <span className="text-green-600 text-xs font-medium">On time</span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-green-600 text-xs font-medium">On time</span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Loan payments are on schedule</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         );
       },
     },
@@ -1550,36 +1721,45 @@ export default function AllCustomerTable() {
       cell: ({ row }) => {
         const customer = row.original;
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => {
-                  setSelectedCustomer(customer);
-                  setDialogOpen(true);
-                }}
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                View Details
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-red-600"
-                onClick={() => {
-                  setSelectedCustomer(customer);
-                  setDeleteOpen(true);
-                }}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Customer
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="h-8 w-8 p-0">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setSelectedCustomer(customer);
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Details
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-red-600"
+                      onClick={() => {
+                        setSelectedCustomer(customer);
+                        setDeleteOpen(true);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Customer
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Customer actions menu</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         );
       },
     },
@@ -1786,25 +1966,53 @@ export default function AllCustomerTable() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="flex items-center gap-1">
-            <User className="h-4 w-4" />
-            {data.length} customer{data.length !== 1 && "s"}
-          </Badge>
-          <Badge variant="outline" className="flex items-center gap-1">
-            <CreditCard className="h-4 w-4" />
-            {filteredData.length} filtered
-          </Badge>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <User className="h-4 w-4" />
+                  {data.length} customer{data.length !== 1 && "s"}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Total number of customers in system</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <CreditCard className="h-4 w-4" />
+                  {filteredData.length} filtered
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Number of customers after applying filters</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           {/* Refresh Button */}
-          <Button
-            variant="outline"
-            onClick={refreshCustomerData}
-            disabled={loading}
-            className="flex items-center gap-1"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  onClick={refreshCustomerData}
+                  disabled={loading}
+                  className="flex items-center gap-1"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Refresh customer data from server</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
         </div>
       </div>
@@ -1818,37 +2026,56 @@ export default function AllCustomerTable() {
               <CardTitle className="text-lg">Filters</CardTitle>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-1"
-              >
-                {showFilters ? (
-                  <X className="h-4 w-4" />
-                ) : (
-                  <Filter className="h-4 w-4" />
-                )}
-                {showFilters ? "Hide" : "Show"} Filters
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowFilters(!showFilters)}
+                      className="flex items-center gap-1"
+                    >
+                      {showFilters ? (
+                        <X className="h-4 w-4" />
+                      ) : (
+                        <Filter className="h-4 w-4" />
+                      )}
+                      {showFilters ? "Hide" : "Show"} Filters
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{showFilters ? "Hide" : "Show"} advanced filters</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
               {(globalFilter ||
                 statusFilter ||
                 areaFilter ||
                 fromDate ||
                 toDate) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setGlobalFilter("");
-                    setStatusFilter("");
-                    setAreaFilter("");
-                    setFromDate("");
-                    setToDate("");
-                  }}
-                >
-                  Clear All
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setGlobalFilter("");
+                          setStatusFilter("");
+                          setAreaFilter("");
+                          setFromDate("");
+                          setToDate("");
+                        }}
+                      >
+                        Clear All
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Clear all active filters</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
           </div>
@@ -1993,31 +2220,49 @@ export default function AllCustomerTable() {
           <Pagination>
             <PaginationContent>
               <PaginationItem>
-                <PaginationPrevious
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setCurrentPage((p) => Math.max(1, p - 1));
-                  }}
-                  className={
-                    currentPage === 1 ? "pointer-events-none opacity-50" : ""
-                  }
-                />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setCurrentPage((p) => Math.max(1, p - 1));
+                        }}
+                        className={
+                          currentPage === 1 ? "pointer-events-none opacity-50" : ""
+                        }
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Go to previous page</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </PaginationItem>
               {renderPageWindow()}
               <PaginationItem>
-                <PaginationNext
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setCurrentPage((p) => Math.min(totalPages, p + 1));
-                  }}
-                  className={
-                    currentPage === totalPages
-                      ? "pointer-events-none opacity-50"
-                      : ""
-                  }
-                />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setCurrentPage((p) => Math.min(totalPages, p + 1));
+                        }}
+                        className={
+                          currentPage === totalPages
+                            ? "pointer-events-none opacity-50"
+                            : ""
+                        }
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Go to next page</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </PaginationItem>
             </PaginationContent>
           </Pagination>
@@ -2085,15 +2330,33 @@ export default function AllCustomerTable() {
                   <CardContent className="pt-6">
                     <div className="flex flex-col items-center gap-4">
                       {selectedCustomer.photoUrl ? (
-                        <img
-                          src={selectedCustomer.photoUrl}
-                          alt="customer"
-                          className="h-24 w-24 rounded-full object-cover border-4 border-gray-100 shadow-sm"
-                        />
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <img
+                                src={selectedCustomer.photoUrl}
+                                alt="customer"
+                                className="h-24 w-24 rounded-full object-cover border-4 border-gray-100 shadow-sm"
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Customer profile photo</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       ) : (
-                        <div className="h-24 w-24 rounded-full bg-gray-100 flex items-center justify-center border-4 border-gray-100">
-                          <User className="h-10 w-10 text-gray-400" />
-                        </div>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="h-24 w-24 rounded-full bg-gray-100 flex items-center justify-center border-4 border-gray-100">
+                                <User className="h-10 w-10 text-gray-400" />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>No profile photo uploaded</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
                       <div className="text-center">
                         <div className="font-bold text-lg">
@@ -2104,9 +2367,18 @@ export default function AllCustomerTable() {
                         </div>
                       </div>
                       {qrCodeUrl ? (
-                        <div className="p-2 bg-white border rounded-lg shadow-sm">
-                          <img src={qrCodeUrl} alt="QR" className="h-32 w-32" />
-                        </div>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="p-2 bg-white border rounded-lg shadow-sm">
+                                <img src={qrCodeUrl} alt="QR" className="h-32 w-32" />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Customer QR Code - Scan for quick access</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       ) : (
                         <div className="h-32 w-32 border rounded-lg flex items-center justify-center text-xs text-gray-500 bg-gray-50">
                           QR loading…
@@ -2122,46 +2394,95 @@ export default function AllCustomerTable() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={() =>
-                        navigator.clipboard.writeText(
-                          selectedCustomer.customerCode ?? ""
-                        )
-                      }
-                    >
-                      <FileText className="h-4 w-4 mr-2" /> Copy Customer ID
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={() => setEditOpen(true)}
-                    >
-                      <Edit className="h-4 w-4 mr-2" /> Edit Profile
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={initializeCreateLoan}
-                    >
-                      <Plus className="h-4 w-4 mr-2" /> Create Loan
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={handleDownloadQRCode}
-                      disabled={!qrCodeUrl}
-                    >
-                      <Download className="h-4 w-4 mr-2" /> Download QR Code
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={handleDownloadStatement}
-                    >
-                      <Download className="h-4 w-4 mr-2" /> Download Statement
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start"
+                            onClick={() =>
+                              navigator.clipboard.writeText(
+                                selectedCustomer.customerCode ?? ""
+                              )
+                            }
+                          >
+                            <FileText className="h-4 w-4 mr-2" /> Copy Customer ID
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Copy customer ID to clipboard</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start"
+                            onClick={() => setEditOpen(true)}
+                          >
+                            <Edit className="h-4 w-4 mr-2" /> Edit Profile
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Edit customer information</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start"
+                            onClick={initializeCreateLoan}
+                          >
+                            <Plus className="h-4 w-4 mr-2" /> Create Loan
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Create new loan for this customer</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start"
+                            onClick={handleDownloadQRCode}
+                            disabled={!qrCodeUrl}
+                          >
+                            <Download className="h-4 w-4 mr-2" /> Download QR Code
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Download customer QR code as PNG</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start"
+                            onClick={handleDownloadStatement}
+                          >
+                            <Download className="h-4 w-4 mr-2" /> Download Statement
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Download repayment history as CSV</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </CardContent>
                 </Card>
               </div>
@@ -2371,14 +2692,23 @@ export default function AllCustomerTable() {
                               ).length;
                               return `${total} loan(s) found - Active: ${activeCount}, Completed: ${completedCount}, Overdue: ${overdueCount}`;
                             })()}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="ml-2"
-                              onClick={initializeCreateLoan}
-                            >
-                              <Plus className="h-4 w-4 mr-1" /> Add Loan
-                            </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="ml-2"
+                                    onClick={initializeCreateLoan}
+                                  >
+                                    <Plus className="h-4 w-4 mr-1" /> Add Loan
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Create new loan for this customer</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -2517,13 +2847,22 @@ export default function AllCustomerTable() {
                       <CardContent>
                         <div className="flex justify-between items-center mb-4">
                           <div>
-                            <Button
-                              variant="outline"
-                              onClick={initializeCreateLoan}
-                              className="flex items-center gap-1"
-                            >
-                              <Plus className="h-4 w-4" /> Create New Loan
-                            </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    onClick={initializeCreateLoan}
+                                    className="flex items-center gap-1"
+                                  >
+                                    <Plus className="h-4 w-4" /> Create New Loan
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Create new loan agreement</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
                           <div className="text-sm text-gray-500">
                             {numberOfDocuments} document(s) total
@@ -2585,66 +2924,114 @@ export default function AllCustomerTable() {
                                 <td className="p-3">
                                   {selectedCustomer.photoUrl ? (
                                     <div className="flex flex-wrap gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={selectedCustomer.photoUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Eye className="h-4 w-4" /> View
-                                        </a>
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        asChild
-                                      >
-                                        <a
-                                          href={selectedCustomer.photoUrl}
-                                          download
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Download className="h-4 w-4" />{" "}
-                                          Download
-                                        </a>
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                          openDocumentUpload("photoUrl")
-                                        }
-                                        className="flex items-center gap-1"
-                                      >
-                                        <Pencil className="h-4 w-4" /> Modify
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                          openDocumentDelete("photoUrl")
-                                        }
-                                        className="flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                                      >
-                                        <Trash2 className="h-4 w-4" /> Delete
-                                      </Button>
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              asChild
+                                            >
+                                              <a
+                                                href={selectedCustomer.photoUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-1"
+                                              >
+                                                <Eye className="h-4 w-4" /> View
+                                              </a>
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>View profile photo</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              asChild
+                                            >
+                                              <a
+                                                href={selectedCustomer.photoUrl}
+                                                download
+                                                className="flex items-center gap-1"
+                                              >
+                                                <Download className="h-4 w-4" />{" "}
+                                                Download
+                                              </a>
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>Download profile photo</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() =>
+                                                openDocumentUpload("photoUrl")
+                                              }
+                                              className="flex items-center gap-1"
+                                            >
+                                              <Pencil className="h-4 w-4" /> Modify
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>Update profile photo</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() =>
+                                                openDocumentDelete("photoUrl")
+                                              }
+                                              className="flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                                            >
+                                              <Trash2 className="h-4 w-4" /> Delete
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>Delete profile photo</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
                                     </div>
                                   ) : (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() =>
-                                        openDocumentUpload("photoUrl")
-                                      }
-                                      className="flex items-center gap-1"
-                                    >
-                                      <Upload className="h-4 w-4" /> Upload
-                                    </Button>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              openDocumentUpload("photoUrl")
+                                            }
+                                            className="flex items-center gap-1"
+                                          >
+                                            <Upload className="h-4 w-4" /> Upload
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Upload profile photo</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
                                   )}
                                 </td>
                               </tr>
@@ -2704,71 +3091,119 @@ export default function AllCustomerTable() {
                                   <td className="p-3">
                                     {selectedCustomer[doc.field] ? (
                                       <div className="flex flex-wrap gap-2">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          asChild
-                                        >
-                                          <a
-                                            href={selectedCustomer[doc.field]}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-1"
-                                          >
-                                            <Eye className="h-4 w-4" />
-                                            {selectedCustomer[doc.field]
-                                              .toLowerCase()
-                                              .endsWith(".pdf")
-                                              ? "View PDF"
-                                              : "View"}
-                                          </a>
-                                        </Button>
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          asChild
-                                        >
-                                          <a
-                                            href={selectedCustomer[doc.field]}
-                                            download
-                                            className="flex items-center gap-1"
-                                          >
-                                            <Download className="h-4 w-4" />{" "}
-                                            Download
-                                          </a>
-                                        </Button>
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() =>
-                                            openDocumentUpload(doc.field)
-                                          }
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Pencil className="h-4 w-4" /> Modify
-                                        </Button>
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() =>
-                                            openDocumentDelete(doc.field)
-                                          }
-                                          className="flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                                        >
-                                          <Trash2 className="h-4 w-4" /> Delete
-                                        </Button>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                asChild
+                                              >
+                                                <a
+                                                  href={selectedCustomer[doc.field]}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="flex items-center gap-1"
+                                                >
+                                                  <Eye className="h-4 w-4" />
+                                                  {selectedCustomer[doc.field]
+                                                    .toLowerCase()
+                                                    .endsWith(".pdf")
+                                                    ? "View PDF"
+                                                    : "View"}
+                                                </a>
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p>View {doc.title.toLowerCase()}</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                asChild
+                                              >
+                                                <a
+                                                  href={selectedCustomer[doc.field]}
+                                                  download
+                                                  className="flex items-center gap-1"
+                                                >
+                                                  <Download className="h-4 w-4" />{" "}
+                                                  Download
+                                                </a>
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p>Download {doc.title.toLowerCase()}</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                  openDocumentUpload(doc.field)
+                                                }
+                                                className="flex items-center gap-1"
+                                              >
+                                                <Pencil className="h-4 w-4" /> Modify
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p>Update {doc.title.toLowerCase()}</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                  openDocumentDelete(doc.field)
+                                                }
+                                                className="flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                                              >
+                                                <Trash2 className="h-4 w-4" /> Delete
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p>Delete {doc.title.toLowerCase()}</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
                                       </div>
                                     ) : (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                          openDocumentUpload(doc.field)
-                                        }
-                                        className="flex items-center gap-1"
-                                      >
-                                        <Upload className="h-4 w-4" /> Upload
-                                      </Button>
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() =>
+                                                openDocumentUpload(doc.field)
+                                              }
+                                              className="flex items-center gap-1"
+                                            >
+                                              <Upload className="h-4 w-4" /> Upload
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>Upload {doc.title.toLowerCase()}</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
                                     )}
                                   </td>
                                 </tr>
@@ -2801,15 +3236,24 @@ export default function AllCustomerTable() {
                                         </span>
                                       </td>
                                       <td className="p-3">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={initializeCreateLoan}
-                                          className="flex items-center gap-1"
-                                        >
-                                          <Plus className="h-4 w-4" /> Create
-                                          Loan
-                                        </Button>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={initializeCreateLoan}
+                                                className="flex items-center gap-1"
+                                              >
+                                                <Plus className="h-4 w-4" /> Create
+                                                Loan
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p>Create first loan agreement</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
                                       </td>
                                     </tr>
                                   );
@@ -2888,105 +3332,173 @@ export default function AllCustomerTable() {
                                     <td className="p-3">
                                       {currentLoan.documentUrl ? (
                                         <div className="flex flex-wrap gap-2">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            asChild
-                                          >
-                                            <a
-                                              href={currentLoan.documentUrl}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="flex items-center gap-1"
-                                            >
-                                              <Eye className="h-4 w-4" />
-                                              {currentLoan.documentUrl
-                                                .toLowerCase()
-                                                .endsWith(".pdf, .doc, .docx, .jpg, .png, .jpeg")
-                                                ? "View Document"
-                                                : "View"}
-                                            </a>
-                                          </Button>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            asChild
-                                          >
-                                            <a
-                                              href={currentLoan.documentUrl}
-                                              download
-                                              className="flex items-center gap-1"
-                                            >
-                                              <Download className="h-4 w-4" />{" "}
-                                              Download
-                                            </a>
-                                          </Button>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => {
-                                              setSelectedLoan(currentLoan);
-                                              openDocumentUpload(
-                                                "loanAgreement"
-                                              );
-                                            }}
-                                            className="flex items-center gap-1"
-                                          >
-                                            <Pencil className="h-4 w-4" />{" "}
-                                            Modify
-                                          </Button>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                              handleDeleteLoanDocument(
-                                                currentLoan
-                                              )
-                                            }
-                                            className="flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                                          >
-                                            <Trash2 className="h-4 w-4" />{" "}
-                                            Delete
-                                          </Button>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                              initializeEditLoan(currentLoan)
-                                            }
-                                            className="flex items-center gap-1"
-                                          >
-                                            <Edit className="h-4 w-4" /> Edit
-                                            Loan
-                                          </Button>
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  asChild
+                                                >
+                                                  <a
+                                                    href={currentLoan.documentUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center gap-1"
+                                                  >
+                                                    <Eye className="h-4 w-4" />
+                                                    {currentLoan.documentUrl
+                                                      .toLowerCase()
+                                                      .endsWith(".pdf, .doc, .docx, .jpg, .png, .jpeg")
+                                                      ? "View Document"
+                                                      : "View"}
+                                                  </a>
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p>View loan agreement</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  asChild
+                                                >
+                                                  <a
+                                                    href={currentLoan.documentUrl}
+                                                    download
+                                                    className="flex items-center gap-1"
+                                                  >
+                                                    <Download className="h-4 w-4" />{" "}
+                                                    Download
+                                                  </a>
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p>Download loan agreement</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() => {
+                                                    setSelectedLoan(currentLoan);
+                                                    openDocumentUpload(
+                                                      "loanAgreement"
+                                                    );
+                                                  }}
+                                                  className="flex items-center gap-1"
+                                                >
+                                                  <Pencil className="h-4 w-4" />{" "}
+                                                  Modify
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p>Update loan agreement document</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() =>
+                                                    handleDeleteLoanDocument(
+                                                      currentLoan
+                                                    )
+                                                  }
+                                                  className="flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                                                >
+                                                  <Trash2 className="h-4 w-4" />{" "}
+                                                  Delete
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p>Delete loan agreement document</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() =>
+                                                    initializeEditLoan(currentLoan)
+                                                  }
+                                                  className="flex items-center gap-1"
+                                                >
+                                                  <Edit className="h-4 w-4" /> Edit
+                                                  Loan
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p>Edit loan details</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
                                         </div>
                                       ) : (
                                         <div className="flex flex-wrap gap-2">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => {
-                                              setSelectedLoan(currentLoan);
-                                              openDocumentUpload(
-                                                "loanAgreement"
-                                              );
-                                            }}
-                                            className="flex items-center gap-1"
-                                          >
-                                            <Upload className="h-4 w-4" />{" "}
-                                            Upload
-                                          </Button>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                              initializeEditLoan(currentLoan)
-                                            }
-                                            className="flex items-center gap-1"
-                                          >
-                                            <Edit className="h-4 w-4" /> Edit
-                                            Loan
-                                          </Button>
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() => {
+                                                    setSelectedLoan(currentLoan);
+                                                    openDocumentUpload(
+                                                      "loanAgreement"
+                                                    );
+                                                  }}
+                                                  className="flex items-center gap-1"
+                                                >
+                                                  <Upload className="h-4 w-4" />{" "}
+                                                  Upload
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p>Upload loan agreement document</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() =>
+                                                    initializeEditLoan(currentLoan)
+                                                  }
+                                                  className="flex items-center gap-1"
+                                                >
+                                                  <Edit className="h-4 w-4" /> Edit
+                                                  Loan
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p>Edit loan details</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
                                         </div>
                                       )}
                                     </td>
