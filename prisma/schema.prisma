@@ -49,7 +49,7 @@ model Customer {
   customerName       String
   spouseName         String?
   parentName         String?
-  mobile             String
+  mobile             String?
   dob                DateTime?
   aadhar             String?
   gender             String?
