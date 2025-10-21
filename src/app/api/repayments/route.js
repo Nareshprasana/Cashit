@@ -208,9 +208,16 @@ export async function POST(req) {
           loan: {
             include: {
               customer: {
-                include: {
-                  area: true
-                }
+                select: {
+                  id: true,
+                  customerCode: true,
+                  customerName: true,
+                  aadhar: true,
+                  areaId: true,
+                  photoUrl: true,
+                  // intentionally omit `mobile` to avoid conversion errors
+                  area: true,
+                },
               },
               repayments: {
                 select: { 
@@ -369,9 +376,16 @@ export async function PUT(req) {
           loan: {
             include: {
               customer: {
-                include: {
-                  area: true
-                }
+                select: {
+                  id: true,
+                  customerCode: true,
+                  customerName: true,
+                  aadhar: true,
+                  areaId: true,
+                  photoUrl: true,
+                  // intentionally omit `mobile` to avoid conversion errors
+                  area: true,
+                },
               },
               repayments: {
                 select: { 
@@ -513,9 +527,16 @@ export async function PATCH(req) {
           loan: {
             include: {
               customer: {
-                include: {
-                  area: true
-                }
+                select: {
+                  id: true,
+                  customerCode: true,
+                  customerName: true,
+                  aadhar: true,
+                  areaId: true,
+                  photoUrl: true,
+                  // intentionally omit `mobile` to avoid conversion errors
+                  area: true,
+                },
               },
               repayments: {
                 select: { 
