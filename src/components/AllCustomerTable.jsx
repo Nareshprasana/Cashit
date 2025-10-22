@@ -985,6 +985,44 @@ export default function AllCustomerTable() {
     };
   }, [refreshCustomerData]);
 
+  // Listen for newly created customers (dispatched from StepThreeSuccess) so we can
+  // show the generated QR directly inside the customer dialog
+  useEffect(() => {
+    const onCustomerCreated = (e) => {
+      try {
+        const { customer, qr } = e?.detail || {};
+        if (!customer) return;
+
+        // Add new customer to the table data if not already present
+        setData((prev) => {
+          const exists = prev.some((c) => c.customerCode === customer.customerCode || c.id === customer.id);
+          if (exists) return prev;
+          return [
+            { ...customer, loanAmount: 0, totalPaid: 0, endDate: null },
+            ...prev,
+          ];
+        });
+
+        // Open dialog and show QR for the newly created customer
+        setSelectedCustomer(customer);
+        if (qr) setQrCodeUrl(qr);
+        setDialogOpen(true);
+      } catch (err) {
+        console.error("Error handling customer:created event", err);
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("customer:created", onCustomerCreated);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("customer:created", onCustomerCreated);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!selectedCustomer?.customerCode) {
       setQrCodeUrl("");
@@ -2438,6 +2476,9 @@ export default function AllCustomerTable() {
                             <TooltipTrigger asChild>
                               <div className="p-2 bg-white border rounded-lg shadow-sm">
                                 <img src={qrCodeUrl} alt="QR" className="h-32 w-32" />
+                                <div className="text-center text-xs text-gray-600 mt-2">
+                                  {selectedCustomer.customerCode || "N/A"}
+                                </div>
                               </div>
                             </TooltipTrigger>
                             <TooltipContent>

@@ -47,6 +47,21 @@ const StepThreeSuccess = ({ setStep, customer }) => {
             );
 
             setQrWithIdUrl(canvas.toDataURL("image/png"));
+            // Dispatch event so other components (like AllCustomerTable) can pick up the QR
+            try {
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(
+                  new CustomEvent("customer:created", {
+                    detail: {
+                      customer,
+                      qr: canvas.toDataURL("image/png"),
+                    },
+                  })
+                );
+              }
+            } catch (err) {
+              console.error("Failed to dispatch customer:created event", err);
+            }
           };
         } catch (err) {
           console.error("Failed to generate QR Code with ID:", err);
