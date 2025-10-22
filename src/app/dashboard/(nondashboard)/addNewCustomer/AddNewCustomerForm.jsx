@@ -93,18 +93,50 @@ const AddNewCustomerForm = () => {
   };
 
   const handleSubmit = async () => {
-    const result = CustomerSchema.safeParse(form);
-    if (!result.success) {
-      setErrors(result.error.errors);
+    // Validate only the non-file fields (files are not compatible with zod schema)
+    const validation = CustomerSchema.omit({
+      photo: true,
+      aadharDocument: true,
+      incomeProof: true,
+      residenceProof: true,
+    }).safeParse(form);
+
+    if (!validation.success) {
+      setErrors(validation.error.errors);
       setStep(1);
       return;
     }
 
     setIsSubmitting(true);
 
+    // Build FormData safely: skip null/undefined, append files (File/Blob) with names, stringify others
     const formData = new FormData();
     Object.entries(form).forEach(([key, value]) => {
-      formData.append(key, value);
+      if (value === null || value === undefined) return;
+
+      // For File/Blob objects, append as binary with filename when available
+      if (typeof File !== "undefined" && value instanceof File) {
+        formData.append(key, value, value.name || "file");
+        return;
+      }
+
+      if (typeof Blob !== "undefined" && value instanceof Blob) {
+        formData.append(key, value);
+        return;
+      }
+
+      // For plain objects (rare) convert to JSON, otherwise append string
+      if (typeof value === "object") {
+        try {
+          formData.append(key, JSON.stringify(value));
+        } catch (err) {
+          // fallback to toString
+          formData.append(key, String(value));
+        }
+        return;
+      }
+
+      formData.append(key, String(value));
     });
 
     try {

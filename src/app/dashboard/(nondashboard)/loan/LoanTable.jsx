@@ -1005,8 +1005,15 @@ const LoanTable = ({
       
       <TableCell>
         <div className="flex items-center gap-2">
-          <FaUser className="h-4 w-4 text-gray-400" />
-          {loan.customer?.name}
+          <div className="h-8 w-8 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+            <img
+              src={loan.customer?.photoUrl || loan.photoUrl || "/Avatars/profile-user.png"}
+              alt={loan.customer?.name || loan.customer?.customerCode || 'avatar'}
+              className="object-cover w-full h-full"
+              onError={(e) => { e.currentTarget.src = '/Avatars/profile-user.png'; }}
+            />
+          </div>
+          <span className="truncate">{loan.customer?.name}</span>
         </div>
       </TableCell>
       
