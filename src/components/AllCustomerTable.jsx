@@ -366,6 +366,20 @@ const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    // Enforce digit-only and length limits for specific fields
+    if (name === "mobile") {
+      const digits = value.replace(/\D/g, "").slice(0, 10);
+      setFormData((prev) => ({ ...prev, [name]: digits }));
+      return;
+    }
+
+    if (name === "aadhar" || name === "guarantorAadhar") {
+      const digits = value.replace(/\D/g, "").slice(0, 12);
+      setFormData((prev) => ({ ...prev, [name]: digits }));
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -445,6 +459,8 @@ const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
             name="mobile"
             value={formData.mobile}
             onChange={handleInputChange}
+            inputMode="numeric"
+            maxLength={10}
           />
         </div>
 
@@ -465,6 +481,8 @@ const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
             name="aadhar"
             value={formData.aadhar}
             onChange={handleInputChange}
+            inputMode="numeric"
+            maxLength={12}
           />
         </div>
 
@@ -550,6 +568,7 @@ const EditCustomerForm = ({ customer, onSave, onCancel, areas }) => {
             name="guarantorAadhar"
             value={formData.guarantorAadhar}
             onChange={handleInputChange}
+            inputMode="numeric"
             maxLength={12}
           />
         </div>

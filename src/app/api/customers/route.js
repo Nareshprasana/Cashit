@@ -323,10 +323,10 @@ export async function POST(req) {
       area: customer.area,
     });
 
-    // Validate required fields
-    if (!customer.customerName || !customer.mobile) {
+    // Validate required fields (mobile is optional)
+    if (!customer.customerName) {
       return NextResponse.json(
-        { success: false, error: "Customer name and mobile are required" },
+        { success: false, error: "Customer name is required" },
         { status: 400 }
       );
     }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CustomerSchema } from "./validation";
+// client-side validation intentionally disabled per user request
 import StepOneForm from "./components/StepOneForm";
 import StepTwoPreview from "./components/StepTwoPreview";
 import StepThreeSuccess from "./components/StepThreeSuccess";
@@ -69,52 +69,21 @@ const AddNewCustomerForm = () => {
   };
 
   const nextStep = () => {
-    const {
-      photo,
-      aadharDocument,
-      incomeProof,
-      residenceProof,
-      ...formData
-    } = form;
-
-    const result = CustomerSchema.omit({
-      photo: true,
-      aadharDocument: true,
-      incomeProof: true,
-      residenceProof: true,
-    }).safeParse(formData);
-
-    if (!result.success) {
-      setErrors(result.error.errors);
-    } else {
-      setErrors([]);
-      setStep(2);
-    }
+    // No client-side validation: allow progression to step 2 regardless of field values
+    setErrors([]);
+    setStep(2);
   };
 
   const handleSubmit = async () => {
-    // Validate only the non-file fields (files are not compatible with zod schema)
-    const validation = CustomerSchema.omit({
-      photo: true,
-      aadharDocument: true,
-      incomeProof: true,
-      residenceProof: true,
-    }).safeParse(form);
-
-    if (!validation.success) {
-      setErrors(validation.error.errors);
-      setStep(1);
-      return;
-    }
-
+    // No client-side validation — build FormData and submit
     setIsSubmitting(true);
 
-    // Build FormData safely: skip null/undefined, append files (File/Blob) with names, stringify others
     const formData = new FormData();
     Object.entries(form).forEach(([key, value]) => {
+      // Skip null/undefined and empty strings so server doesn't receive blank mobile/aadhar etc.
       if (value === null || value === undefined) return;
+      if (typeof value === 'string' && value.trim() === '') return;
 
-      // For File/Blob objects, append as binary with filename when available
       if (typeof File !== "undefined" && value instanceof File) {
         formData.append(key, value, value.name || "file");
         return;
@@ -125,12 +94,10 @@ const AddNewCustomerForm = () => {
         return;
       }
 
-      // For plain objects (rare) convert to JSON, otherwise append string
       if (typeof value === "object") {
         try {
           formData.append(key, JSON.stringify(value));
         } catch (err) {
-          // fallback to toString
           formData.append(key, String(value));
         }
         return;
