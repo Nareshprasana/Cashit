@@ -20,10 +20,7 @@ import {
   ChevronUp,
   User,
   FileText,
-  Save,
   IndianRupee,
-  ChevronLeft,
-  ChevronRight,
   MapPin,
   Plus,
   Trash2,
@@ -63,7 +60,6 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-  PaginationEllipsis,
 } from "@/components/ui/pagination";
 import {
   DropdownMenu,

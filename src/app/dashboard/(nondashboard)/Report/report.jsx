@@ -27,12 +27,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -48,18 +42,15 @@ import QRCode from "qrcode";
 import {
   Search,
   Filter,
-  Download,
   Copy,
   User,
   CreditCard,
   Calendar,
   Phone,
   FileText,
-  IndianRupee,
   QrCode,
   Eye,
   X,
-  RefreshCw,
   FileDown,
   MapPin,
   IdCard,
@@ -68,8 +59,6 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 
 export default function ReportPage() {

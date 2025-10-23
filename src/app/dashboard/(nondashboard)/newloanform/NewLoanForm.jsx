@@ -1,5 +1,5 @@
 /* -----------------------------------------------------------------
-   NewLoanForm.jsx with Vercel Blob Upload
+   NewLoanForm.jsx with Vercel Blob Upload and Real-time Updates
 ----------------------------------------------------------------- */
 import React, { useEffect, useState } from "react";
 import { LoanSchema } from "./Validation";
@@ -45,11 +45,7 @@ import { toast } from "sonner";
 
 const SUPPORTED_FILE_TYPES = ["image/png", "image/jpeg", "image/jpg", "application/pdf"];
 
-/* -------------------------------------------------
-   Props:
-   - onCustomerSelect: fn(customerObject)  // optional
-------------------------------------------------- */
-const NewLoanForm = ({ onCustomerSelect }) => {
+const NewLoanForm = ({ onCustomerSelect, onLoanCreated }) => {
   const [areas, setAreas] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [form, setForm] = useState({
@@ -226,16 +222,23 @@ const NewLoanForm = ({ onCustomerSelect }) => {
     }
   };
 
-  /* ---------- UPLOAD FILE TO VERCEL BLOB ---------- */
   const uploadToVercelBlob = async (file) => {
     try {
       if (!file || !file.name || !file.type || !file.size) {
         throw new Error('Invalid file provided');
       }
 
+      // Add random suffix to filename to avoid conflicts
+      const timestamp = Date.now();
+      const randomSuffix = Math.random().toString(36).substring(2, 8);
+      const originalName = file.name;
+      const extension = originalName.split('.').pop();
+      const nameWithoutExtension = originalName.replace(/\.[^/.]+$/, "");
+      const uniqueFilename = `${nameWithoutExtension}_${timestamp}_${randomSuffix}.${extension}`;
+
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('filename', file.name);
+      formData.append('filename', uniqueFilename); // Use unique filename
       formData.append('contentType', file.type);
 
       const response = await fetch('/api/upload', {
@@ -278,7 +281,6 @@ const NewLoanForm = ({ onCustomerSelect }) => {
     }
   };
 
-  /* ---------- SUBMIT WITH VERCEL BLOB UPLOAD ---------- */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -294,7 +296,9 @@ const NewLoanForm = ({ onCustomerSelect }) => {
     }
 
     if (!documentFile) {
-      toast.warning("No document uploaded. Proceed without document?");
+      if (!confirm("No document uploaded. Proceed without document?")) {
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -320,10 +324,25 @@ const NewLoanForm = ({ onCustomerSelect }) => {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json().catch(() => ({}));
+      let responseData = {};
+      try {
+        responseData = await res.json();
+      } catch (parseError) {
+        console.error("Failed to parse response:", parseError);
+        // If JSON parsing fails, create a basic success response
+        if (res.ok) {
+          responseData = { 
+            success: true, 
+            message: "Loan created successfully",
+            timestamp: new Date().toISOString()
+          };
+        }
+      }
 
       if (res.ok) {
         toast.success("Loan successfully submitted! ✅");
+        
+        // Reset form
         setForm({
           area: "",
           customerId: "",
@@ -337,21 +356,38 @@ const NewLoanForm = ({ onCustomerSelect }) => {
         setPreviewUrl(null);
         setCustomers([]);
         setCustomerDetails(null);
-        // Notify other parts of the app that a loan was created so they can refresh
+
+        // Notify parent component about the new loan
+        // Ensure we always have valid data to pass
+        const loanData = responseData && typeof responseData === 'object' && Object.keys(responseData).length > 0 
+          ? responseData 
+          : { 
+              success: true, 
+              message: "Loan created successfully",
+              timestamp: new Date().toISOString(),
+              formData: { ...payload } // Include the submitted form data as fallback
+            };
+
+        if (onLoanCreated) {
+          onLoanCreated(loanData);
+        }
+
+        // Also dispatch event for other components
         try {
-          const createdLoan = data && Object.keys(data).length ? data : null;
           if (typeof window !== "undefined") {
             window.dispatchEvent(
-              new CustomEvent("loan:created", { detail: createdLoan })
+              new CustomEvent("loan:created", { detail: loanData })
             );
           }
         } catch (e) {
           console.error("Failed to dispatch loan:created event", e);
         }
       } else {
-        toast.error(data.error || `Server error: ${res.status}`);
+        const errorMessage = responseData.error || responseData.message || `Server error: ${res.status}`;
+        toast.error(errorMessage);
       }
     } catch (error) {
+      console.error("Submission error:", error);
       toast.error(
         error.message || "Something went wrong while submitting the loan."
       );

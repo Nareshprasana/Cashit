@@ -9,12 +9,10 @@ export async function GET(req) {
 
     const repayments = await prisma.repayment.findMany({
       where: customerId ? { loan: { customerId } } : undefined,
-      orderBy: { createdAt: "desc" },
+      orderBy: { dueDate: "asc" },
       include: {
         loan: {
           include: {
-            // Select customer fields explicitly and omit `mobile` to avoid
-            // Prisma conversion errors if mobile is NULL in the DB.
             customer: {
               select: {
                 id: true,
@@ -23,17 +21,18 @@ export async function GET(req) {
                 aadhar: true,
                 areaId: true,
                 photoUrl: true,
-                // do not select mobile here
                 area: true,
               },
             },
             repayments: {
+              orderBy: { dueDate: "asc" },
               select: { 
                 id: true,
                 amount: true,
                 dueDate: true,
                 repaymentDate: true,
-                paymentMethod: true
+                paymentMethod: true,
+                pendingAmount: true
               },
             },
           },
@@ -41,34 +40,43 @@ export async function GET(req) {
       },
     });
 
-    // Group repayments by loan to calculate consistent pending amounts
+    // Calculate running balances for all loans
     const loansMap = new Map();
     
-    // First pass: calculate total paid per loan and find loan details
+    // First pass: organize repayments by loan and calculate running balances
     repayments.forEach(repayment => {
       const loanId = repayment.loanId;
       if (!loansMap.has(loanId)) {
         loansMap.set(loanId, {
           loan: repayment.loan,
-          totalPaid: 0,
-          repayments: []
+          repayments: [],
+          runningBalance: Number(repayment.loan.loanAmount)
         });
       }
+      
       const loanData = loansMap.get(loanId);
-      loanData.totalPaid += Number(repayment.amount);
-      loanData.repayments.push(repayment);
+      
+      // Calculate running balance for this repayment
+      const runningBalance = loanData.runningBalance;
+      const newBalance = Math.max(0, runningBalance - Number(repayment.amount));
+      
+      loanData.repayments.push({
+        ...repayment,
+        calculatedPendingAmount: runningBalance
+      });
+      
+      loanData.runningBalance = newBalance;
     });
 
-    // Second pass: transform data with consistent pending amounts
+    // Transform data with consistent pending amounts
     const transformedRepayments = repayments.map((repayment) => {
       const loan = repayment.loan;
       const customer = loan.customer;
       const loanData = loansMap.get(repayment.loanId);
       
-      // Calculate consistent pending amount for all repayments of this loan
-      const totalPaid = loanData.totalPaid;
-      const loanAmount = Number(loan.loanAmount);
-      const pendingAmount = Math.max(0, loanAmount - totalPaid);
+      // Find this repayment in the calculated data
+      const calculatedRepayment = loanData.repayments.find(r => r.id === repayment.id);
+      const pendingAmount = calculatedRepayment?.calculatedPendingAmount || 0;
 
       // Calculate status based on payment and dates
       let status = "PENDING";
@@ -91,8 +99,9 @@ export async function GET(req) {
         paymentMethod: repayment.paymentMethod,
         createdAt: repayment.createdAt.toISOString(),
         status: status,
+        pendingAmount: pendingAmount,
 
-        // Customer data (mobile intentionally omitted from DB selection; coalesce below if present)
+        // Customer data
         customer: {
           id: customer.id,
           customerCode: customer.customerCode,
@@ -100,7 +109,7 @@ export async function GET(req) {
           aadhar: customer.aadhar,
           areaId: customer.areaId,
           area: customer.area,
-          mobile: (customer && typeof customer.mobile !== 'undefined' && customer.mobile) ? customer.mobile : "Not Provided",
+          mobile: customer.mobile || "Not Provided",
           photoUrl: customer.photoUrl
         },
 
@@ -109,7 +118,7 @@ export async function GET(req) {
           id: loan.id,
           amount: loan.amount,
           loanAmount: loan.loanAmount,
-          pendingAmount: pendingAmount, // Consistent for all repayments of this loan
+          pendingAmount: loanData.runningBalance, // Final running balance
           interestAmount: loan.interestAmount,
           status: loan.status
         },
@@ -119,7 +128,6 @@ export async function GET(req) {
         customerName: customer.customerName,
         aadhar: customer.aadhar,
         loanAmount: loan.loanAmount,
-        pendingAmount: pendingAmount // Consistent for all repayments of this loan
       };
     });
 
@@ -167,7 +175,13 @@ export async function POST(req) {
       where: { id: loanId },
       include: {
         repayments: {
-          select: { amount: true },
+          orderBy: { dueDate: "asc" },
+          select: { 
+            id: true, 
+            amount: true, 
+            dueDate: true,
+            pendingAmount: true
+          },
         },
       },
     });
@@ -177,30 +191,47 @@ export async function POST(req) {
     }
 
     const repaymentAmount = parseFloat(amount);
-    const totalPaid = loan.repayments.reduce(
-      (sum, r) => sum + Number(r.amount),
-      0
-    );
+    
+    // Calculate running balance for all repayments including the new one
+    let runningBalance = Number(loan.loanAmount);
+    const updatedRepayments = [];
 
-    // Calculate new pending amount
-    const newPending = Math.max(
-      0,
-      Number(loan.loanAmount) - (totalPaid + repaymentAmount)
-    );
+    // Add existing repayments
+    for (const repayment of loan.repayments) {
+      runningBalance -= Number(repayment.amount);
+      updatedRepayments.push({
+        id: repayment.id,
+        pendingAmount: Math.max(0, runningBalance)
+      });
+    }
+
+    // Add new repayment
+    runningBalance -= repaymentAmount;
+    const newPendingAmount = Math.max(0, runningBalance);
 
     const result = await prisma.$transaction(async (tx) => {
+      // Update all existing repayments with new pending amounts
+      await Promise.all(
+        updatedRepayments.map(repayment => 
+          tx.repayment.update({
+            where: { id: repayment.id },
+            data: { pendingAmount: repayment.pendingAmount }
+          })
+        )
+      );
+
       // Update loan pending amount
       const updatedLoan = await tx.loan.update({
         where: { id: loanId },
-        data: { pendingAmount: newPending },
+        data: { pendingAmount: newPendingAmount },
       });
 
-      // Create repayment
+      // Create new repayment
       const repayment = await tx.repayment.create({
         data: {
           loanId,
           amount: repaymentAmount,
-          pendingAmount: newPending,
+          pendingAmount: newPendingAmount,
           dueDate: new Date(dueDate),
           paymentMethod: pm,
         },
@@ -215,16 +246,17 @@ export async function POST(req) {
                   aadhar: true,
                   areaId: true,
                   photoUrl: true,
-                  // intentionally omit `mobile` to avoid conversion errors
                   area: true,
                 },
               },
               repayments: {
+                orderBy: { dueDate: "asc" },
                 select: { 
                   id: true,
                   amount: true,
                   dueDate: true,
-                  repaymentDate: true
+                  repaymentDate: true,
+                  pendingAmount: true
                 },
               },
             },
@@ -235,17 +267,10 @@ export async function POST(req) {
       return { repayment, updatedLoan };
     });
 
-    // Transform the response to match GET structure
+    // Transform the response
     const repayment = result.repayment;
     const loanData = repayment.loan;
     const customer = loanData.customer;
-    
-    // Calculate the actual total paid for this loan (including the new repayment)
-    const actualTotalPaid = loanData.repayments.reduce(
-      (sum, r) => sum + Number(r.amount),
-      0
-    );
-    const actualPendingAmount = Math.max(0, Number(loanData.loanAmount) - actualTotalPaid);
     
     let status = "PENDING";
     const today = new Date();
@@ -266,6 +291,7 @@ export async function POST(req) {
       paymentMethod: repayment.paymentMethod,
       createdAt: repayment.createdAt.toISOString(),
       status: status,
+      pendingAmount: repayment.pendingAmount,
       customer: {
         id: customer.id,
         customerCode: customer.customerCode,
@@ -273,14 +299,14 @@ export async function POST(req) {
         aadhar: customer.aadhar,
         areaId: customer.areaId,
         area: customer.area,
-        mobile: (customer && typeof customer.mobile !== 'undefined' && customer.mobile) ? customer.mobile : "Not Provided",
+        mobile: customer.mobile || "Not Provided",
         photoUrl: customer.photoUrl
       },
       loan: {
         id: loanData.id,
         amount: loanData.amount,
         loanAmount: loanData.loanAmount,
-        pendingAmount: actualPendingAmount, // Use calculated pending amount
+        pendingAmount: repayment.pendingAmount,
         interestAmount: loanData.interestAmount,
         status: loanData.status
       },
@@ -288,7 +314,6 @@ export async function POST(req) {
       customerName: customer.customerName,
       aadhar: customer.aadhar,
       loanAmount: loanData.loanAmount,
-      pendingAmount: actualPendingAmount // Use calculated pending amount
     };
 
     return NextResponse.json(response, { status: 201 });
@@ -342,16 +367,23 @@ export async function PUT(req) {
 
     const repaymentId = parseInt(id);
 
-    // Check if repayment exists
+    // Check if repayment exists and get loan data
     const existingRepayment = await prisma.repayment.findUnique({
       where: { id: repaymentId },
       include: {
         loan: {
           include: {
-            repayments: true
-          }
-        }
-      }
+            repayments: {
+              orderBy: { dueDate: "asc" },
+              select: { 
+                id: true,
+                amount: true,
+                dueDate: true
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!existingRepayment) {
@@ -361,8 +393,50 @@ export async function PUT(req) {
       );
     }
 
+    const loan = existingRepayment.loan;
+    const loanAmount = Number(loan.loanAmount);
+    
+    // Recalculate running balance for ALL repayments
+    let runningBalance = loanAmount;
+    const updatedRepayments = [];
+
+    for (let repayment of loan.repayments) {
+      if (repayment.id === repaymentId) {
+        // Use the updated amount for this repayment
+        runningBalance -= Number(amount);
+      } else {
+        // Use the existing amount for other repayments
+        runningBalance -= Number(repayment.amount);
+      }
+      
+      updatedRepayments.push({
+        id: repayment.id,
+        pendingAmount: Math.max(0, runningBalance)
+      });
+    }
+
+    const loanPendingAmount = updatedRepayments.length > 0 
+      ? updatedRepayments[updatedRepayments.length - 1].pendingAmount 
+      : loanAmount;
+
     const result = await prisma.$transaction(async (tx) => {
-      // Update the repayment
+      // Update ALL repayments with their new pending amounts
+      await Promise.all(
+        updatedRepayments.map(repayment => 
+          tx.repayment.update({
+            where: { id: repayment.id },
+            data: { pendingAmount: repayment.pendingAmount }
+          })
+        )
+      );
+
+      // Update loan pending amount
+      await tx.loan.update({
+        where: { id: existingRepayment.loanId },
+        data: { pendingAmount: loanPendingAmount }
+      });
+
+      // Update the main repayment
       const updatedRepayment = await tx.repayment.update({
         where: { id: repaymentId },
         data: {
@@ -371,6 +445,7 @@ export async function PUT(req) {
           status: status.toUpperCase(),
           notes: notes || null,
           paymentMethod: paymentMethod ? paymentMethod.toUpperCase() : existingRepayment.paymentMethod,
+          pendingAmount: updatedRepayments.find(r => r.id === repaymentId)?.pendingAmount || 0,
         },
         include: {
           loan: {
@@ -383,16 +458,17 @@ export async function PUT(req) {
                   aadhar: true,
                   areaId: true,
                   photoUrl: true,
-                  // intentionally omit `mobile` to avoid conversion errors
                   area: true,
                 },
               },
               repayments: {
+                orderBy: { dueDate: "asc" },
                 select: { 
                   id: true,
                   amount: true,
                   dueDate: true,
-                  repaymentDate: true
+                  repaymentDate: true,
+                  pendingAmount: true
                 },
               },
             },
@@ -400,23 +476,7 @@ export async function PUT(req) {
         },
       });
 
-      // Recalculate loan pending amount
-      const loanRepayments = await tx.repayment.findMany({
-        where: { loanId: existingRepayment.loanId },
-        select: { amount: true }
-      });
-
-      const totalPaid = loanRepayments.reduce((sum, r) => sum + Number(r.amount), 0);
-      const loanAmount = Number(existingRepayment.loan.loanAmount);
-      const pendingAmount = Math.max(0, loanAmount - totalPaid);
-
-      // Update loan pending amount
-      await tx.loan.update({
-        where: { id: existingRepayment.loanId },
-        data: { pendingAmount }
-      });
-
-      return { updatedRepayment, pendingAmount };
+      return { updatedRepayment, pendingAmount: loanPendingAmount };
     });
 
     // Transform response
@@ -434,6 +494,7 @@ export async function PUT(req) {
       createdAt: repayment.createdAt.toISOString(),
       status: repayment.status,
       notes: repayment.notes,
+      pendingAmount: repayment.pendingAmount,
       customer: {
         id: customer.id,
         customerCode: customer.customerCode,
@@ -441,7 +502,7 @@ export async function PUT(req) {
         aadhar: customer.aadhar,
         areaId: customer.areaId,
         area: customer.area,
-        mobile: (customer && typeof customer.mobile !== 'undefined' && customer.mobile) ? customer.mobile : "Not Provided",
+        mobile: customer.mobile || "Not Provided",
         photoUrl: customer.photoUrl
       },
       loan: {
@@ -456,7 +517,6 @@ export async function PUT(req) {
       customerName: customer.customerName,
       aadhar: customer.aadhar,
       loanAmount: loanData.loanAmount,
-      pendingAmount: result.pendingAmount
     };
 
     return NextResponse.json(response);
@@ -497,16 +557,23 @@ export async function PATCH(req) {
 
     const repaymentId = parseInt(id);
 
-    // Check if repayment exists
+    // Check if repayment exists and get loan data
     const existingRepayment = await prisma.repayment.findUnique({
       where: { id: repaymentId },
       include: {
         loan: {
           include: {
-            repayments: true
-          }
-        }
-      }
+            repayments: {
+              orderBy: { dueDate: "asc" },
+              select: { 
+                id: true,
+                amount: true,
+                dueDate: true
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!existingRepayment) {
@@ -516,12 +583,55 @@ export async function PATCH(req) {
       );
     }
 
+    const loan = existingRepayment.loan;
+    const loanAmount = Number(loan.loanAmount);
+    
+    // Recalculate running balance for ALL repayments
+    let runningBalance = loanAmount;
+    const updatedRepayments = [];
+
+    for (let repayment of loan.repayments) {
+      if (repayment.id === repaymentId) {
+        // Use the updated amount for this repayment
+        runningBalance -= Number(amount);
+      } else {
+        // Use the existing amount for other repayments
+        runningBalance -= Number(repayment.amount);
+      }
+      
+      updatedRepayments.push({
+        id: repayment.id,
+        pendingAmount: Math.max(0, runningBalance)
+      });
+    }
+
+    const loanPendingAmount = updatedRepayments.length > 0 
+      ? updatedRepayments[updatedRepayments.length - 1].pendingAmount 
+      : loanAmount;
+
     const result = await prisma.$transaction(async (tx) => {
+      // Update ALL repayments with their new pending amounts
+      await Promise.all(
+        updatedRepayments.map(repayment => 
+          tx.repayment.update({
+            where: { id: repayment.id },
+            data: { pendingAmount: repayment.pendingAmount }
+          })
+        )
+      );
+
+      // Update loan pending amount
+      await tx.loan.update({
+        where: { id: existingRepayment.loanId },
+        data: { pendingAmount: loanPendingAmount }
+      });
+
       // Update the repayment amount
       const updatedRepayment = await tx.repayment.update({
         where: { id: repaymentId },
         data: {
           amount: parseFloat(amount),
+          pendingAmount: updatedRepayments.find(r => r.id === repaymentId)?.pendingAmount || 0,
         },
         include: {
           loan: {
@@ -534,16 +644,17 @@ export async function PATCH(req) {
                   aadhar: true,
                   areaId: true,
                   photoUrl: true,
-                  // intentionally omit `mobile` to avoid conversion errors
                   area: true,
                 },
               },
               repayments: {
+                orderBy: { dueDate: "asc" },
                 select: { 
                   id: true,
                   amount: true,
                   dueDate: true,
-                  repaymentDate: true
+                  repaymentDate: true,
+                  pendingAmount: true
                 },
               },
             },
@@ -551,23 +662,7 @@ export async function PATCH(req) {
         },
       });
 
-      // Recalculate loan pending amount
-      const loanRepayments = await tx.repayment.findMany({
-        where: { loanId: existingRepayment.loanId },
-        select: { amount: true }
-      });
-
-      const totalPaid = loanRepayments.reduce((sum, r) => sum + Number(r.amount), 0);
-      const loanAmount = Number(existingRepayment.loan.loanAmount);
-      const pendingAmount = Math.max(0, loanAmount - totalPaid);
-
-      // Update loan pending amount
-      await tx.loan.update({
-        where: { id: existingRepayment.loanId },
-        data: { pendingAmount }
-      });
-
-      return { updatedRepayment, pendingAmount };
+      return { updatedRepayment, pendingAmount: loanPendingAmount };
     });
 
     // Transform response
@@ -584,6 +679,7 @@ export async function PATCH(req) {
       paymentMethod: repayment.paymentMethod,
       createdAt: repayment.createdAt.toISOString(),
       status: repayment.status,
+      pendingAmount: repayment.pendingAmount,
       customer: {
         id: customer.id,
         customerCode: customer.customerCode,
@@ -591,7 +687,7 @@ export async function PATCH(req) {
         aadhar: customer.aadhar,
         areaId: customer.areaId,
         area: customer.area,
-        mobile: (customer && typeof customer.mobile !== 'undefined' && customer.mobile) ? customer.mobile : "Not Provided",
+        mobile: customer.mobile || "Not Provided",
         photoUrl: customer.photoUrl
       },
       loan: {
@@ -606,7 +702,6 @@ export async function PATCH(req) {
       customerName: customer.customerName,
       aadhar: customer.aadhar,
       loanAmount: loanData.loanAmount,
-      pendingAmount: result.pendingAmount
     };
 
     return NextResponse.json(response);
@@ -637,16 +732,23 @@ export async function DELETE(req) {
 
     const repaymentId = parseInt(id);
 
-    // Check if repayment exists
+    // Check if repayment exists and get loan data
     const existingRepayment = await prisma.repayment.findUnique({
       where: { id: repaymentId },
       include: {
         loan: {
           include: {
-            repayments: true
-          }
-        }
-      }
+            repayments: {
+              orderBy: { dueDate: "asc" },
+              select: { 
+                id: true,
+                amount: true,
+                dueDate: true
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!existingRepayment) {
@@ -656,26 +758,50 @@ export async function DELETE(req) {
       );
     }
 
+    const loan = existingRepayment.loan;
+    const loanAmount = Number(loan.loanAmount);
+    
+    // Recalculate running balance for REMAINING repayments
+    let runningBalance = loanAmount;
+    const updatedRepayments = [];
+
+    for (let repayment of loan.repayments) {
+      if (repayment.id === repaymentId) {
+        // Skip the deleted repayment
+        continue;
+      }
+      
+      runningBalance -= Number(repayment.amount);
+      updatedRepayments.push({
+        id: repayment.id,
+        pendingAmount: Math.max(0, runningBalance)
+      });
+    }
+
+    const loanPendingAmount = updatedRepayments.length > 0 
+      ? updatedRepayments[updatedRepayments.length - 1].pendingAmount 
+      : loanAmount;
+
     await prisma.$transaction(async (tx) => {
       // Delete the repayment
       await tx.repayment.delete({
         where: { id: repaymentId }
       });
 
-      // Recalculate loan pending amount
-      const remainingRepayments = await tx.repayment.findMany({
-        where: { loanId: existingRepayment.loanId },
-        select: { amount: true }
-      });
-
-      const totalPaid = remainingRepayments.reduce((sum, r) => sum + Number(r.amount), 0);
-      const loanAmount = Number(existingRepayment.loan.loanAmount);
-      const pendingAmount = Math.max(0, loanAmount - totalPaid);
+      // Update remaining repayments with new pending amounts
+      await Promise.all(
+        updatedRepayments.map(repayment => 
+          tx.repayment.update({
+            where: { id: repayment.id },
+            data: { pendingAmount: repayment.pendingAmount }
+          })
+        )
+      );
 
       // Update loan pending amount
       await tx.loan.update({
         where: { id: existingRepayment.loanId },
-        data: { pendingAmount }
+        data: { pendingAmount: loanPendingAmount }
       });
     });
 

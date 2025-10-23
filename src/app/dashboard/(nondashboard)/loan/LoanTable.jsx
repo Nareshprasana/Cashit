@@ -576,9 +576,9 @@ const LoanTable = ({
         
         // Update parent component state
         if (editingLoan && onLoanUpdate) {
-          onLoanUpdate(result.loan);
+          onLoanUpdate(result.loan || result);
         } else if (!editingLoan && onLoanCreate) {
-          onLoanCreate(result.loan);
+          onLoanCreate(result.loan || result);
         }
         
         setShowEditDialog(false);

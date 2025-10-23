@@ -7,7 +7,6 @@ import {
   Filter,
   Download,
   Plus,
-  Eye,
   Pencil,
   Trash2,
   X,

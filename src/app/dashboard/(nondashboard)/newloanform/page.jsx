@@ -5,47 +5,105 @@
 
 import React, { useEffect, useState } from "react";
 import NewLoanForm from "./NewLoanForm";
-import LoanTable from "../loan/LoanTable";   // adjust if needed
-import { AllCustomerTable } from "@/components/AllCustomerTable.jsx";
+import LoanTable from "../loan/LoanTable";
 
 export default function NewloanPage() {
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  /* ---- selected customer (store the whole object) ---- */
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
-  /* ---- fetch all loans (unchanged) ---- */
-  useEffect(() => {
-    const fetchLoans = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch("/api/loans");
-        if (res.ok) setLoans(await res.json());
-        else console.error("Failed to fetch loans");
-      } catch (e) {
-        console.error("Error fetching loans:", e);
-      } finally {
-        setLoading(false);
+  // Fetch all loans
+  const fetchLoans = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/loans");
+      if (res.ok) {
+        const loansData = await res.json();
+        setLoans(Array.isArray(loansData) ? loansData : []);
+      } else {
+        console.error("Failed to fetch loans");
+        setLoans([]);
       }
-    };
+    } catch (e) {
+      console.error("Error fetching loans:", e);
+      setLoans([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial fetch
+  useEffect(() => {
     fetchLoans();
   }, []);
 
+  // Handle new loan creation
+  const handleLoanCreated = (newLoan) => {
+    if (!newLoan || !newLoan.id) {
+      console.error("Invalid loan data received:", newLoan);
+      return;
+    }
+
+    // Add the new loan to the existing loans array
+    setLoans(prevLoans => {
+      // Check if loan already exists to avoid duplicates
+      const exists = prevLoans.some(loan => loan.id === newLoan.id);
+      if (exists) {
+        return prevLoans.map(loan => loan.id === newLoan.id ? newLoan : loan);
+      }
+      return [newLoan, ...prevLoans];
+    });
+    
+    toast.success("New loan added to the table!");
+  };
+
+  // Handle loan updates
+  const handleLoanUpdate = (updatedLoan) => {
+    if (!updatedLoan || !updatedLoan.id) {
+      console.error("Invalid loan data for update:", updatedLoan);
+      return;
+    }
+
+    setLoans(prevLoans => 
+      prevLoans.map(loan => 
+        loan.id === updatedLoan.id ? { ...loan, ...updatedLoan } : loan
+      )
+    );
+    
+    toast.success("Loan updated successfully!");
+  };
+
+  // Handle loan deletion
+  const handleLoanDelete = (deletedLoanId) => {
+    setLoans(prevLoans => 
+      prevLoans.filter(loan => loan.id !== deletedLoanId)
+    );
+    
+    toast.success("Loan deleted successfully!");
+  };
+
+  // Handle loan creation from LoanTable
+  const handleLoanCreate = (newLoan) => {
+    handleLoanCreated(newLoan);
+  };
+
   return (
     <div className="p-6 space-y-8">
-      {/* New‑loan form tells us which customer was chosen */}
-      <NewLoanForm onCustomerSelect={setSelectedCustomer} />
+      {/* Pass the callback to NewLoanForm */}
+      <NewLoanForm 
+        onCustomerSelect={setSelectedCustomer}
+        onLoanCreated={handleLoanCreated}
+      />
 
-      {/* Pass **customerCode** (or the fallback `code`) to the table */}
-      {/* <AllCustomerTable 
+      {/* Pass the state management functions to LoanTable */}
+      <LoanTable 
         loans={loans}
         loading={loading}
-        selectedCustomerCode={
-          selectedCustomer?.customerCode || selectedCustomer?.code
-        }
-      /> */}
-      <LoanTable loans={loans} loading={loading} selectedCustomerCode={selectedCustomer?.customerCode || selectedCustomer?.code} />
+        selectedCustomerCode={selectedCustomer?.customerCode || selectedCustomer?.code}
+        onLoanUpdate={handleLoanUpdate}
+        onLoanDelete={handleLoanDelete}
+        onLoanCreate={handleLoanCreate}
+      />
     </div>
   );
 }
