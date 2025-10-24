@@ -317,7 +317,7 @@ export default function RepaymentForm({ customerId, onRepaymentSaved }) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 space-y-6">
+    <div className="max-w-4xl mx-auto  space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="h-8 w-1 bg-blue-600 rounded-full"></div>

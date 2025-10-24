@@ -17,6 +17,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar, // ← Add this
 } from "@/components/ui/sidebar";
 import { FaCoins } from "react-icons/fa";
 import { LuWallet } from "react-icons/lu";
@@ -26,9 +27,10 @@ import NavLinks from "./nav-links";
 
 export function AppSidebar({ ...props }) {
   const { data: session } = useSession();
-  const role = session?.user?.role || ""; // fetch role from session
-  const [isOpen, setIsOpen] = React.useState(true);
-  const [isMobile, setIsMobile] = React.useState(false);
+  const role = session?.user?.role || "";
+  
+  // Use the sidebar context
+  const { setOpen, open, isMobile } = useSidebar();
 
   const user = {
     name: session?.user?.name || "Loading...",
@@ -36,23 +38,7 @@ export function AppSidebar({ ...props }) {
     avatar: session?.user?.image || "/avatars/profile-user.png",
   };
 
-  // Check if mobile on mount and resize
-  React.useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768); // 768px is typical md breakpoint
-    };
-
-    // Check initially
-    checkMobile();
-
-    // Add event listener for resize
-    window.addEventListener('resize', checkMobile);
-
-    // Cleanup
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // Define all links
+  // Define all links (same as before)
   const navlinks = [
     {
       title: null,
@@ -73,7 +59,6 @@ export function AppSidebar({ ...props }) {
           icon: FiUsers,
           roles: ["ADMIN"],
         },
-       
         {
           name: "Add Loan",
           url: "/dashboard/newloanform",
@@ -124,7 +109,6 @@ export function AppSidebar({ ...props }) {
     },
   ];
 
-  // Filter links by user role
   const filteredNavLinks = navlinks.map((section) => ({
     ...section,
     links: section.links.filter(
@@ -132,10 +116,10 @@ export function AppSidebar({ ...props }) {
     ),
   }));
 
-  // Function to handle link click - close sidebar only on mobile
+  // Close sidebar on link click (mobile only)
   const handleLinkClick = () => {
     if (isMobile) {
-      setIsOpen(false);
+      setOpen(false);
     }
   };
 

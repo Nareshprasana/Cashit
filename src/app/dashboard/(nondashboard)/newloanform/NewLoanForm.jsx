@@ -329,13 +329,18 @@ const NewLoanForm = ({ onCustomerSelect, onLoanCreated }) => {
         responseData = await res.json();
       } catch (parseError) {
         console.error("Failed to parse response:", parseError);
-        // If JSON parsing fails, create a basic success response
+        // If JSON parsing fails but response is OK, create a basic success response
         if (res.ok) {
           responseData = { 
             success: true, 
             message: "Loan created successfully",
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            id: `loan_${Date.now()}`, // Add a temporary ID
+            ...payload // Include the submitted form data
           };
+        } else {
+          // If response is not OK and JSON parsing fails, throw error
+          throw new Error(`Server returned ${res.status} ${res.statusText}`);
         }
       }
 
@@ -365,16 +370,20 @@ const NewLoanForm = ({ onCustomerSelect, onLoanCreated }) => {
               success: true, 
               message: "Loan created successfully",
               timestamp: new Date().toISOString(),
-              formData: { ...payload } // Include the submitted form data as fallback
+              id: `loan_${Date.now()}`,
+              ...payload
             };
 
-        if (onLoanCreated) {
+        // Validate that we have at least an ID before calling onLoanCreated
+        if (onLoanCreated && loanData.id) {
           onLoanCreated(loanData);
+        } else if (onLoanCreated) {
+          console.warn("Loan created but no ID provided, skipping onLoanCreated callback");
         }
 
         // Also dispatch event for other components
         try {
-          if (typeof window !== "undefined") {
+          if (typeof window !== "undefined" && loanData.id) {
             window.dispatchEvent(
               new CustomEvent("loan:created", { detail: loanData })
             );

@@ -282,8 +282,18 @@ export default function ReportPage() {
   const handleDownloadStatement = () => {
     if (!selectedCustomer) return;
 
+    // Combine both current and previous repayments for the statement
+    const allFilteredRepayments = [...filteredCurrentRepayments, ...filteredPreviousRepayments];
+    
+    // Sort by date (most recent first)
+    const sortedRepayments = allFilteredRepayments.sort((a, b) => {
+      const dateA = a.date ? new Date(a.date) : new Date(0);
+      const dateB = b.date ? new Date(b.date) : new Date(0);
+      return dateB - dateA;
+    });
+
     const headers = ["Date", "Amount", "Note"];
-    const rows = filteredRepayments.map((r) => [
+    const rows = sortedRepayments.map((r) => [
       r.date ? new Date(r.date).toISOString().split("T")[0] : "",
       typeof r.amount === "number" ? r.amount : Number(r.amount || 0),
       r.note || "",

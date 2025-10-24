@@ -30,7 +30,7 @@ const RepaymentFormPage = () => {
 
   return (
     <SidebarProvider>
-      <div className="p-6">
+      <div>
         <div>
           {/* 3. Pass the update function to the form */}
           <RepaymentForm

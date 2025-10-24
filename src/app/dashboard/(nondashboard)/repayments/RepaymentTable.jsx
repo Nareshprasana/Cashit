@@ -1114,55 +1114,140 @@ function CustomPagination({
   );
 }
 
-/* ================= Simple Table Component ================= */
+/* ================= Simple Table Component with Horizontal Scrolling ================= */
 function SimpleTable({ columns, data }) {
-  return (
-    <div className="rounded-md border min-w-[1200px] w-full">
-      <table className="w-full text-sm table-fixed">
-        <thead className="bg-gray-50">
-          <tr>
-            {columns.map((column) => (
-              <th
-                key={column.accessorKey || column.id}
-                className="h-12 px-4 text-left align-middle font-medium text-gray-500"
-                style={{ width: column.width || "auto" }}
-              >
-                {typeof column.header === "function" ? column.header() : column.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {data.length > 0 ? (
-            data.map((row, index) => (
-              <tr key={row.id || index} className="hover:bg-gray-50">
+  // Calculate total width for the table container
+  const totalWidth = columns.reduce((sum, col) => sum + (parseInt(col.width) || 150), 0);
+
+  // Desktop/table view (md and up) with horizontal scrolling
+  const TableView = (
+    <div className="hidden md:block rounded-md border w-full">
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: `${totalWidth}px` }}>
+          <table className="w-full text-sm table-fixed">
+            <thead className="bg-gray-50">
+              <tr>
                 {columns.map((column) => (
-                  <td
+                  <th
                     key={column.accessorKey || column.id}
-                    className="p-4 align-middle"
-                    style={{ width: column.width || "auto" }}
+                    className="h-12 px-4 text-left align-middle font-medium text-gray-500 sticky top-0 bg-gray-50 z-10"
+                    style={{ 
+                      width: column.width || "150px",
+                      minWidth: column.width || "150px",
+                      maxWidth: column.width || "150px"
+                    }}
                   >
-                    {column.cell
-                      ? column.cell({ row: { original: row } })
-                      : row[column.accessorKey]}
-                  </td>
+                    {typeof column.header === "function" ? column.header() : column.header}
+                  </th>
                 ))}
               </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan={columns.length} className="p-12 text-center text-gray-500">
-                <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-1">
-                  No repayments found
-                </h3>
-                <p>Try adjusting your search or filters to find what you're looking for.</p>
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            </thead>
+            <tbody className="divide-y">
+              {data.length > 0 ? (
+                data.map((row, index) => (
+                  <tr key={row.id || index} className="hover:bg-gray-50">
+                    {columns.map((column) => (
+                      <td
+                        key={column.accessorKey || column.id}
+                        className="p-4 align-middle overflow-hidden"
+                        style={{ 
+                          width: column.width || "150px",
+                          minWidth: column.width || "150px",
+                          maxWidth: column.width || "150px"
+                        }}
+                      >
+                        {column.cell
+                          ? column.cell({ row: { original: row } })
+                          : row[column.accessorKey]}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={columns.length} className="p-12 text-center text-gray-500">
+                    <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-1">
+                      No repayments found
+                    </h3>
+                    <p>Try adjusting your search or filters to find what you're looking for.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
+  );
+
+  // Mobile view with horizontal scrolling (below md)
+  const MobileView = (
+    <div className="md:hidden rounded-md border w-full">
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: `${totalWidth}px` }}>
+          <table className="w-full text-sm table-fixed">
+            <thead className="bg-gray-50">
+              <tr>
+                {columns.map((column) => (
+                  <th
+                    key={column.accessorKey || column.id}
+                    className="h-10 px-3 text-left align-middle font-medium text-gray-500 text-xs sticky top-0 bg-gray-50 z-10"
+                    style={{ 
+                      width: column.width || "150px",
+                      minWidth: column.width || "150px",
+                      maxWidth: column.width || "150px"
+                    }}
+                  >
+                    {typeof column.header === "function" ? column.header() : column.header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {data.length > 0 ? (
+                data.map((row, index) => (
+                  <tr key={row.id || index} className="hover:bg-gray-50">
+                    {columns.map((column) => (
+                      <td
+                        key={column.accessorKey || column.id}
+                        className="p-3 align-middle overflow-hidden text-xs"
+                        style={{ 
+                          width: column.width || "150px",
+                          minWidth: column.width || "150px",
+                          maxWidth: column.width || "150px"
+                        }}
+                      >
+                        {column.cell
+                          ? column.cell({ row: { original: row } })
+                          : row[column.accessorKey]}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={columns.length} className="p-8 text-center text-gray-500">
+                    <FileText className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                    <h3 className="text-base font-medium text-gray-900 mb-1">
+                      No repayments found
+                    </h3>
+                    <p className="text-sm">Try adjusting your search or filters.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {TableView}
+      {MobileView}
+    </>
   );
 }
 
@@ -1716,7 +1801,7 @@ export default function RepaymentTable({ repayments: propRepayments = [] }) {
   );
 
   return (
-    <div className="space-y-6 p-6 max-w-6xl mx-auto">
+    <div className="space-y-6 max-w-6xl mx-auto pt-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
